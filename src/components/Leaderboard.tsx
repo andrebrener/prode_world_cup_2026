@@ -45,10 +45,10 @@ export default function Leaderboard({ rows }: { rows: LeaderboardRow[] }) {
             <tr className="border-b border-border text-left text-xs uppercase text-muted">
               <th className="px-4 py-3">#</th>
               <th className="px-2 py-3">Jugador</th>
-              <th className="px-2 py-3 text-center" title="Resultados exactos">🎯</th>
-              <th className="px-2 py-3 text-right">Grupos</th>
-              <th className="px-2 py-3 text-right">Llaves</th>
-              <th className="px-2 py-3 text-right">Extras</th>
+              <th className="hidden px-2 py-3 text-center sm:table-cell" title="Resultados exactos">🎯</th>
+              <th className="hidden px-2 py-3 text-right sm:table-cell">Grupos</th>
+              <th className="hidden px-2 py-3 text-right sm:table-cell">Llaves</th>
+              <th className="hidden px-2 py-3 text-right sm:table-cell">Extras</th>
               <th className="px-4 py-3 text-right">Total</th>
             </tr>
           </thead>
@@ -63,11 +63,16 @@ export default function Leaderboard({ rows }: { rows: LeaderboardRow[] }) {
                 <td className="px-2 py-3 font-semibold text-foreground">
                   {row.name}
                   <span className="ml-1 text-xs text-muted">›</span>
+                  {/* Desglose en móvil (las columnas se ocultan en pantallas chicas) */}
+                  <span className="mt-0.5 block text-[11px] font-normal text-muted sm:hidden">
+                    🎯 {row.exactCount} · G {row.matchPoints} · Ll {row.koPoints} · Ex{" "}
+                    {row.extraPoints}
+                  </span>
                 </td>
-                <td className="px-2 py-3 text-center text-muted">{row.exactCount}</td>
-                <td className="px-2 py-3 text-right text-muted">{row.matchPoints}</td>
-                <td className="px-2 py-3 text-right text-muted">{row.koPoints}</td>
-                <td className="px-2 py-3 text-right text-muted">{row.extraPoints}</td>
+                <td className="hidden px-2 py-3 text-center text-muted sm:table-cell">{row.exactCount}</td>
+                <td className="hidden px-2 py-3 text-right text-muted sm:table-cell">{row.matchPoints}</td>
+                <td className="hidden px-2 py-3 text-right text-muted sm:table-cell">{row.koPoints}</td>
+                <td className="hidden px-2 py-3 text-right text-muted sm:table-cell">{row.extraPoints}</td>
                 <td className="px-4 py-3 text-right text-lg font-black text-primary">
                   {row.total}
                 </td>

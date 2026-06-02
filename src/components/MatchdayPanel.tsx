@@ -103,28 +103,30 @@ export default function MatchdayPanel({
                 className="overflow-hidden rounded-2xl border border-border bg-surface"
               >
                 {/* Cabecera del partido */}
-                <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
-                  <span className="rounded-md bg-background px-2 py-0.5 text-xs font-semibold text-muted">
-                    Grupo {m.group}
-                  </span>
-                  <div className="flex flex-1 items-center justify-center gap-3 text-sm font-semibold">
-                    <span className="flex items-center gap-1.5">
-                      {teamFlag(m.homeCode)} {teamName(m.homeCode)}
+                <div className="border-b border-border px-4 py-3">
+                  <div className="mb-2 flex items-center justify-between gap-3 text-xs text-muted">
+                    <span className="rounded-md bg-background px-2 py-0.5 font-semibold">
+                      Grupo {m.group}
+                    </span>
+                    <span className="truncate">{result ? "Final" : m.city}</span>
+                  </div>
+                  <div className="flex items-center justify-center gap-2 text-sm font-semibold sm:gap-3">
+                    <span className="flex flex-1 items-center justify-end gap-1.5 text-right">
+                      {teamFlag(m.homeCode)}{" "}
+                      <span className="truncate">{teamName(m.homeCode)}</span>
                     </span>
                     {result ? (
-                      <span className="rounded-md bg-primary/15 px-2 py-0.5 font-black text-primary">
+                      <span className="shrink-0 rounded-md bg-primary/15 px-2 py-0.5 font-black text-primary">
                         {result.homeGoals} - {result.awayGoals}
                       </span>
                     ) : (
-                      <span className="text-muted">vs</span>
+                      <span className="shrink-0 text-muted">vs</span>
                     )}
-                    <span className="flex items-center gap-1.5">
-                      {teamName(m.awayCode)} {teamFlag(m.awayCode)}
+                    <span className="flex flex-1 items-center gap-1.5">
+                      <span className="truncate">{teamName(m.awayCode)}</span>{" "}
+                      {teamFlag(m.awayCode)}
                     </span>
                   </div>
-                  <span className="text-xs text-muted">
-                    {result ? "Final" : m.city}
-                  </span>
                 </div>
 
                 {/* Pronósticos de los participantes */}

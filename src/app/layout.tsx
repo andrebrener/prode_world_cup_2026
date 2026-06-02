@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Geist } from "next/font/google";
-import Link from "next/link";
+import SiteNav from "@/components/SiteNav";
 import WorldCupMark from "@/components/WorldCupMark";
 import "./globals.css";
 
@@ -32,49 +32,7 @@ export default function RootLayout({
             <span className="sm:hidden">Jun–Jul</span>
           </div>
         </div>
-        <header className="sticky top-0 z-20 border-b border-border bg-background/80 backdrop-blur">
-          <nav className="mx-auto flex max-w-3xl items-center justify-between px-4 py-3">
-            <Link href="/" className="group flex items-center gap-2">
-              <span className="grid h-9 w-9 place-items-center rounded-lg bg-primary font-black text-primary-ink">
-                LF
-              </span>
-              <span className="leading-none">
-                <span className="wordmark block text-lg text-foreground">
-                  LO <span className="text-primary">FORRO</span>
-                </span>
-                <span className="block text-[10px] font-semibold uppercase tracking-widest text-muted">
-                  Prode · Mundial 2026
-                </span>
-              </span>
-            </Link>
-            <div className="flex items-center gap-1 text-sm">
-              <Link
-                href="/"
-                className="rounded-lg px-3 py-1.5 text-muted hover:text-foreground hover:bg-surface"
-              >
-                Tabla
-              </Link>
-              <Link
-                href="/jugar"
-                className="rounded-lg px-3 py-1.5 text-muted hover:text-foreground hover:bg-surface"
-              >
-                Jugar
-              </Link>
-              <Link
-                href="/resultados"
-                className="rounded-lg px-3 py-1.5 text-muted hover:text-foreground hover:bg-surface"
-              >
-                Resultados oficiales
-              </Link>
-              <Link
-                href="/como-funciona"
-                className="rounded-lg px-3 py-1.5 text-muted hover:text-foreground hover:bg-surface"
-              >
-                Cómo funciona
-              </Link>
-            </div>
-          </nav>
-        </header>
+        <SiteNav />
         <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-6">{children}</main>
         <footer className="flex flex-col items-center gap-3 border-t border-border py-8 text-center text-xs text-muted">
           <WorldCupMark size="sm" />
