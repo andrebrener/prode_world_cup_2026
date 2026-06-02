@@ -1,65 +1,184 @@
-import Image from "next/image";
+import Link from "next/link";
+import {
+  getLeaderboard,
+  getResultsMap,
+  getTournamentResult,
+  getPredictionsByMatch,
+  getBracketState,
+} from "@/lib/db/queries";
+import { allGroupStandings } from "@/lib/standings";
+import { GROUPS, teamName, teamFlag } from "@/lib/fixtures";
+import { ROUND_LABEL, type KoRound } from "@/lib/bracket";
+import MatchdayPanel from "@/components/MatchdayPanel";
+import Leaderboard from "@/components/Leaderboard";
 
-export default function Home() {
+export const dynamic = "force-dynamic";
+
+const KO_ROUND_ORDER: KoRound[] = ["R32", "R16", "QF", "SF", "3P", "F"];
+
+export default async function HomeTabla() {
+  const [leaderboard, results, tourney, predictionsByMatch, bracket] = await Promise.all([
+    getLeaderboard(),
+    getResultsMap(),
+    getTournamentResult(),
+    getPredictionsByMatch(),
+    getBracketState(),
+  ]);
+  const standings = allGroupStandings(results);
+  const hasResults = Object.keys(results).length > 0;
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
+    <div className="flex flex-col gap-8">
+      <header className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="wordmark text-4xl">
+            Tabla <span className="text-primary">Lo Forro</span>
           </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+          <p className="mt-1 text-sm text-muted">
+            {leaderboard.length === 0
+              ? "Todavía no hay jugadores. "
+              : `${leaderboard.length} ${leaderboard.length === 1 ? "jugador" : "jugadores"}. `}
+            {!hasResults && "Los puntos aparecen cuando se carguen resultados."}
           </p>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+        <Link
+          href="/jugar"
+          className="rounded-xl bg-primary px-4 py-2 text-sm font-bold text-primary-ink transition hover:brightness-110"
+        >
+          Jugar →
+        </Link>
+      </header>
+
+      {/* Leaderboard (filas clickeables → drawer con todos los pronósticos) */}
+      <Leaderboard rows={leaderboard} />
+      {leaderboard.length > 0 && (
+        <p className="-mt-5 text-xs text-muted">Tocá un jugador para ver todos sus pronósticos.</p>
+      )}
+
+      {/* Resultado real del torneo */}
+      {(tourney.champion || tourney.topScorer || tourney.figure || tourney.runnerUp) && (
+        <section className="rounded-2xl border border-gold/40 bg-surface p-5 text-sm">
+          <h2 className="mb-3 font-bold text-gold">⭐ Resultado del torneo</h2>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <Fact label="Campeón" value={tourney.champion ? `${teamFlag(tourney.champion)} ${teamName(tourney.champion)}` : "—"} />
+            <Fact label="Subcampeón" value={tourney.runnerUp ? `${teamFlag(tourney.runnerUp)} ${teamName(tourney.runnerUp)}` : "—"} />
+            <Fact label="Goleador" value={tourney.topScorer || "—"} />
+            <Fact label="Figura" value={tourney.figure || "—"} />
+          </div>
+        </section>
+      )}
+
+      {/* Partidos del día con pronósticos de cada uno */}
+      <MatchdayPanel predictionsByMatch={predictionsByMatch} resultsByMatch={results} />
+
+      {/* Cuadro de llaves */}
+      {bracket.generated && (
+        <section>
+          <h2 className="mb-3 wordmark text-2xl">Cuadro de llaves</h2>
+          <div className="flex flex-col gap-4">
+            {KO_ROUND_ORDER.map((round) => {
+              const rms = bracket.matches.filter((m) => m.round === round);
+              if (rms.length === 0) return null;
+              return (
+                <div
+                  key={round}
+                  className="overflow-hidden rounded-2xl border border-border bg-surface"
+                >
+                  <div className="border-b border-border px-4 py-2 text-sm font-bold text-gold">
+                    {ROUND_LABEL[round]}
+                  </div>
+                  <div className="divide-y divide-border/60">
+                    {rms.map((m) => (
+                      <div
+                        key={m.id}
+                        className="flex items-center gap-2 px-4 py-2 text-sm"
+                      >
+                        <span className="w-7 shrink-0 text-xs text-muted">#{m.id}</span>
+                        <span
+                          className={`flex-1 text-right ${m.winner && m.winner === m.home ? "font-bold text-primary" : "text-foreground"}`}
+                        >
+                          {m.home ? `${teamName(m.home)} ${teamFlag(m.home)}` : m.homeLabel}
+                        </span>
+                        <span className="shrink-0 px-2 font-mono text-muted">
+                          {m.result ? `${m.result.homeGoals}-${m.result.awayGoals}` : "vs"}
+                          {m.result?.penalties ? " p" : ""}
+                        </span>
+                        <span
+                          className={`flex-1 ${m.winner && m.winner === m.away ? "font-bold text-primary" : "text-foreground"}`}
+                        >
+                          {m.away ? `${teamFlag(m.away)} ${teamName(m.away)}` : m.awayLabel}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {/* Posiciones de grupos */}
+      <section>
+        <h2 className="mb-3 wordmark text-2xl">Posiciones por grupo</h2>
+        <p className="mb-4 text-sm text-muted">
+          Según los resultados cargados. Es la base de las llaves.
+        </p>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {GROUPS.map((g) => {
+            const rows = standings[g.letter];
+            return (
+              <div
+                key={g.letter}
+                className="overflow-hidden rounded-2xl border border-border bg-surface"
+              >
+                <div className="border-b border-border px-4 py-2 font-bold">
+                  Grupo {g.letter}
+                </div>
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="text-left text-muted">
+                      <th className="px-3 py-1.5 font-medium">Equipo</th>
+                      <th className="px-1 py-1.5 text-center font-medium">PJ</th>
+                      <th className="px-1 py-1.5 text-center font-medium">DG</th>
+                      <th className="px-3 py-1.5 text-center font-medium">Pts</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((r, i) => (
+                      <tr
+                        key={r.code}
+                        className={`border-t border-border/60 ${i < 2 ? "bg-primary/5" : ""}`}
+                      >
+                        <td className="px-3 py-1.5">
+                          <span className="mr-1">{teamFlag(r.code)}</span>
+                          {teamName(r.code)}
+                        </td>
+                        <td className="px-1 py-1.5 text-center text-muted">{r.played}</td>
+                        <td className="px-1 py-1.5 text-center text-muted">
+                          {r.goalDiff > 0 ? `+${r.goalDiff}` : r.goalDiff}
+                        </td>
+                        <td className="px-3 py-1.5 text-center font-bold text-foreground">
+                          {r.points}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            );
+          })}
         </div>
-      </main>
+      </section>
+    </div>
+  );
+}
+
+function Fact({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <div className="text-xs text-muted">{label}</div>
+      <div className="font-semibold text-foreground">{value}</div>
     </div>
   );
 }
