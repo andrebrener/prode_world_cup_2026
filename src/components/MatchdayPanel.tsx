@@ -27,6 +27,17 @@ const fmtLong = (iso: string) =>
     month: "long",
   });
 
+// Hora de inicio en la zona horaria del navegador del usuario, con etiqueta de TZ.
+const fmtTime = (iso: string) =>
+  new Date(iso).toLocaleTimeString("es-AR", {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZoneName: "short",
+  });
+
+// Nombre de la zona horaria en la que está conectado el usuario (ej "America/Argentina/Buenos_Aires").
+const userTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
 const clamp = (s: string) => {
   const n = parseInt(s.replace(/\D/g, ""), 10);
   if (!Number.isFinite(n)) return "";
@@ -168,7 +179,12 @@ export default function MatchdayPanel({
       </div>
 
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm capitalize text-muted">{fmtLong(date)}</p>
+        <p className="text-sm capitalize text-muted">
+          {fmtLong(date)}
+          <span className="ml-2 normal-case text-xs text-muted/70">
+            · horarios en tu zona ({userTz})
+          </span>
+        </p>
         {leaderboard.length > 0 && dayMatches.length > 0 && (
           <button
             onClick={() => setSimMode((s) => !s)}
@@ -256,7 +272,10 @@ export default function MatchdayPanel({
                     <span className="rounded-md bg-background px-2 py-0.5 font-semibold">
                       Grupo {m.group}
                     </span>
-                    <span className="truncate">
+                    <span className="shrink-0 font-medium text-foreground">
+                      🕒 {fmtTime(m.kickoff)}
+                    </span>
+                    <span className="truncate text-right">
                       {simMode ? "Simulación" : official ? "Final" : m.city}
                     </span>
                   </div>

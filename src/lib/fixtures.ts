@@ -23,7 +23,9 @@ export type Match = {
   id: string;
   group: string;
   matchday: 1 | 2 | 3;
-  date: string; // ISO yyyy-mm-dd
+  date: string; // ISO yyyy-mm-dd (fecha local de la sede)
+  /** Instante de inicio absoluto, ISO 8601 con offset de la sede. Ej "2026-06-11T13:00:00-06:00". */
+  kickoff: string;
   city: string;
   homeCode: string;
   awayCode: string;
@@ -174,6 +176,31 @@ const GROUP_CITIES: Record<string, [string, string]> = {
   L: ["Dallas", "Toronto"],
 };
 
+// Offset UTC de cada sede en junio 2026. EE.UU. y Canadá con horario de verano
+// (DST, mar–nov); México no aplica DST desde 2022. Referencial.
+const CITY_OFFSET: Record<string, string> = {
+  "Ciudad de México": "-06:00",
+  Guadalajara: "-06:00",
+  Monterrey: "-06:00",
+  Toronto: "-04:00",
+  Vancouver: "-07:00",
+  "Nueva York/NJ": "-04:00",
+  Boston: "-04:00",
+  "Los Ángeles": "-07:00",
+  "San Francisco": "-07:00",
+  Houston: "-05:00",
+  Filadelfia: "-04:00",
+  Dallas: "-05:00",
+  Atlanta: "-04:00",
+  Miami: "-04:00",
+  "Kansas City": "-05:00",
+};
+
+// Franjas horarias locales de inicio (hora de la sede). Referenciales: se reparten
+// los partidos de cada día en estos horarios. El primero del día arranca 13:00 local
+// (coincide con el debut México vs Sudáfrica, base del cierre de pronósticos).
+const KICKOFF_SLOTS = [13, 16, 19, 22];
+
 // Patrón FIFA de enfrentamientos según posición de cabeza de serie (1..4):
 //   Fecha 1: 1v2, 3v4
 //   Fecha 2: 1v3, 4v2
@@ -196,6 +223,7 @@ function buildMatches(): Match[] {
           group: g.letter,
           matchday,
           date: GROUP_DATES[g.letter][matchday - 1],
+          kickoff: "", // se completa abajo
           city: cities[matchday === 3 ? 1 : matchday - 1] ?? cities[0],
           homeCode: g.teams[hi].code,
           awayCode: g.teams[ai].code,
@@ -204,6 +232,23 @@ function buildMatches(): Match[] {
       }
     }
   }
+
+  // Asignar horario de inicio: por cada día, repartir los partidos en franjas locales.
+  const byDate = new Map<string, Match[]>();
+  for (const m of matches) {
+    const list = byDate.get(m.date) ?? [];
+    list.push(m);
+    byDate.set(m.date, list);
+  }
+  for (const list of byDate.values()) {
+    list.sort((a, b) => a.id.localeCompare(b.id));
+    list.forEach((m, i) => {
+      const hour = KICKOFF_SLOTS[i % KICKOFF_SLOTS.length];
+      const off = CITY_OFFSET[m.city] ?? "-05:00";
+      m.kickoff = `${m.date}T${String(hour).padStart(2, "0")}:00:00${off}`;
+    });
+  }
+
   return matches;
 }
 
