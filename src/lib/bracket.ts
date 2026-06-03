@@ -99,7 +99,12 @@ export type KoResult = {
 
 // ---------- Asignación de los 8 mejores terceros ----------
 
-/** Ranking de los 12 terceros; devuelve los grupos de los 8 mejores (ordenados). */
+/**
+ * Ranking de los 12 terceros; devuelve los grupos de los 8 mejores (ordenados).
+ * Criterios FIFA para comparar terceros de distintos grupos: puntos, diferencia de gol,
+ * goles a favor. No hay mano a mano (no se enfrentaron entre sí); fair play / sorteo no
+ * son predecibles → desempate final alfabético por grupo.
+ */
 export function bestThirds(standings: Record<string, TeamStanding[]>): string[] {
   const thirds = Object.entries(standings)
     .map(([group, rows]) => ({ group, s: rows[2] }))
