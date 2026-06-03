@@ -1,10 +1,22 @@
-import { sqliteTable, text, integer, primaryKey } from "drizzle-orm/sqlite-core";
+import {
+  sqliteTable,
+  text,
+  integer,
+  primaryKey,
+  uniqueIndex,
+} from "drizzle-orm/sqlite-core";
+import { sql } from "drizzle-orm";
 
-export const participants = sqliteTable("participants", {
-  id: text("id").primaryKey(),
-  name: text("name").notNull(),
-  createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
-});
+export const participants = sqliteTable(
+  "participants",
+  {
+    id: text("id").primaryKey(),
+    name: text("name").notNull(),
+    createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+  },
+  // El nombre es la identidad: único sin distinguir mayúsculas/minúsculas.
+  (table) => [uniqueIndex("participants_name_lower_unique").on(sql`lower(${table.name})`)],
+);
 
 // ---------- Prodes (grupos) y membresías ----------
 

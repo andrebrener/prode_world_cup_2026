@@ -66,7 +66,11 @@ await client.execute(
 await client.execute(
   "CREATE UNIQUE INDEX IF NOT EXISTS `pools_code_unique` ON `pools` (`code`)",
 );
-console.log("  ✓ pools, pool_members + índices");
+// El nombre del jugador es único sin distinguir mayúsculas/minúsculas.
+await client.execute(
+  "CREATE UNIQUE INDEX IF NOT EXISTS `participants_name_lower_unique` ON `participants` (lower(`name`))",
+);
+console.log("  ✓ pools, pool_members + índices (incluye nombre único case-insensitive)");
 
 // --- 2) Seed del prode "Lo Forro" ---
 console.log("\n[2/3] Sembrando prode 'Lo Forro'…");
