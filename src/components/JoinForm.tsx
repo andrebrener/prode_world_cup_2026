@@ -59,6 +59,10 @@ export default function JoinForm({
       >
         {pending ? "Entrando…" : currentName ? "Guardar nombre" : "Entrar →"}
       </button>
+      <p className="mt-3 text-center text-xs text-muted">
+        ¿Ya jugaste antes? Poné el <strong className="text-foreground">mismo nombre</strong> y
+        recuperás tus pronósticos.
+      </p>
     </form>
   );
 }

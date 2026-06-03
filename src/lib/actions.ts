@@ -39,20 +39,48 @@ function clampGoals(n: unknown): number {
   return Math.min(v, 99);
 }
 
-/** Crea (o renombra) al participante y deja la cookie de sesión. */
+/** ¿El participante no tiene nada cargado? (para limpiar duplicados vacíos) */
+async function isEmptyParticipant(id: string): Promise<boolean> {
+  const [mp, ep, ko, mem] = await Promise.all([
+    db.select().from(matchPredictions).where(eq(matchPredictions.participantId, id)),
+    db.select().from(extraPredictions).where(eq(extraPredictions.participantId, id)),
+    db.select().from(knockoutPredictions).where(eq(knockoutPredictions.participantId, id)),
+    db.select().from(poolMembers).where(eq(poolMembers.participantId, id)),
+  ]);
+  return mp.length === 0 && ep.length === 0 && ko.length === 0 && mem.length === 0;
+}
+
+/**
+ * Entra al prode. El NOMBRE es la identidad:
+ *  - si ya existe un jugador con ese nombre, reclama ese jugador (con sus predicciones);
+ *  - si no, renombra tu jugador actual o crea uno nuevo.
+ * Sirve para recuperar tu sesión en otro dispositivo/dominio (la cookie no viaja entre dominios).
+ */
 export async function joinAction(name: string): Promise<{ ok: boolean; error?: string }> {
   const clean = name.trim().slice(0, 40);
   if (clean.length < 2) return { ok: false, error: "Poné un nombre (mín. 2 letras)." };
 
-  const existingId = await getParticipantId();
-  if (existingId) {
-    const found = await db.select().from(participants).where(eq(participants.id, existingId));
-    if (found[0]) {
-      await db.update(participants).set({ name: clean }).where(eq(participants.id, existingId));
-      return { ok: true };
+  const currentId = await getParticipantId();
+  const all = await db.select().from(participants);
+
+  // 1) ¿Ya existe un jugador con ese nombre? -> reclamarlo (con sus predicciones).
+  const match = all.find((p) => p.name.trim().toLowerCase() === clean.toLowerCase());
+  if (match) {
+    // Si tu sesión actual era un jugador vacío distinto, borralo (evita duplicados huérfanos).
+    if (currentId && currentId !== match.id && (await isEmptyParticipant(currentId))) {
+      await db.delete(participants).where(eq(participants.id, currentId));
     }
+    await setParticipantId(match.id);
+    return { ok: true };
   }
 
+  // 2) Nombre nuevo. Si tengo sesión válida, renombro mi jugador.
+  if (currentId && all.some((p) => p.id === currentId)) {
+    await db.update(participants).set({ name: clean }).where(eq(participants.id, currentId));
+    return { ok: true };
+  }
+
+  // 3) Crear jugador nuevo.
   const id = randomUUID();
   await db.insert(participants).values({ id, name: clean, createdAt: new Date() });
   await setParticipantId(id);
