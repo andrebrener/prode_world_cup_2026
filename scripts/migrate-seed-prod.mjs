@@ -15,9 +15,20 @@ function loadEnv(path) {
   return out;
 }
 
-const env = loadEnv(new URL("../.env.local.prod-bak", import.meta.url).pathname);
-// Override solo para testing local: node migrate-seed-prod.mjs file:/tmp/test.db
+// Override solo para testing local: node migrate-seed-prod.mjs file:local.db
 const override = process.argv[2];
+// Para prod, lee credenciales de un archivo .env (prod-bak o .env.local).
+function readProdEnv() {
+  for (const f of ["../.env.local.prod-bak", "../.env.local"]) {
+    try {
+      return loadEnv(new URL(f, import.meta.url).pathname);
+    } catch {
+      /* probar el siguiente */
+    }
+  }
+  return {};
+}
+const env = override ? {} : readProdEnv();
 const url = override || env.TURSO_DATABASE_URL;
 const authToken = override ? undefined : env.TURSO_AUTH_TOKEN;
 if (!url) {

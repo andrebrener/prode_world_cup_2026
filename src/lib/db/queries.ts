@@ -255,7 +255,12 @@ export async function getLeaderboard(poolId: string): Promise<LeaderboardRow[]> 
   return rows.sort((a, b) => b.total - a.total || b.exactCount - a.exactCount || a.name.localeCompare(b.name));
 }
 
-export type MatchPredictionRow = { name: string; homeGoals: number; awayGoals: number };
+export type MatchPredictionRow = {
+  id: string;
+  name: string;
+  homeGoals: number;
+  awayGoals: number;
+};
 
 /** Pronósticos de los miembros del prode agrupados por partido (matchId → filas). */
 export async function getPredictionsByMatch(
@@ -274,6 +279,7 @@ export async function getPredictionsByMatch(
   for (const p of preds) {
     if (!(p.participantId in nameById)) continue;
     (byMatch[p.matchId] ??= []).push({
+      id: p.participantId,
       name: nameById[p.participantId] ?? "—",
       homeGoals: p.homeGoals,
       awayGoals: p.awayGoals,

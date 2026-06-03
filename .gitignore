@@ -51,3 +51,4 @@ local.db-*
 # Backups de la base (data de prod) — no commitear
 backups/
 *.db.bak
+*.bak

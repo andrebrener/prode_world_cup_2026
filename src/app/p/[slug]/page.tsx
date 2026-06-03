@@ -120,8 +120,12 @@ export default async function PoolTabla({
         </section>
       )}
 
-      {/* Partidos del día con pronósticos de cada uno */}
-      <MatchdayPanel predictionsByMatch={predictionsByMatch} resultsByMatch={results} />
+      {/* Partidos del día con pronósticos de cada uno + simulador */}
+      <MatchdayPanel
+        predictionsByMatch={predictionsByMatch}
+        resultsByMatch={results}
+        leaderboard={leaderboard.map((r) => ({ id: r.id, name: r.name, total: r.total }))}
+      />
 
       {/* Cuadro de llaves */}
       {bracket.generated && (
