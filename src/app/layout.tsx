@@ -2,7 +2,11 @@ import type { Metadata } from "next";
 import { Geist } from "next/font/google";
 import SiteNav from "@/components/SiteNav";
 import WorldCupMark from "@/components/WorldCupMark";
+import { getParticipantId } from "@/lib/session";
+import { getUserPools } from "@/lib/db/queries";
 import "./globals.css";
+
+export const dynamic = "force-dynamic";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -10,14 +14,17 @@ const geistSans = Geist({
 });
 
 export const metadata: Metadata = {
-  title: "Lo Forro — Prode Mundial 2026",
+  title: "Prode Mundial 2026",
   description:
-    "El prode del Mundial 2026 de Lo Forro. Pronosticá la fase de grupos, el campeón, el goleador y la figura.",
+    "Prode del Mundial 2026. Creá tu prode con amigos: pronosticá la fase de grupos, el campeón, el goleador y la figura.",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  const id = await getParticipantId();
+  const myPools = id ? await getUserPools(id) : [];
+  const navPools = myPools.map((p) => ({ name: p.name, slug: p.slug }));
   return (
     <html lang="es" className={`${geistSans.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col">
@@ -32,11 +39,11 @@ export default function RootLayout({
             <span className="sm:hidden">Jun–Jul</span>
           </div>
         </div>
-        <SiteNav />
+        <SiteNav pools={navPools} />
         <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-6">{children}</main>
         <footer className="flex flex-col items-center gap-3 border-t border-border py-8 text-center text-xs text-muted">
           <WorldCupMark size="sm" />
-          <span>Lo Forro · Prode Mundial 2026 · hecho entre amigos</span>
+          <span>Prode Mundial 2026 · hecho entre amigos</span>
         </footer>
       </body>
     </html>

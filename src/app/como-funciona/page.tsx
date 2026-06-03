@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getParticipantCount } from "@/lib/db/queries";
+import { getTotalParticipantCount } from "@/lib/db/queries";
 import { getParticipantId } from "@/lib/session";
 import { MATCHES, SCORING } from "@/lib/fixtures";
 import WorldCupMark from "@/components/WorldCupMark";
@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 
 export default async function ComoFunciona() {
   const [count, participantId] = await Promise.all([
-    getParticipantCount().catch(() => 0),
+    getTotalParticipantCount().catch(() => 0),
     getParticipantId(),
   ]);
 
@@ -25,26 +25,27 @@ export default async function ComoFunciona() {
           MUNDIAL <span className="fifa-text">2026</span>
         </h1>
         <p className="mt-2 wordmark text-xl text-muted sm:text-2xl">
-          edición <span className="text-gold">Lo Forro</span> 🟢
+          prode entre amigos 🟢
         </p>
         <p className="mt-4 max-w-lg text-muted">
-          El prode del grupo para el Mundial de Canadá, México y Estados Unidos.
-          Pronosticá los <strong className="text-foreground">{MATCHES.length} partidos</strong>{" "}
-          de la fase de grupos y bancate quién es campeón, subcampeón, goleador y figura.
-          El que más la pega, gana. El último… ya sabés.
+          El prode para el Mundial de Canadá, México y Estados Unidos. Creá tu prode con
+          amigos y pronosticá los{" "}
+          <strong className="text-foreground">{MATCHES.length} partidos</strong> de la fase de
+          grupos, más campeón, subcampeón, goleador y figura. El que más la pega, gana. El
+          último… ya sabés.
         </p>
         <div className="mt-6 flex flex-wrap gap-3">
           <Link
-            href="/jugar"
+            href="/"
             className="rounded-xl bg-primary px-5 py-3 font-bold text-primary-ink transition hover:brightness-110"
           >
-            {participantId ? "Seguir completando →" : "Entrar a jugar →"}
+            {participantId ? "Ir a mis prodes →" : "Empezar →"}
           </Link>
           <Link
-            href="/"
+            href="/crear"
             className="rounded-xl border border-border px-5 py-3 font-semibold text-foreground transition hover:bg-background"
           >
-            Ver la tabla
+            Crear un prode
           </Link>
         </div>
         <p className="mt-4 text-sm text-muted">

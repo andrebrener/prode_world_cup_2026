@@ -1,0 +1,236 @@
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import {
+  getLeaderboard,
+  getResultsMap,
+  getTournamentResult,
+  getPredictionsByMatch,
+  getBracketState,
+  getPoolBySlug,
+  isPoolMember,
+} from "@/lib/db/queries";
+import { getParticipantId } from "@/lib/session";
+import { getParticipant } from "@/lib/db/queries";
+import { allGroupStandings } from "@/lib/standings";
+import { GROUPS, teamName, teamFlag } from "@/lib/fixtures";
+import { ROUND_LABEL, type KoRound } from "@/lib/bracket";
+import MatchdayPanel from "@/components/MatchdayPanel";
+import Leaderboard from "@/components/Leaderboard";
+import JoinForm from "@/components/JoinForm";
+import JoinPoolButton from "@/components/JoinPoolButton";
+import ShareCode from "@/components/ShareCode";
+
+export const dynamic = "force-dynamic";
+
+const KO_ROUND_ORDER: KoRound[] = ["R32", "R16", "QF", "SF", "3P", "F"];
+
+export default async function PoolTabla({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}) {
+  const { slug } = await params;
+  const pool = await getPoolBySlug(slug);
+  if (!pool) notFound();
+
+  const participantId = await getParticipantId();
+  const participant = participantId ? await getParticipant(participantId) : null;
+  const member = participant ? await isPoolMember(pool.id, participant.id) : false;
+
+  // No tenés nombre todavía: pedirlo para poder sumarte.
+  if (!participant) {
+    return (
+      <JoinForm
+        title={
+          <>
+            Sumate a <span className="text-primary">{pool.name}</span>
+          </>
+        }
+        subtitle={`Te invitaron al prode "${pool.name}". Poné tu nombre para entrar.`}
+      />
+    );
+  }
+
+  // Tenés nombre pero no sos miembro: ofrecer unirse.
+  if (!member) {
+    return (
+      <div className="mx-auto max-w-md rounded-3xl border border-border bg-surface p-8 text-center">
+        <h1 className="wordmark text-3xl">
+          Prode <span className="text-primary">{pool.name}</span>
+        </h1>
+        <p className="mt-2 text-sm text-muted">
+          Todavía no estás en este prode. Sumate para aparecer en su tabla con tus
+          pronósticos.
+        </p>
+        <JoinPoolButton codeOrSlug={pool.slug} slug={pool.slug} label={`Sumarme a ${pool.name}`} />
+      </div>
+    );
+  }
+
+  const [leaderboard, results, tourney, predictionsByMatch, bracket] = await Promise.all([
+    getLeaderboard(pool.id),
+    getResultsMap(),
+    getTournamentResult(),
+    getPredictionsByMatch(pool.id),
+    getBracketState(),
+  ]);
+  const standings = allGroupStandings(results);
+  const hasResults = Object.keys(results).length > 0;
+
+  return (
+    <div className="flex flex-col gap-8">
+      <header className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="wordmark text-4xl">
+            Tabla <span className="text-primary">{pool.name}</span>
+          </h1>
+          <p className="mt-1 text-sm text-muted">
+            {leaderboard.length === 0
+              ? "Todavía no hay jugadores. "
+              : `${leaderboard.length} ${leaderboard.length === 1 ? "jugador" : "jugadores"}. `}
+            {!hasResults && "Los puntos aparecen cuando se carguen resultados."}
+          </p>
+        </div>
+        <Link
+          href={`/p/${pool.slug}/jugar`}
+          className="rounded-xl bg-primary px-4 py-2 text-sm font-bold text-primary-ink transition hover:brightness-110"
+        >
+          Jugar →
+        </Link>
+      </header>
+
+      <ShareCode code={pool.code} slug={pool.slug} />
+
+      {/* Leaderboard (filas clickeables → drawer con todos los pronósticos) */}
+      <Leaderboard rows={leaderboard} />
+      {leaderboard.length > 0 && (
+        <p className="-mt-5 text-xs text-muted">Tocá un jugador para ver todos sus pronósticos.</p>
+      )}
+
+      {/* Resultado real del torneo */}
+      {(tourney.champion || tourney.topScorer || tourney.figure || tourney.runnerUp) && (
+        <section className="rounded-2xl border border-gold/40 bg-surface p-5 text-sm">
+          <h2 className="mb-3 font-bold text-gold">⭐ Resultado del torneo</h2>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <Fact label="Campeón" value={tourney.champion ? `${teamFlag(tourney.champion)} ${teamName(tourney.champion)}` : "—"} />
+            <Fact label="Subcampeón" value={tourney.runnerUp ? `${teamFlag(tourney.runnerUp)} ${teamName(tourney.runnerUp)}` : "—"} />
+            <Fact label="Goleador" value={tourney.topScorer || "—"} />
+            <Fact label="Figura" value={tourney.figure || "—"} />
+          </div>
+        </section>
+      )}
+
+      {/* Partidos del día con pronósticos de cada uno */}
+      <MatchdayPanel predictionsByMatch={predictionsByMatch} resultsByMatch={results} />
+
+      {/* Cuadro de llaves */}
+      {bracket.generated && (
+        <section>
+          <h2 className="mb-3 wordmark text-2xl">Cuadro de llaves</h2>
+          <div className="flex flex-col gap-4">
+            {KO_ROUND_ORDER.map((round) => {
+              const rms = bracket.matches.filter((m) => m.round === round);
+              if (rms.length === 0) return null;
+              return (
+                <div
+                  key={round}
+                  className="overflow-hidden rounded-2xl border border-border bg-surface"
+                >
+                  <div className="border-b border-border px-4 py-2 text-sm font-bold text-gold">
+                    {ROUND_LABEL[round]}
+                  </div>
+                  <div className="divide-y divide-border/60">
+                    {rms.map((m) => (
+                      <div
+                        key={m.id}
+                        className="flex items-center gap-2 px-4 py-2 text-sm"
+                      >
+                        <span className="w-7 shrink-0 text-xs text-muted">#{m.id}</span>
+                        <span
+                          className={`flex-1 text-right ${m.winner && m.winner === m.home ? "font-bold text-primary" : "text-foreground"}`}
+                        >
+                          {m.home ? `${teamName(m.home)} ${teamFlag(m.home)}` : m.homeLabel}
+                        </span>
+                        <span className="shrink-0 px-2 font-mono text-muted">
+                          {m.result ? `${m.result.homeGoals}-${m.result.awayGoals}` : "vs"}
+                          {m.result?.penalties ? " p" : ""}
+                        </span>
+                        <span
+                          className={`flex-1 ${m.winner && m.winner === m.away ? "font-bold text-primary" : "text-foreground"}`}
+                        >
+                          {m.away ? `${teamFlag(m.away)} ${teamName(m.away)}` : m.awayLabel}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {/* Posiciones de grupos */}
+      <section>
+        <h2 className="mb-3 wordmark text-2xl">Posiciones por grupo</h2>
+        <p className="mb-4 text-sm text-muted">
+          Según los resultados cargados. Es la base de las llaves.
+        </p>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {GROUPS.map((g) => {
+            const rows = standings[g.letter];
+            return (
+              <div
+                key={g.letter}
+                className="overflow-hidden rounded-2xl border border-border bg-surface"
+              >
+                <div className="border-b border-border px-4 py-2 font-bold">
+                  Grupo {g.letter}
+                </div>
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="text-left text-muted">
+                      <th className="px-3 py-1.5 font-medium">Equipo</th>
+                      <th className="px-1 py-1.5 text-center font-medium">PJ</th>
+                      <th className="px-1 py-1.5 text-center font-medium">DG</th>
+                      <th className="px-3 py-1.5 text-center font-medium">Pts</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((r, i) => (
+                      <tr
+                        key={r.code}
+                        className={`border-t border-border/60 ${i < 2 ? "bg-primary/5" : ""}`}
+                      >
+                        <td className="px-3 py-1.5">
+                          <span className="mr-1">{teamFlag(r.code)}</span>
+                          {teamName(r.code)}
+                        </td>
+                        <td className="px-1 py-1.5 text-center text-muted">{r.played}</td>
+                        <td className="px-1 py-1.5 text-center text-muted">
+                          {r.goalDiff > 0 ? `+${r.goalDiff}` : r.goalDiff}
+                        </td>
+                        <td className="px-3 py-1.5 text-center font-bold text-foreground">
+                          {r.points}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function Fact({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <div className="text-xs text-muted">{label}</div>
+      <div className="font-semibold text-foreground">{value}</div>
+    </div>
+  );
+}

@@ -30,7 +30,7 @@ export default function Leaderboard({ rows }: { rows: LeaderboardRow[] }) {
     return (
       <div className="overflow-hidden rounded-2xl border border-border bg-surface p-8 text-center text-muted">
         Nadie jugó todavía.{" "}
-        <a href="/jugar" className="text-primary underline">
+        <a href="/" className="text-primary underline">
           Sé el primero →
         </a>
       </div>

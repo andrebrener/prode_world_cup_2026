@@ -110,7 +110,7 @@ export default function ResultsEditor({
       {!canEdit && (
         <div className="rounded-2xl border border-gold/40 bg-surface p-4 text-sm text-gold">
           Para cargar resultados primero{" "}
-          <a href="/jugar" className="underline">
+          <a href="/" className="underline">
             ingresá tu nombre
           </a>
           .

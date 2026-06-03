@@ -47,3 +47,7 @@ local.db-*
 *.db-journal
 .env
 .env*.local
+
+# Backups de la base (data de prod) — no commitear
+backups/
+*.db.bak

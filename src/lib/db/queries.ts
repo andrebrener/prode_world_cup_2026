@@ -8,8 +8,10 @@ import {
   bracketMeta,
   knockoutPredictions,
   knockoutResults,
+  pools,
+  poolMembers,
 } from "./schema";
-import { eq } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import {
   matchPoints,
   extraPoints,
@@ -20,6 +22,92 @@ import {
 import type { Score } from "../scoring";
 import { resolveBracket, type KoResult, type ResolvedKoMatch } from "../bracket";
 import { allGroupStandings } from "../standings";
+
+// ---------- Prodes ----------
+
+export type Pool = {
+  id: string;
+  name: string;
+  slug: string;
+  code: string;
+  isPublic: boolean;
+  createdBy: string | null;
+};
+
+function toPool(row: typeof pools.$inferSelect): Pool {
+  return {
+    id: row.id,
+    name: row.name,
+    slug: row.slug,
+    code: row.code,
+    isPublic: row.isPublic,
+    createdBy: row.createdBy,
+  };
+}
+
+export async function getPoolBySlug(slug: string): Promise<Pool | null> {
+  const rows = await db.select().from(pools).where(eq(pools.slug, slug));
+  return rows[0] ? toPool(rows[0]) : null;
+}
+
+export async function getPoolByCode(code: string): Promise<Pool | null> {
+  const rows = await db.select().from(pools).where(eq(pools.code, code.trim().toLowerCase()));
+  return rows[0] ? toPool(rows[0]) : null;
+}
+
+/** IDs de los participantes que son miembros de un prode. */
+export async function getPoolMemberIds(poolId: string): Promise<string[]> {
+  const rows = await db
+    .select({ id: poolMembers.participantId })
+    .from(poolMembers)
+    .where(eq(poolMembers.poolId, poolId));
+  return rows.map((r) => r.id);
+}
+
+export async function isPoolMember(poolId: string, participantId: string): Promise<boolean> {
+  const rows = await db
+    .select({ id: poolMembers.participantId })
+    .from(poolMembers)
+    .where(eq(poolMembers.poolId, poolId));
+  return rows.some((r) => r.id === participantId);
+}
+
+export type PoolSummary = Pool & { memberCount: number };
+
+/** Prodes a los que pertenece un participante, con cantidad de miembros. */
+export async function getUserPools(participantId: string): Promise<PoolSummary[]> {
+  const memberRows = await db
+    .select({ poolId: poolMembers.poolId })
+    .from(poolMembers)
+    .where(eq(poolMembers.participantId, participantId));
+  const ids = memberRows.map((r) => r.poolId);
+  if (ids.length === 0) return [];
+  const poolRows = await db.select().from(pools).where(inArray(pools.id, ids));
+  const counts = await memberCounts(ids);
+  return poolRows
+    .map((p) => ({ ...toPool(p), memberCount: counts[p.id] ?? 0 }))
+    .sort((a, b) => a.name.localeCompare(b.name, "es"));
+}
+
+/** Prodes públicos (para el listado de la home). */
+export async function getPublicPools(): Promise<PoolSummary[]> {
+  const poolRows = await db.select().from(pools).where(eq(pools.isPublic, true));
+  const ids = poolRows.map((p) => p.id);
+  const counts = await memberCounts(ids);
+  return poolRows
+    .map((p) => ({ ...toPool(p), memberCount: counts[p.id] ?? 0 }))
+    .sort((a, b) => b.memberCount - a.memberCount || a.name.localeCompare(b.name, "es"));
+}
+
+async function memberCounts(poolIds: string[]): Promise<Record<string, number>> {
+  if (poolIds.length === 0) return {};
+  const rows = await db
+    .select({ poolId: poolMembers.poolId, n: sql<number>`count(*)` })
+    .from(poolMembers)
+    .where(inArray(poolMembers.poolId, poolIds))
+    .groupBy(poolMembers.poolId);
+  return Object.fromEntries(rows.map((r) => [r.poolId, Number(r.n)]));
+}
 
 export async function getResultsMap(): Promise<Record<string, Score>> {
   const rows = await db.select().from(matchResults);
@@ -82,11 +170,14 @@ export type LeaderboardRow = {
   predictionsCount: number;
 };
 
-/** Tabla general: calcula puntos de cada participante contra los resultados reales. */
-export async function getLeaderboard(): Promise<LeaderboardRow[]> {
+/** Tabla de un prode: calcula puntos de cada miembro contra los resultados reales. */
+export async function getLeaderboard(poolId: string): Promise<LeaderboardRow[]> {
+  const memberIds = await getPoolMemberIds(poolId);
+  if (memberIds.length === 0) return [];
+
   const [people, allPreds, allExtras, allKoPreds, results, tourney, bracket] =
     await Promise.all([
-      db.select().from(participants),
+      db.select().from(participants).where(inArray(participants.id, memberIds)),
       db.select().from(matchPredictions),
       db.select().from(extraPredictions),
       db.select().from(knockoutPredictions),
@@ -166,10 +257,14 @@ export async function getLeaderboard(): Promise<LeaderboardRow[]> {
 
 export type MatchPredictionRow = { name: string; homeGoals: number; awayGoals: number };
 
-/** Pronósticos de todos los participantes agrupados por partido (matchId → filas). */
-export async function getPredictionsByMatch(): Promise<Record<string, MatchPredictionRow[]>> {
+/** Pronósticos de los miembros del prode agrupados por partido (matchId → filas). */
+export async function getPredictionsByMatch(
+  poolId: string,
+): Promise<Record<string, MatchPredictionRow[]>> {
+  const memberIds = await getPoolMemberIds(poolId);
+  if (memberIds.length === 0) return {};
   const [people, preds] = await Promise.all([
-    db.select().from(participants),
+    db.select().from(participants).where(inArray(participants.id, memberIds)),
     db.select().from(matchPredictions),
   ]);
   const nameById: Record<string, string> = Object.fromEntries(
@@ -177,6 +272,7 @@ export async function getPredictionsByMatch(): Promise<Record<string, MatchPredi
   );
   const byMatch: Record<string, MatchPredictionRow[]> = {};
   for (const p of preds) {
+    if (!(p.participantId in nameById)) continue;
     (byMatch[p.matchId] ??= []).push({
       name: nameById[p.participantId] ?? "—",
       homeGoals: p.homeGoals,
@@ -189,8 +285,14 @@ export async function getPredictionsByMatch(): Promise<Record<string, MatchPredi
   return byMatch;
 }
 
-export async function getParticipantCount(): Promise<number> {
-  const rows = await db.select().from(participants);
+export async function getParticipantCount(poolId: string): Promise<number> {
+  const ids = await getPoolMemberIds(poolId);
+  return ids.length;
+}
+
+/** Total de jugadores en toda la plataforma (para la portada). */
+export async function getTotalParticipantCount(): Promise<number> {
+  const rows = await db.select({ id: participants.id }).from(participants);
   return rows.length;
 }
 
@@ -346,10 +448,14 @@ export type KoPredictionRow = {
   advance: string;
 };
 
-/** Pronósticos de knockout de todos, agrupados por cruce. */
-export async function getKoPredictionsByMatch(): Promise<Record<string, KoPredictionRow[]>> {
+/** Pronósticos de knockout de los miembros del prode, agrupados por cruce. */
+export async function getKoPredictionsByMatch(
+  poolId: string,
+): Promise<Record<string, KoPredictionRow[]>> {
+  const memberIds = await getPoolMemberIds(poolId);
+  if (memberIds.length === 0) return {};
   const [people, preds] = await Promise.all([
-    db.select().from(participants),
+    db.select().from(participants).where(inArray(participants.id, memberIds)),
     db.select().from(knockoutPredictions),
   ]);
   const nameById: Record<string, string> = Object.fromEntries(
@@ -357,6 +463,7 @@ export async function getKoPredictionsByMatch(): Promise<Record<string, KoPredic
   );
   const byMatch: Record<string, KoPredictionRow[]> = {};
   for (const p of preds) {
+    if (!(p.participantId in nameById)) continue;
     (byMatch[p.matchId] ??= []).push({
       name: nameById[p.participantId] ?? "—",
       homeGoals: p.homeGoals,

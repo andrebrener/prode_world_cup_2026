@@ -12,6 +12,8 @@ import {
   bracketMeta,
   knockoutPredictions,
   knockoutResults,
+  pools,
+  poolMembers,
 } from "./db/schema";
 import { eq } from "drizzle-orm";
 import { getParticipantId, setParticipantId } from "./session";
@@ -22,6 +24,9 @@ import {
   getResultsMap,
   getBracketState,
   getParticipantDetail,
+  getPoolBySlug,
+  getPoolByCode,
+  isPoolMember,
   type ParticipantDetail,
 } from "./db/queries";
 
@@ -52,6 +57,95 @@ export async function joinAction(name: string): Promise<{ ok: boolean; error?: s
   await db.insert(participants).values({ id, name: clean, createdAt: new Date() });
   await setParticipantId(id);
   return { ok: true };
+}
+
+// ---------- Prodes (grupos) ----------
+
+function slugify(name: string): string {
+  return name
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "") // saca acentos
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 32);
+}
+
+async function uniqueSlug(base: string): Promise<string> {
+  const root = base || "prode";
+  let slug = root;
+  while (await getPoolBySlug(slug)) {
+    slug = `${root}-${randomUUID().slice(0, 4)}`;
+  }
+  return slug;
+}
+
+async function uniqueCode(): Promise<string> {
+  let code = randomUUID().replace(/-/g, "").slice(0, 6);
+  while (await getPoolByCode(code)) {
+    code = randomUUID().replace(/-/g, "").slice(0, 6);
+  }
+  return code;
+}
+
+/** Crea un prode y suma al participante actual como primer miembro. */
+export async function createPoolAction(
+  name: string,
+  isPublic: boolean,
+): Promise<{ ok: boolean; error?: string; slug?: string }> {
+  const id = await getParticipantId();
+  if (!id) return { ok: false, error: "Primero ingresá tu nombre." };
+  const found = await db.select().from(participants).where(eq(participants.id, id));
+  if (!found[0]) return { ok: false, error: "Sesión inválida, volvé a ingresar tu nombre." };
+
+  const clean = name.trim().slice(0, 40);
+  if (clean.length < 2) return { ok: false, error: "Poné un nombre para el prode (mín. 2 letras)." };
+
+  const slug = await uniqueSlug(slugify(clean));
+  const code = await uniqueCode();
+  const poolId = randomUUID();
+  const now = new Date();
+
+  await db.insert(pools).values({
+    id: poolId,
+    name: clean,
+    slug,
+    code,
+    isPublic: !!isPublic,
+    createdBy: id,
+    createdAt: now,
+  });
+  await db
+    .insert(poolMembers)
+    .values({ poolId, participantId: id, joinedAt: now })
+    .onConflictDoNothing();
+
+  revalidatePath("/", "layout");
+  return { ok: true, slug };
+}
+
+/** Suma al participante actual a un prode existente (por código o slug). */
+export async function joinPoolAction(
+  codeOrSlug: string,
+): Promise<{ ok: boolean; error?: string; slug?: string }> {
+  const id = await getParticipantId();
+  if (!id) return { ok: false, error: "Primero ingresá tu nombre." };
+  const found = await db.select().from(participants).where(eq(participants.id, id));
+  if (!found[0]) return { ok: false, error: "Sesión inválida, volvé a ingresar tu nombre." };
+
+  const key = codeOrSlug.trim().toLowerCase();
+  if (!key) return { ok: false, error: "Poné el código o link del prode." };
+
+  const pool = (await getPoolByCode(key)) ?? (await getPoolBySlug(key));
+  if (!pool) return { ok: false, error: "No encontramos ese prode. Revisá el código." };
+
+  await db
+    .insert(poolMembers)
+    .values({ poolId: pool.id, participantId: id, joinedAt: new Date() })
+    .onConflictDoNothing();
+
+  revalidatePath("/", "layout");
+  return { ok: true, slug: pool.slug };
 }
 
 export type PredictionInput = {
@@ -109,8 +203,7 @@ export async function savePredictionsAction(
       },
     });
 
-  revalidatePath("/tabla");
-  revalidatePath("/jugar");
+  revalidatePath("/", "layout");
   return { ok: true };
 }
 
@@ -134,8 +227,7 @@ export async function updateResultAction(
       set: { homeGoals: h, awayGoals: a },
     });
 
-  revalidatePath("/resultados");
-  revalidatePath("/tabla");
+  revalidatePath("/", "layout");
   return { ok: true };
 }
 
@@ -144,8 +236,7 @@ export async function clearResultAction(matchId: string): Promise<{ ok: boolean 
   const id = await getParticipantId();
   if (!id) return { ok: false };
   await db.delete(matchResults).where(eq(matchResults.matchId, matchId));
-  revalidatePath("/resultados");
-  revalidatePath("/tabla");
+  revalidatePath("/", "layout");
   return { ok: true };
 }
 
@@ -189,8 +280,7 @@ export async function saveResultsBatchAction(input: {
     .values(values)
     .onConflictDoUpdate({ target: tournamentResult.id, set: values });
 
-  revalidatePath("/resultados");
-  revalidatePath("/tabla");
+  revalidatePath("/", "layout");
   return { ok: true };
 }
 
@@ -221,9 +311,7 @@ export async function updateBracketAction(): Promise<{ ok: boolean; error?: stri
       set: { generatedAt: now, r32Json: JSON.stringify(r32) },
     });
 
-  revalidatePath("/jugar");
-  revalidatePath("/resultados");
-  revalidatePath("/tabla");
+  revalidatePath("/", "layout");
   return { ok: true };
 }
 
@@ -268,8 +356,7 @@ export async function saveKnockoutPredictionsAction(
       });
   }
 
-  revalidatePath("/jugar");
-  revalidatePath("/tabla");
+  revalidatePath("/", "layout");
   return { ok: true };
 }
 
@@ -305,9 +392,7 @@ export async function saveKnockoutResultsAction(input: {
     await db.delete(knockoutResults).where(eq(knockoutResults.matchId, matchId));
   }
 
-  revalidatePath("/resultados");
-  revalidatePath("/jugar");
-  revalidatePath("/tabla");
+  revalidatePath("/", "layout");
   return { ok: true };
 }
 
@@ -333,7 +418,6 @@ export async function updateTournamentResultAction(extras: {
     .values(values)
     .onConflictDoUpdate({ target: tournamentResult.id, set: values });
 
-  revalidatePath("/resultados");
-  revalidatePath("/tabla");
+  revalidatePath("/", "layout");
   return { ok: true };
 }

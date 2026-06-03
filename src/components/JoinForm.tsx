@@ -4,7 +4,15 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { joinAction } from "@/lib/actions";
 
-export default function JoinForm({ currentName }: { currentName?: string }) {
+export default function JoinForm({
+  currentName,
+  title,
+  subtitle,
+}: {
+  currentName?: string;
+  title?: React.ReactNode;
+  subtitle?: string;
+}) {
   const [name, setName] = useState(currentName ?? "");
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
@@ -26,10 +34,14 @@ export default function JoinForm({ currentName }: { currentName?: string }) {
       className="mx-auto max-w-md rounded-3xl border border-border bg-surface p-8"
     >
       <h1 className="wordmark text-3xl">
-        Entrá a <span className="text-primary">Lo Forro</span>
+        {title ?? (
+          <>
+            Entrá al <span className="text-primary">prode</span>
+          </>
+        )}
       </h1>
       <p className="mt-2 text-sm text-muted">
-        Poné tu nombre o apodo. Con eso aparecés en la tabla.
+        {subtitle ?? "Poné tu nombre o apodo. Con eso aparecés en las tablas."}
       </p>
       <input
         autoFocus
