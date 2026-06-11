@@ -3,6 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { GROUPS, MATCHES, ALL_TEAMS, teamName, teamFlag } from "@/lib/fixtures";
 import { savePredictionsAction, type PredictionInput } from "@/lib/actions";
+import GoalInput from "./GoalInput";
 
 type GoalState = Record<string, { home: string; away: string }>;
 type Extras = {
@@ -312,18 +313,6 @@ export default function PredictionForm({
         </div>
       </div>
     </div>
-  );
-}
-
-function GoalInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  return (
-    <input
-      inputMode="numeric"
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      placeholder="–"
-      className="h-10 w-10 rounded-lg border border-border bg-background text-center text-foreground outline-none focus:border-primary disabled:opacity-60"
-    />
   );
 }
 

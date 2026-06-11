@@ -4,6 +4,7 @@ import { useMemo, useState, useTransition } from "react";
 import { teamName, teamFlag } from "@/lib/fixtures";
 import { ROUND_LABEL, type KoRound, type ResolvedKoMatch } from "@/lib/bracket";
 import { updateBracketAction, saveKnockoutResultsAction } from "@/lib/actions";
+import GoalInput from "./GoalInput";
 
 const ROUND_ORDER: KoRound[] = ["R32", "R16", "QF", "SF", "3P", "F"];
 
@@ -166,29 +167,17 @@ export default function KnockoutResultsSection({
                           </span>
                         </div>
                         <div className="flex shrink-0 items-center gap-1">
-                          <input
-                            inputMode="numeric"
+                          <GoalInput
                             disabled={!resolved}
                             value={v.home}
-                            onChange={(e) =>
-                              setField(m.id, {
-                                home: e.target.value.replace(/[^0-9]/g, "").slice(0, 2),
-                              })
-                            }
-                            placeholder="–"
+                            onChange={(val) => setField(m.id, { home: val })}
                             className="h-9 w-9 rounded-lg border border-border bg-background text-center text-foreground outline-none focus:border-primary disabled:opacity-40"
                           />
                           <span className="text-muted">-</span>
-                          <input
-                            inputMode="numeric"
+                          <GoalInput
                             disabled={!resolved}
                             value={v.away}
-                            onChange={(e) =>
-                              setField(m.id, {
-                                away: e.target.value.replace(/[^0-9]/g, "").slice(0, 2),
-                              })
-                            }
-                            placeholder="–"
+                            onChange={(val) => setField(m.id, { away: val })}
                             className="h-9 w-9 rounded-lg border border-border bg-background text-center text-foreground outline-none focus:border-primary disabled:opacity-40"
                           />
                         </div>

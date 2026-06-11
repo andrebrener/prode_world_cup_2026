@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { MATCHES, teamName, teamFlag } from "@/lib/fixtures";
 import { matchPoints } from "@/lib/scoring";
 import type { MatchPredictionRow } from "@/lib/db/queries";
+import GoalInput from "./GoalInput";
 
 type Result = { homeGoals: number; awayGoals: number };
 type LbRow = { id: string; name: string; total: number };
@@ -286,19 +287,15 @@ export default function MatchdayPanel({
                     </span>
                     {simMode ? (
                       <span className="flex shrink-0 items-center gap-1">
-                        <input
-                          inputMode="numeric"
+                        <GoalInput
                           value={fieldValue(m.id, "home")}
-                          onChange={(e) => setScore(m.id, "home", e.target.value)}
-                          placeholder="–"
+                          onChange={(v) => setScore(m.id, "home", v)}
                           className="h-8 w-9 rounded-md border border-border bg-background text-center font-mono text-foreground outline-none focus:border-primary"
                         />
                         <span className="text-muted">-</span>
-                        <input
-                          inputMode="numeric"
+                        <GoalInput
                           value={fieldValue(m.id, "away")}
-                          onChange={(e) => setScore(m.id, "away", e.target.value)}
-                          placeholder="–"
+                          onChange={(v) => setScore(m.id, "away", v)}
                           className="h-8 w-9 rounded-md border border-border bg-background text-center font-mono text-foreground outline-none focus:border-primary"
                         />
                       </span>

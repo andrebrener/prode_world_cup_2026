@@ -4,6 +4,7 @@ import { useMemo, useState, useTransition } from "react";
 import { teamName, teamFlag } from "@/lib/fixtures";
 import { ROUND_LABEL, type KoRound, type ResolvedKoMatch } from "@/lib/bracket";
 import { saveKnockoutPredictionsAction } from "@/lib/actions";
+import GoalInput from "./GoalInput";
 
 const ROUND_ORDER: KoRound[] = ["R32", "R16", "QF", "SF", "3P", "F"];
 
@@ -110,12 +111,14 @@ export default function KnockoutPredict({
                           value={v.home}
                           disabled={closed}
                           onChange={(val) => setField(m.id, { home: val })}
+                          className="h-9 w-9 rounded-lg border border-border bg-background text-center text-foreground outline-none focus:border-primary disabled:opacity-40"
                         />
                         <span className="text-muted">-</span>
                         <GoalInput
                           value={v.away}
                           disabled={closed}
                           onChange={(val) => setField(m.id, { away: val })}
+                          className="h-9 w-9 rounded-lg border border-border bg-background text-center text-foreground outline-none focus:border-primary disabled:opacity-40"
                         />
                       </div>
                       <div className="flex flex-1 items-center gap-2 text-sm">
@@ -203,23 +206,3 @@ function AdvanceButton({
   );
 }
 
-function GoalInput({
-  value,
-  disabled,
-  onChange,
-}: {
-  value: string;
-  disabled: boolean;
-  onChange: (v: string) => void;
-}) {
-  return (
-    <input
-      inputMode="numeric"
-      disabled={disabled}
-      value={value}
-      onChange={(e) => onChange(e.target.value.replace(/[^0-9]/g, "").slice(0, 2))}
-      placeholder="–"
-      className="h-9 w-9 rounded-lg border border-border bg-background text-center text-foreground outline-none focus:border-primary disabled:opacity-40"
-    />
-  );
-}

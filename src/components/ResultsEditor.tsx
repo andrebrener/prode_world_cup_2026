@@ -9,6 +9,7 @@ import {
   teamFlag,
 } from "@/lib/fixtures";
 import { saveResultsBatchAction } from "@/lib/actions";
+import GoalInput from "./GoalInput";
 
 type GoalState = Record<string, { home: string; away: string }>;
 
@@ -225,18 +226,6 @@ export default function ResultsEditor({
         </div>
       </div>
     </div>
-  );
-}
-
-function GoalInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  return (
-    <input
-      inputMode="numeric"
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      placeholder="–"
-      className="h-10 w-10 rounded-lg border border-border bg-background text-center text-foreground outline-none focus:border-primary disabled:opacity-50"
-    />
   );
 }
 
