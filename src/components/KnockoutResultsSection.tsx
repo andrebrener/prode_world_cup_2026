@@ -4,6 +4,7 @@ import { useMemo, useState, useTransition } from "react";
 import { teamName, teamFlag } from "@/lib/fixtures";
 import { ROUND_LABEL, type KoRound, type ResolvedKoMatch } from "@/lib/bracket";
 import { updateBracketAction, saveKnockoutResultsAction } from "@/lib/actions";
+import { fmtKickoffTime, fmtVenueDate } from "@/lib/format";
 import GoalInput from "./GoalInput";
 
 const ROUND_ORDER: KoRound[] = ["R32", "R16", "QF", "SF", "3P", "F"];
@@ -159,6 +160,15 @@ export default function KnockoutResultsSection({
                   const resolved = m.home && m.away;
                   return (
                     <div key={m.id} className="px-3 py-3 sm:px-5">
+                      {/* Fecha · hora · sede */}
+                      <div className="mb-2 flex items-center justify-between gap-2 pl-10 text-[11px] text-muted">
+                        <span className="shrink-0 font-medium text-foreground">
+                          🕒 {fmtKickoffTime(m.kickoff)} · {fmtVenueDate(m.date)}
+                        </span>
+                        <span className="truncate text-right">
+                          📍 {m.stadium} · {m.city}
+                        </span>
+                      </div>
                       <div className="flex items-center gap-2">
                         <span className="w-8 shrink-0 text-xs text-muted">#{m.id}</span>
                         <div className="flex flex-1 items-center justify-end gap-2 text-right text-sm">

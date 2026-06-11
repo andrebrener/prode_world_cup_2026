@@ -3,6 +3,7 @@
 // a sus slots por emparejamiento respetando los grupos permitidos de cada slot.
 
 import type { TeamStanding } from "./standings";
+import { stadiumForCity } from "./fixtures";
 
 export type KoRound = "R32" | "R16" | "QF" | "SF" | "3P" | "F";
 
@@ -89,6 +90,49 @@ export const KO_MATCHES: KoMatchDef[] = [
 export const KO_MATCHES_BY_ID: Record<string, KoMatchDef> = Object.fromEntries(
   KO_MATCHES.map((m) => [m.id, m]),
 );
+
+// Calendario oficial FIFA de las eliminatorias (partidos 73-104). Hora LOCAL de la sede
+// + offset UTC; la fecha local se deriva del prefijo del kickoff. Las sedes ya están
+// asignadas de antemano aunque todavía no se sepan los equipos.
+const KO_SCHEDULE: Record<string, { kickoff: string; city: string }> = {
+  // Round of 32
+  "73": { kickoff: "2026-06-28T12:00:00-07:00", city: "Los Ángeles" },
+  "74": { kickoff: "2026-06-29T16:30:00-04:00", city: "Boston" },
+  "75": { kickoff: "2026-06-29T19:00:00-06:00", city: "Monterrey" },
+  "76": { kickoff: "2026-06-29T12:00:00-05:00", city: "Houston" },
+  "77": { kickoff: "2026-06-30T17:00:00-04:00", city: "Nueva York/NJ" },
+  "78": { kickoff: "2026-06-30T12:00:00-05:00", city: "Dallas" },
+  "79": { kickoff: "2026-06-30T19:00:00-06:00", city: "Ciudad de México" },
+  "80": { kickoff: "2026-07-01T12:00:00-04:00", city: "Atlanta" },
+  "81": { kickoff: "2026-07-01T17:00:00-07:00", city: "San Francisco" },
+  "82": { kickoff: "2026-07-01T13:00:00-07:00", city: "Seattle" },
+  "83": { kickoff: "2026-07-02T19:00:00-04:00", city: "Toronto" },
+  "84": { kickoff: "2026-07-02T12:00:00-07:00", city: "Los Ángeles" },
+  "85": { kickoff: "2026-07-02T20:00:00-07:00", city: "Vancouver" },
+  "86": { kickoff: "2026-07-03T18:00:00-04:00", city: "Miami" },
+  "87": { kickoff: "2026-07-03T20:30:00-05:00", city: "Kansas City" },
+  "88": { kickoff: "2026-07-03T13:00:00-05:00", city: "Dallas" },
+  // Round of 16
+  "89": { kickoff: "2026-07-04T17:00:00-04:00", city: "Filadelfia" },
+  "90": { kickoff: "2026-07-04T12:00:00-05:00", city: "Houston" },
+  "91": { kickoff: "2026-07-05T16:00:00-04:00", city: "Nueva York/NJ" },
+  "92": { kickoff: "2026-07-05T18:00:00-06:00", city: "Ciudad de México" },
+  "93": { kickoff: "2026-07-06T14:00:00-05:00", city: "Dallas" },
+  "94": { kickoff: "2026-07-06T17:00:00-07:00", city: "Seattle" },
+  "95": { kickoff: "2026-07-07T12:00:00-04:00", city: "Atlanta" },
+  "96": { kickoff: "2026-07-07T13:00:00-07:00", city: "Vancouver" },
+  // Quarter-finals
+  "97": { kickoff: "2026-07-09T16:00:00-04:00", city: "Boston" },
+  "98": { kickoff: "2026-07-10T12:00:00-07:00", city: "Los Ángeles" },
+  "99": { kickoff: "2026-07-11T17:00:00-04:00", city: "Miami" },
+  "100": { kickoff: "2026-07-11T20:00:00-05:00", city: "Kansas City" },
+  // Semi-finals
+  "101": { kickoff: "2026-07-14T14:00:00-05:00", city: "Dallas" },
+  "102": { kickoff: "2026-07-15T15:00:00-04:00", city: "Atlanta" },
+  // Third place + Final
+  "103": { kickoff: "2026-07-18T17:00:00-04:00", city: "Miami" },
+  "104": { kickoff: "2026-07-19T15:00:00-04:00", city: "Nueva York/NJ" },
+};
 
 export type KoResult = {
   homeGoals: number;
@@ -212,6 +256,12 @@ export type ResolvedKoMatch = {
   away: string | null;
   homeLabel: string;
   awayLabel: string;
+  /** Fecha local de la sede (yyyy-mm-dd). */
+  date: string;
+  /** Instante de inicio ISO 8601 con offset de la sede. */
+  kickoff: string;
+  city: string;
+  stadium: string;
   result?: KoResult;
   winner: string | null;
 };
@@ -271,14 +321,21 @@ export function resolveBracket(
     losers[m.id] = win ? (win === home ? away : home) : null;
   }
 
-  return KO_MATCHES.map((m) => ({
-    id: m.id,
-    round: m.round,
-    home: teams[m.id].home,
-    away: teams[m.id].away,
-    homeLabel: labelFor(m.home, slotToGroup, m.id),
-    awayLabel: labelFor(m.away, slotToGroup, m.id),
-    result: results[m.id],
-    winner: winners[m.id],
-  }));
+  return KO_MATCHES.map((m) => {
+    const sch = KO_SCHEDULE[m.id];
+    return {
+      id: m.id,
+      round: m.round,
+      home: teams[m.id].home,
+      away: teams[m.id].away,
+      homeLabel: labelFor(m.home, slotToGroup, m.id),
+      awayLabel: labelFor(m.away, slotToGroup, m.id),
+      date: sch.kickoff.slice(0, 10),
+      kickoff: sch.kickoff,
+      city: sch.city,
+      stadium: stadiumForCity(sch.city),
+      result: results[m.id],
+      winner: winners[m.id],
+    };
+  });
 }

@@ -277,7 +277,11 @@ export default function MatchdayPanel({
                       🕒 {fmtTime(m.kickoff)}
                     </span>
                     <span className="truncate text-right">
-                      {simMode ? "Simulación" : official ? "Final" : m.city}
+                      {simMode
+                        ? "Simulación"
+                        : official
+                          ? "Final"
+                          : `${m.stadium} · ${m.city}`}
                     </span>
                   </div>
                   <div className="flex items-center justify-center gap-2 text-sm font-semibold sm:gap-3">
