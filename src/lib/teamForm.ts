@@ -1,8 +1,12 @@
 // Últimos 5 partidos de cada selección ANTES del Mundial 2026 (corte: 11 jun 2026).
 // Datos verificados contra ESPN + crónicas de prensa (jun 2026). Marcador siempre
-// con los goles del equipo primero. Partidos definidos por penales figuran como
-// empate ("D") con la aclaración en `competition`, criterio estándar de los
-// form guides. Orden: del más viejo al más reciente.
+// con los goles del equipo primero. Orden: del más viejo al más reciente.
+//
+// Penales (criterio del form guide de referencia): si el equipo GANÓ la tanda en un
+// cruce de eliminación (ej. repechaje) se marca "W"; si quedó eliminado por penales,
+// o si fue un amistoso definido por penales, se marca empate ("D"). La aclaración va
+// en `competition`. Se omiten partidos de ensayo no oficiales (ej. amistosos a 3
+// tiempos / con muchos cambios que FIFA no cuenta como "A").
 
 export type FormMatch = {
   date: string; // ISO yyyy-mm-dd
@@ -30,11 +34,11 @@ export const TEAM_FORM: Record<string, FormMatch[]> = {
     m("2026-06-04", "Serbia", "5-1", "W", "Amistoso"),
   ],
   RSA: [
-    m("2025-12-29", "Zimbabue", "3-2", "W", "Copa Africana"),
     m("2026-01-04", "Camerún", "1-2", "L", "Copa Africana"),
     m("2026-03-27", "Panamá", "1-1", "D", "Amistoso"),
     m("2026-03-31", "Panamá", "1-2", "L", "Amistoso"),
     m("2026-05-29", "Nicaragua", "0-0", "D", "Amistoso"),
+    m("2026-06-06", "Jamaica", "1-1", "D", "Amistoso"),
   ],
   KOR: [
     m("2025-11-18", "Ghana", "1-0", "W", "Amistoso"),
@@ -44,11 +48,11 @@ export const TEAM_FORM: Record<string, FormMatch[]> = {
     m("2026-06-03", "El Salvador", "1-0", "W", "Amistoso"),
   ],
   CZE: [
-    m("2025-11-13", "San Marino", "1-0", "W", "Amistoso"),
     m("2025-11-17", "Gibraltar", "6-0", "W", "Eliminatorias UEFA"),
-    m("2026-03-26", "Irlanda", "2-2", "D", "Repechaje UEFA (ganó en penales)"),
-    m("2026-03-31", "Dinamarca", "2-2", "D", "Repechaje UEFA, final (ganó en penales)"),
-    m("2026-06-05", "Guatemala", "3-1", "W", "Amistoso"),
+    m("2026-03-26", "Irlanda", "2-2", "W", "Repechaje UEFA (ganó por penales)"),
+    m("2026-03-31", "Dinamarca", "2-2", "W", "Repechaje UEFA, final (ganó por penales)"),
+    m("2026-05-31", "Kosovo", "2-1", "W", "Amistoso"),
+    m("2026-06-04", "Guatemala", "3-1", "W", "Amistoso"),
   ],
 
   // ── Grupo B ──────────────────────────────────────────────────────────────
@@ -61,8 +65,8 @@ export const TEAM_FORM: Record<string, FormMatch[]> = {
   ],
   BIH: [
     m("2025-11-18", "Austria", "1-1", "D", "Eliminatorias UEFA"),
-    m("2026-03-26", "Gales", "1-1", "D", "Repechaje UEFA (ganó en penales)"),
-    m("2026-03-31", "Italia", "1-1", "D", "Repechaje UEFA, final (ganó en penales)"),
+    m("2026-03-26", "Gales", "1-1", "W", "Repechaje UEFA (ganó por penales)"),
+    m("2026-03-31", "Italia", "1-1", "W", "Repechaje UEFA, final (ganó por penales)"),
     m("2026-05-29", "Macedonia del Norte", "0-0", "D", "Amistoso"),
     m("2026-06-06", "Panamá", "1-1", "D", "Amistoso"),
   ],
@@ -100,8 +104,8 @@ export const TEAM_FORM: Record<string, FormMatch[]> = {
     m("2025-11-18", "Nicaragua", "2-0", "W", "Eliminatorias Concacaf"),
     m("2026-03-28", "Túnez", "0-1", "L", "Amistoso"),
     m("2026-03-31", "Islandia", "1-1", "D", "Amistoso"),
-    m("2026-06-03", "Nueva Zelanda", "4-0", "W", "Amistoso"),
-    m("2026-06-05", "Perú", "2-1", "W", "Amistoso"),
+    m("2026-06-02", "Nueva Zelanda", "4-0", "W", "Amistoso"),
+    m("2026-06-05", "Perú", "1-2", "L", "Amistoso"),
   ],
   SCO: [
     m("2025-11-18", "Dinamarca", "4-2", "W", "Eliminatorias UEFA"),
@@ -164,11 +168,11 @@ export const TEAM_FORM: Record<string, FormMatch[]> = {
     m("2026-06-04", "Francia", "2-1", "W", "Amistoso"),
   ],
   ECU: [
-    m("2025-11-13", "Canadá", "0-0", "D", "Amistoso"),
     m("2025-11-18", "Nueva Zelanda", "2-0", "W", "Amistoso"),
     m("2026-03-27", "Marruecos", "1-1", "D", "Amistoso"),
     m("2026-03-31", "Países Bajos", "1-1", "D", "Amistoso"),
     m("2026-05-30", "Arabia Saudita", "2-1", "W", "Amistoso"),
+    m("2026-06-07", "Guatemala", "3-0", "W", "Amistoso"),
   ],
 
   // ── Grupo F ──────────────────────────────────────────────────────────────
@@ -210,10 +214,10 @@ export const TEAM_FORM: Record<string, FormMatch[]> = {
     m("2026-06-06", "Túnez", "5-0", "W", "Amistoso"),
   ],
   EGY: [
-    m("2026-01-14", "Senegal", "0-1", "L", "Copa Africana"),
-    m("2026-01-17", "Nigeria", "0-0", "D", "Copa Africana (eliminado por penales)"),
+    m("2026-01-17", "Nigeria", "0-0", "D", "Copa Africana, 3.er puesto (eliminado por penales)"),
     m("2026-03-27", "Arabia Saudita", "4-0", "W", "Amistoso"),
     m("2026-03-31", "España", "0-0", "D", "Amistoso"),
+    m("2026-05-28", "Rusia", "1-0", "W", "Amistoso"),
     m("2026-06-06", "Brasil", "1-2", "L", "Amistoso"),
   ],
   IRN: [
@@ -330,16 +334,18 @@ export const TEAM_FORM: Record<string, FormMatch[]> = {
     m("2026-06-10", "Nigeria", "2-1", "W", "Amistoso"),
   ],
   COD: [
-    m("2025-12-30", "Botsuana", "3-0", "W", "Copa Africana"),
     m("2026-01-06", "Argelia", "0-1", "L", "Copa Africana"),
     m("2026-03-25", "Bermudas", "2-0", "W", "Amistoso"),
     m("2026-03-31", "Jamaica", "1-0", "W", "Repechaje intercontinental"),
     m("2026-06-03", "Dinamarca", "0-0", "D", "Amistoso"),
+    m("2026-06-09", "Chile", "1-2", "L", "Amistoso"),
   ],
   UZB: [
-    m("2026-01-26", "China", "2-2", "D", "Amistoso"),
+    // Se omiten dos amistosos de ensayo no oficiales (Irán nov-25 e China ene-26,
+    // a 3 tiempos / definidos por penales) que FIFA no cuenta como "A".
+    m("2025-11-14", "Egipto", "2-0", "W", "Amistoso"),
     m("2026-03-27", "Gabón", "3-1", "W", "Amistoso"),
-    m("2026-03-30", "Venezuela", "0-0", "D", "Amistoso"),
+    m("2026-03-30", "Venezuela", "0-0", "D", "Amistoso (penales)"),
     m("2026-06-01", "Canadá", "0-2", "L", "Amistoso"),
     m("2026-06-08", "Países Bajos", "1-2", "L", "Amistoso"),
   ],
