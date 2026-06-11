@@ -269,20 +269,22 @@ export default function MatchdayPanel({
               >
                 {/* Cabecera del partido */}
                 <div className="border-b border-border px-4 py-3">
-                  <div className="mb-2 flex items-center justify-between gap-3 text-xs text-muted">
-                    <span className="rounded-md bg-background px-2 py-0.5 font-semibold">
+                  <div className="mb-2 flex items-start justify-between gap-3 text-xs text-muted">
+                    <span className="shrink-0 rounded-md bg-background px-2 py-0.5 font-semibold">
                       Grupo {m.group}
                     </span>
-                    <span className="shrink-0 font-medium text-foreground">
-                      🕒 {fmtTime(m.kickoff)}
-                    </span>
-                    <span className="truncate text-right">
-                      {simMode
-                        ? "Simulación"
-                        : official
-                          ? "Final"
-                          : `${m.stadium} · ${m.city}`}
-                    </span>
+                    <div className="flex min-w-0 flex-col items-end gap-0.5 text-right">
+                      <span className="font-medium text-foreground">
+                        🕒 {fmtTime(m.kickoff)}
+                      </span>
+                      <span className="truncate">
+                        {simMode
+                          ? "Simulación"
+                          : official
+                            ? "Final"
+                            : `${m.stadium} · ${m.city}`}
+                      </span>
+                    </div>
                   </div>
                   <div className="flex items-center justify-center gap-2 text-sm font-semibold sm:gap-3">
                     <span className="flex flex-1 items-center justify-end gap-1.5 text-right">
