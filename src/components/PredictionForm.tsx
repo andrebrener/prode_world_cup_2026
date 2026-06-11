@@ -4,6 +4,7 @@ import { useMemo, useState, useTransition } from "react";
 import { GROUPS, MATCHES, ALL_TEAMS, teamName, teamFlag } from "@/lib/fixtures";
 import { savePredictionsAction, type PredictionInput } from "@/lib/actions";
 import GoalInput from "./GoalInput";
+import FormDots from "./FormDots";
 
 type GoalState = Record<string, { home: string; away: string }>;
 type Extras = {
@@ -223,7 +224,7 @@ export default function PredictionForm({
           return (
             <section
               key={group.letter}
-              className="overflow-hidden rounded-2xl border border-border bg-surface"
+              className="rounded-2xl border border-border bg-surface"
             >
               <div className="flex items-center justify-between border-b border-border px-5 py-3">
                 <h2 className="font-bold">
@@ -242,9 +243,12 @@ export default function PredictionForm({
                     <div className="w-16 shrink-0 text-[11px] leading-tight text-muted">
                       {fmtDate(m.date)}
                     </div>
-                    <div className="flex flex-1 items-center justify-end gap-2 text-right text-sm">
-                      <span className="truncate">{teamName(m.homeCode)}</span>
-                      <span className="text-base">{teamFlag(m.homeCode)}</span>
+                    <div className="flex min-w-0 flex-1 flex-col items-end gap-1">
+                      <div className="flex max-w-full items-center gap-2 text-right text-sm">
+                        <span className="truncate">{teamName(m.homeCode)}</span>
+                        <span className="text-base">{teamFlag(m.homeCode)}</span>
+                      </div>
+                      <FormDots code={m.homeCode} align="end" />
                     </div>
                     <div className="flex shrink-0 items-center gap-1">
                       <GoalInput
@@ -257,9 +261,12 @@ export default function PredictionForm({
                         onChange={(v) => setGoal(m.id, "away", v)}
                       />
                     </div>
-                    <div className="flex flex-1 items-center gap-2 text-sm">
-                      <span className="text-base">{teamFlag(m.awayCode)}</span>
-                      <span className="truncate">{teamName(m.awayCode)}</span>
+                    <div className="flex min-w-0 flex-1 flex-col items-start gap-1">
+                      <div className="flex max-w-full items-center gap-2 text-sm">
+                        <span className="text-base">{teamFlag(m.awayCode)}</span>
+                        <span className="truncate">{teamName(m.awayCode)}</span>
+                      </div>
+                      <FormDots code={m.awayCode} align="start" />
                     </div>
                   </div>
                 ))}
