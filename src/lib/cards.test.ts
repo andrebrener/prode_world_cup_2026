@@ -15,7 +15,12 @@ import {
   type PlayedCardEffect,
   type PlayInput,
 } from "./cards";
-import { CARD_CATALOG, RARITY_WEIGHTS, type CardType } from "./cardCatalog";
+import {
+  CARD_CATALOG,
+  RARITY_WEIGHTS,
+  NO_EFFECT_CARDS,
+  type CardType,
+} from "./cardCatalog";
 import { MATCHES } from "./fixtures";
 
 // Calendario sintético: M1 y M2 el 20/jun (huso MX), M3 el 21, M4 el 22.
@@ -41,7 +46,6 @@ const played = (
   targetId: null,
   effectMatchId: null,
   effectDate: null,
-  payload: null,
   reflected: false,
   playedAt: BEFORE_M1,
   ...over,
@@ -85,16 +89,32 @@ describe("dailyCard (sorteo diario, 4 baldes)", () => {
     );
   });
 
-  it("respeta los baldes a grandes rasgos (50/26/9/15)", () => {
-    const counts = { comun: 0, rara: 0, legendaria: 0, maldicion: 0 };
-    for (let i = 0; i < 3000; i++) {
-      counts[dailyCard("pool1", `jugador-${i}`, "2026-06-15").rarity]++;
+  it("la mitad de las tiradas son cartas sin efecto (puro ego)", () => {
+    const noEffect = new Set<CardType>(NO_EFFECT_CARDS);
+    let sinEfecto = 0;
+    const N = 4000;
+    for (let i = 0; i < N; i++) {
+      if (noEffect.has(dailyCard("pool1", `jugador-${i}`, "2026-06-15").type)) sinEfecto++;
     }
-    expect(counts.comun / 3000).toBeGreaterThan(0.42);
-    expect(counts.comun / 3000).toBeLessThan(0.58);
-    expect(counts.maldicion / 3000).toBeGreaterThan(0.1);
-    expect(counts.maldicion / 3000).toBeLessThan(0.2);
-    expect(counts.legendaria / 3000).toBeGreaterThan(0.05);
+    expect(sinEfecto / N).toBeGreaterThan(0.45);
+    expect(sinEfecto / N).toBeLessThan(0.55);
+  });
+
+  it("dentro del tramo con efecto respeta los baldes (50/26/9/15)", () => {
+    const noEffect = new Set<CardType>(NO_EFFECT_CARDS);
+    const counts = { comun: 0, rara: 0, legendaria: 0, maldicion: 0 };
+    let conEfecto = 0;
+    for (let i = 0; i < 4000; i++) {
+      const card = dailyCard("pool1", `jugador-${i}`, "2026-06-15");
+      if (noEffect.has(card.type)) continue;
+      counts[card.rarity]++;
+      conEfecto++;
+    }
+    expect(counts.comun / conEfecto).toBeGreaterThan(0.42);
+    expect(counts.comun / conEfecto).toBeLessThan(0.58);
+    expect(counts.maldicion / conEfecto).toBeGreaterThan(0.1);
+    expect(counts.maldicion / conEfecto).toBeLessThan(0.2);
+    expect(counts.legendaria / conEfecto).toBeGreaterThan(0.05);
   });
 
   it("los pesos de rareza suman 100 y toda rareza tiene cartas", () => {
@@ -221,7 +241,7 @@ describe("resolvePlay (validación)", () => {
     });
   });
 
-  it("el escudo tiene prioridad sobre el espejito, y el duelo no rebota", () => {
+  it("el escudo tiene prioridad sobre el espejito, y el matambre sí rebota", () => {
     expect(
       resolvePlay({
         ...basePlay,
@@ -239,7 +259,7 @@ describe("resolvePlay (validación)", () => {
         targetMirrorCardId: "espejito",
         now: new Date("2026-06-20T08:00:00-06:00"),
       }),
-    ).toMatchObject({ ok: true, reflectedByMirrorId: null, effectDate: DAY_1 });
+    ).toMatchObject({ ok: true, reflectedByMirrorId: "espejito", effectDate: DAY_1 });
   });
 
   it("las maldiciones no se pueden jugar a mano", () => {
@@ -328,13 +348,14 @@ describe("applyCardEffects", () => {
     expect(r.streakOverrides.beto?.M2).toBe("skip");
   });
 
-  it("costillar protege la racha del día sin tocar puntos", () => {
+  it("costillar pone piso de puntos en cada partido del día (3 en grupos)", () => {
     const r = applyCardEffects({
       ...opts,
       cards: [played("costillar", "beto", { effectDate: DAY_1 })],
     });
-    expect(r.points.beto.M2).toBe(0); // puntos intactos
-    expect(r.streakOverrides.beto?.M2).toBe("protect");
+    expect(r.points.beto.M1).toBe(5); // ya tenía más que el piso: intacto
+    expect(r.points.beto.M2).toBe(3); // tenía 0 → sube al piso
+    expect(r.streakOverrides.beto?.M2).toBeUndefined(); // sin override: el piso protege solo
   });
 
   it("una maldición pisa a la cábala (los ceros ganan)", () => {
@@ -349,27 +370,32 @@ describe("applyCardEffects", () => {
     expect(r.points.ana.M2).toBe(0);
   });
 
-  it("duelo: el que más suma en el día cobra doble y el otro se va en 0", () => {
+  it("matambre: el dueño se lleva los puntos del día de la víctima", () => {
     const r = applyCardEffects({
       ...opts,
       cards: [played("duelo", "ana", { targetId: "beto", effectDate: DAY_1 })],
     });
-    // Día 1: ana 3+5=8 · beto 5+0=5 → gana ana.
-    expect(r.points.ana.M1).toBe(6);
-    expect(r.points.ana.M2).toBe(10);
-    expect(r.points.beto.M1).toBe(0);
+    // Día 1 = M1, M2. beto sumó 5+0=5 → ana se lo afana.
+    expect(r.points.beto.M1).toBe(0); // robado
+    expect(r.points.beto.M2).toBe(0);
     expect(r.points.beto.M3).toBe(3); // otro día, intacto
+    expect(r.points.ana.M1).toBe(3); // los del dueño no cambian
+    expect(r.points.ana.M2).toBe(5);
+    expect(r.flat.ana).toBe(5); // el botín entra plano
+    expect(r.delta.beto).toBe(-5);
+    expect(r.delta.ana).toBe(5);
   });
 
-  it("duelo empatado: no pasa nada", () => {
+  it("matambre rebotado: la víctima le afana al dueño", () => {
     const r = applyCardEffects({
-      base: { ana: { M1: 3 }, beto: { M1: 3 } },
-      matchOrder: ["M1"],
-      kickoffById: KICKOFFS,
-      cards: [played("duelo", "ana", { targetId: "beto", effectDate: DAY_1 })],
+      ...opts,
+      cards: [played("duelo", "ana", { targetId: "beto", effectDate: DAY_1, reflected: true })],
     });
-    expect(r.points.ana.M1).toBe(3);
-    expect(r.points.beto.M1).toBe(3);
+    // Rebota: beto le roba a ana sus M1+M2 = 3+5 = 8.
+    expect(r.points.ana.M1).toBe(0);
+    expect(r.points.ana.M2).toBe(0);
+    expect(r.flat.beto).toBe(8);
+    expect(r.points.beto.M1).toBe(5); // beto conserva los suyos
   });
 
   it("planos: papas +5, speed +2, ramirez -5", () => {
@@ -392,20 +418,6 @@ describe("applyCardEffects", () => {
       cards: [played("pedo", "ana", { targetId: "beto", reflected: true })],
     });
     expect(rebotado.flat).toEqual({ ana: -5, beto: 5 });
-  });
-
-  it("caparazón y swap aplican el snapshot de deltas tal cual", () => {
-    const r = applyCardEffects({
-      ...opts,
-      cards: [
-        played("caparazon", "ana", { targetId: "beto", payload: { deltas: { beto: -9 } } }),
-        played("swap", "beto", {
-          targetId: "ana",
-          payload: { deltas: { beto: 4, ana: -4 } },
-        }),
-      ],
-    });
-    expect(r.flat).toEqual({ beto: -5, ana: -4 });
   });
 
   it("var suma +2 al primer partido con puntos posterior a jugarla", () => {
@@ -452,7 +464,7 @@ describe("applyCardEffects", () => {
     const r = applyCardEffects({
       ...opts,
       cards: [
-        played("apodo", "ana", { targetId: "beto", payload: null }),
+        played("apodo", "ana", { targetId: "beto" }),
         played("microfono", "ana", { targetId: "beto" }),
         played("borron", "beto"),
       ],

@@ -33,14 +33,14 @@ export type CardType =
   | "filtro"
   // caos
   | "caldeador"
-  | "caparazon"
-  | "swap"
-  // duelo
+  // robo del día
   | "duelo"
   // puntos directos / robo
   | "papas"
   | "speed"
   | "pedo"
+  // vidente
+  | "saibamba"
   // standings
   | "escudo"
   | "aguante"
@@ -65,8 +65,8 @@ export type CardDef = {
   rarity: CardRarity;
   /** buff/instant = te afecta a vos · attack = hostil · shield = defensa · social = ego · curse = te toca */
   kind: "buff" | "attack" | "shield" | "instant" | "social" | "curse";
-  /** self · other (elegís víctima) · leader (va solo al puntero del prode) */
-  target: "self" | "other" | "leader";
+  /** self · other (elegís víctima) */
+  target: "self" | "other";
   window: CardWindow;
   /** efecto persistente hasta consumirse */
   standing: boolean;
@@ -159,7 +159,7 @@ export const CARD_CATALOG: Record<CardType, CardDef> = {
     window: "day",
     standing: false,
     blockable: false,
-    description: "Desayunaste costillar a las 7 AM y estás imparable: hoy tu racha no se puede cortar, pinches lo que pinches.",
+    description: "Desayunaste costillar a las 7 AM y estás imparable: hoy en cada partido sumás al menos lo de acertar el resultado (3 en grupos, 4 en eliminatoria), pegues o falles. Si acertás más, te quedás con lo tuyo. La racha del día queda blindada.",
   }),
   cabala: c({
     type: "cabala",
@@ -225,43 +225,19 @@ export const CARD_CATALOG: Record<CardType, CardDef> = {
     blockable: true,
     description: "Le vomitás los resultados encima: hoy sus pronósticos no valen — cada partido del día se le reemplaza por un resultado al azar, y con eso se le calculan los puntos. Puede pegarla de casualidad.",
   }),
-  caparazon: c({
-    type: "caparazon",
-    name: "Caparazón azul",
-    emoji: "🐢",
-    rarity: "legendaria",
-    kind: "attack",
-    target: "leader",
-    window: null,
-    standing: false,
-    blockable: true,
-    description: "Directo a la cabeza, como en el Mario Kart: el líder del prode pierde puntos hasta quedar último, 1 punto abajo del que venía último. Si el líder sos vos… problema tuyo.",
-  }),
-  swap: c({
-    type: "swap",
-    name: "Robo de identidad",
-    emoji: "🎭",
-    rarity: "legendaria",
-    kind: "attack",
-    target: "other",
-    window: null,
-    standing: false,
-    blockable: true,
-    description: "Te hacés pasar por tu víctima ante el banco: intercambian los puntos totales en el acto. Elegí bien — si va último, el negocio es pésimo.",
-  }),
 
-  // ---------- Duelo ----------
+  // ---------- Robo del día (type histórico "duelo") ----------
   duelo: c({
     type: "duelo",
-    name: "Duelo de matambres",
-    emoji: "🥊",
+    name: "Matambre de cerdo",
+    emoji: "🐷",
     rarity: "legendaria",
     kind: "attack",
     target: "other",
     window: "day",
     standing: false,
     blockable: true,
-    description: "Mano a mano de parrilla: el que sume más puntos hoy cobra doble, el que pierde se va con 0. Empate: no pasa nada.",
+    description: "Le afanás el matambre de la parrilla: elegís a alguien y te llevás todos los puntos que sumó hoy. Sus partidos del día quedan en 0 y esos puntos pasan a tu cuenta. Un espejito te lo devuelve.",
   }),
 
   // ---------- Puntos directos / robo ----------
@@ -300,6 +276,20 @@ export const CARD_CATALOG: Record<CardType, CardDef> = {
     standing: false,
     blockable: true,
     description: "Te le sentás en la cara y soltás: le robás 5 puntos y te los llevás puestos (vos +5, él -5).",
+  }),
+
+  // ---------- Vidente ----------
+  saibamba: c({
+    type: "saibamba",
+    name: "Sai Bamba",
+    emoji: "🔮",
+    rarity: "legendaria",
+    kind: "instant",
+    target: "self",
+    window: null,
+    standing: false,
+    blockable: false,
+    description: "Sai Bamba, el vidente, ya vio quién levanta la copa: cobrás los puntos del campeón (10) sí o sí, hayas puesto a quien hayas puesto. Si ya le habías pegado al campeón con tu pronóstico, no se duplica.",
   }),
 
   // ---------- Standings ----------
@@ -446,7 +436,17 @@ export const CARD_CATALOG: Record<CardType, CardDef> = {
 
 export const ALL_CARDS: CardDef[] = Object.values(CARD_CATALOG);
 
-/** Probabilidad de cada rareza en el sorteo diario (sobre 100). */
+/**
+ * Cartas que NO tocan los puntos: puro ego (apodo, foto, mensaje) o limpieza.
+ * El sorteo diario las saca la mitad de las veces (ver NO_EFFECT_SHARE): primero
+ * tira si toca una de estas, y solo si no, va al sorteo por rareza con el resto.
+ */
+export const NO_EFFECT_CARDS: CardType[] = ["apodo", "foto", "microfono", "borron"];
+
+/** Probabilidad de que el sorteo diario saque una carta sin efecto (sobre 100). */
+export const NO_EFFECT_SHARE = 50;
+
+/** Probabilidad de cada rareza DENTRO del sorteo con efecto (sobre 100). */
 export const RARITY_WEIGHTS: Record<CardRarity, number> = {
   comun: 50,
   rara: 26,
