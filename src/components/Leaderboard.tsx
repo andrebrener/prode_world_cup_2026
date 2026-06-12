@@ -110,6 +110,12 @@ export default function Leaderboard({ rows }: { rows: LeaderboardRow[] }) {
                   >
                     🃏
                   </th>
+                  <th
+                    className="hidden px-2 py-3 text-right sm:table-cell"
+                    title="Total solo con resultados reales: sin cartas, sin rachas"
+                  >
+                    Puro
+                  </th>
                 </>
               )}
               <th className="px-4 py-3 text-right">Total</th>
@@ -157,7 +163,8 @@ export default function Leaderboard({ rows }: { rows: LeaderboardRow[] }) {
                         {row.fun && (
                           <>
                             {" "}
-                            · 🃏 {fmtDelta(row.fun.cardDelta + row.fun.streakBonus)}
+                            · 🃏 {fmtDelta(row.fun.cardDelta + row.fun.streakBonus)} · Puro{" "}
+                            {row.fun.pureTotal}
                           </>
                         )}
                       </span>
@@ -186,6 +193,12 @@ export default function Leaderboard({ rows }: { rows: LeaderboardRow[] }) {
                       }
                     >
                       {fmtDelta((row.fun?.cardDelta ?? 0) + (row.fun?.streakBonus ?? 0))}
+                    </td>
+                    <td
+                      className="hidden px-2 py-3 text-right text-muted sm:table-cell"
+                      title="Total solo con resultados reales: sin cartas, sin rachas"
+                    >
+                      {row.fun?.pureTotal ?? 0}
                     </td>
                   </>
                 )}

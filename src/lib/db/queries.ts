@@ -202,6 +202,8 @@ export type FunLeaderboardInfo = {
   }[];
   /** Apodo / foto trucha / micrófono colgados sobre este jugador. */
   overlay?: FunOverlay;
+  /** Total "puro": solo resultados reales, sin cartas ni hitos de racha. */
+  pureTotal: number;
 };
 
 export type LeaderboardRow = {
@@ -304,28 +306,39 @@ export async function getLeaderboard(pool: Pool): Promise<LeaderboardRow[]> {
   const groupResultIds = new Set(Object.keys(results));
   const ptsByMember: Record<string, MatchPointsMap> = {};
   const exactByMember: Record<string, number> = {};
+  // Puntos "puros" (pronósticos reales, sin Caldeador): para la columna sin cartas.
+  const pureByMember: Record<string, number> = {};
   for (const person of people) {
     const preds = predsByPerson[person.id] ?? {};
     const koPreds = koPredsByPerson[person.id] ?? {};
     const m: MatchPointsMap = {};
     let exact = 0;
+    let pure = 0;
     for (const [matchId, real] of Object.entries(results)) {
       const caldeador = caldeadoBy[`${person.id}:${matchId}`];
-      const pred = caldeador ? caldeadorScore(caldeador, matchId) : preds[matchId];
-      const pts = matchPoints(pred, real);
+      const purePts = matchPoints(preds[matchId], real);
+      pure += purePts;
+      const pts = caldeador ? matchPoints(caldeadorScore(caldeador, matchId), real) : purePts;
       m[matchId] = pts;
-      if (pts === 5 && !caldeador) exact++;
+      if (purePts === 5) exact++;
     }
     for (const km of bracket.matches) {
       if (!km.result || !km.home || !km.away) continue;
       const caldeador = caldeadoBy[`${person.id}:${km.id}`];
-      const pred = caldeador
-        ? caldeadorKoPred(caldeador, km.id, km.home, km.away)
-        : koPreds[km.id];
-      m[km.id] = knockoutPoints(pred, km.result as KoReal, km.home, km.away);
+      const purePts = knockoutPoints(koPreds[km.id], km.result as KoReal, km.home, km.away);
+      pure += purePts;
+      m[km.id] = caldeador
+        ? knockoutPoints(
+            caldeadorKoPred(caldeador, km.id, km.home, km.away),
+            km.result as KoReal,
+            km.home,
+            km.away,
+          )
+        : purePts;
     }
     ptsByMember[person.id] = m;
     exactByMember[person.id] = exact;
+    pureByMember[person.id] = pure;
   }
 
   const fun =
@@ -355,7 +368,9 @@ export async function getLeaderboard(pool: Pool): Promise<LeaderboardRow[]> {
       total: mp + kp + ep + flat + streakBonus,
       exactCount: exactByMember[person.id] ?? 0,
       predictionsCount: countByPerson[person.id] ?? 0,
-      ...(funInfo ? { fun: funInfo } : {}),
+      ...(funInfo
+        ? { fun: { ...funInfo, pureTotal: (pureByMember[person.id] ?? 0) + ep } }
+        : {}),
     };
   });
 
@@ -377,7 +392,8 @@ type FunCardRow = typeof funCards.$inferSelect;
 
 type FunResolution = {
   effects: ReturnType<typeof applyCardEffects>;
-  infoByMember: Record<string, FunLeaderboardInfo>;
+  // pureTotal se completa en getLeaderboard (acá no hay extras ni puntos puros).
+  infoByMember: Record<string, Omit<FunLeaderboardInfo, "pureTotal">>;
 };
 
 function parsePayload(raw: string | null): PlayedCardEffect["payload"] {
@@ -465,7 +481,7 @@ function resolveFun(
       overlay.message = { text: payload.mensaje, byName };
   }
 
-  const infoByMember: Record<string, FunLeaderboardInfo> = {};
+  const infoByMember: FunResolution["infoByMember"] = {};
   for (const person of people) {
     const mine = played.filter((c) => c.participantId === person.id);
     const aguantes = mine.filter((c) => c.cardType === "aguante").map((c) => c.playedAt!);
