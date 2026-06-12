@@ -2,23 +2,23 @@
 
 import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
-import {
-  GROUPS,
-  MATCHES,
-  ALL_TEAMS,
-  teamName,
-  teamFlag,
-} from "@/lib/fixtures";
+import { MATCHES, ALL_TEAMS, teamName, teamFlag } from "@/lib/fixtures";
 import { saveResultsBatchAction } from "@/lib/actions";
 import GoalInput from "./GoalInput";
 
 type GoalState = Record<string, { home: string; away: string }>;
 
-const fmtDate = (iso: string) =>
-  new Date(iso + "T12:00:00").toLocaleDateString("es-AR", {
-    day: "2-digit",
-    month: "short",
+/** Hora local de la sede, tomada directo del offset del kickoff (sin reinterpretar TZ). */
+const fmtKickoff = (kickoff: string) => kickoff.slice(11, 16);
+
+const fmtDay = (iso: string) => {
+  const s = new Date(iso + "T12:00:00").toLocaleDateString("es-AR", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
   });
+  return s.charAt(0).toUpperCase() + s.slice(1);
+};
 
 export default function ResultsEditor({
   canEdit,
@@ -59,6 +59,22 @@ export default function ResultsEditor({
     () => MATCHES.filter((m) => goals[m.id]?.home !== "" && goals[m.id]?.away !== "").length,
     [goals],
   );
+
+  // Partidos agrupados por día, ordenados por fecha y por hora de inicio.
+  const days = useMemo(() => {
+    const byDay = new Map<string, typeof MATCHES>();
+    for (const m of MATCHES) {
+      const list = byDay.get(m.date) ?? [];
+      list.push(m);
+      byDay.set(m.date, list);
+    }
+    return [...byDay.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, matches]) => ({
+        date,
+        matches: [...matches].sort((a, b) => a.kickoff.localeCompare(b.kickoff)),
+      }));
+  }, []);
 
   function setGoal(matchId: string, side: "home" | "away", value: string) {
     const clean = value.replace(/[^0-9]/g, "").slice(0, 2);
@@ -159,51 +175,48 @@ export default function ResultsEditor({
           </div>
         </section>
 
-        {/* Partidos por grupo */}
-        {GROUPS.map((group) => {
-          const matches = MATCHES.filter((m) => m.group === group.letter);
-          return (
-            <section
-              key={group.letter}
-              className="overflow-hidden rounded-2xl border border-border bg-surface"
-            >
-              <div className="border-b border-border px-5 py-3 font-bold">
-                <span className="mr-2 inline-block rounded-md bg-primary px-2 py-0.5 text-sm font-black text-primary-ink">
-                  {group.letter}
-                </span>
-                Grupo {group.letter}
-              </div>
-              <div className="divide-y divide-border">
-                {matches.map((m) => (
-                  <div key={m.id} className="flex items-center gap-2 px-3 py-2.5 sm:px-5">
-                    <div className="w-16 shrink-0 text-[11px] leading-tight text-muted">
-                      {fmtDate(m.date)}
-                    </div>
-                    <div className="flex flex-1 items-center justify-end gap-2 text-right text-sm">
-                      <span className="truncate">{teamName(m.homeCode)}</span>
-                      <span className="text-base">{teamFlag(m.homeCode)}</span>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-1">
-                      <GoalInput
-                        value={goals[m.id]?.home ?? ""}
-                        onChange={(v) => setGoal(m.id, "home", v)}
-                      />
-                      <span className="text-muted">-</span>
-                      <GoalInput
-                        value={goals[m.id]?.away ?? ""}
-                        onChange={(v) => setGoal(m.id, "away", v)}
-                      />
-                    </div>
-                    <div className="flex flex-1 items-center gap-2 text-sm">
-                      <span className="text-base">{teamFlag(m.awayCode)}</span>
-                      <span className="truncate">{teamName(m.awayCode)}</span>
-                    </div>
+        {/* Partidos por día */}
+        {days.map(({ date, matches }) => (
+          <section
+            key={date}
+            className="overflow-hidden rounded-2xl border border-border bg-surface"
+          >
+            <div className="border-b border-border px-5 py-3 font-bold">
+              📅 {fmtDay(date)}
+            </div>
+            <div className="divide-y divide-border">
+              {matches.map((m) => (
+                <div key={m.id} className="flex items-center gap-2 px-3 py-2.5 sm:px-5">
+                  <div className="flex w-16 shrink-0 flex-col gap-1 text-[11px] leading-tight text-muted">
+                    <span>{fmtKickoff(m.kickoff)}</span>
+                    <span className="inline-flex w-fit items-center rounded bg-primary px-1.5 font-black text-primary-ink">
+                      {m.group}
+                    </span>
                   </div>
+                  <div className="flex flex-1 items-center justify-end gap-2 text-right text-sm">
+                    <span className="truncate">{teamName(m.homeCode)}</span>
+                    <span className="text-base">{teamFlag(m.homeCode)}</span>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-1">
+                    <GoalInput
+                      value={goals[m.id]?.home ?? ""}
+                      onChange={(v) => setGoal(m.id, "home", v)}
+                    />
+                    <span className="text-muted">-</span>
+                    <GoalInput
+                      value={goals[m.id]?.away ?? ""}
+                      onChange={(v) => setGoal(m.id, "away", v)}
+                    />
+                  </div>
+                  <div className="flex flex-1 items-center gap-2 text-sm">
+                    <span className="text-base">{teamFlag(m.awayCode)}</span>
+                    <span className="truncate">{teamName(m.awayCode)}</span>
+                  </div>
+                </div>
                 ))}
-              </div>
-            </section>
-          );
-        })}
+            </div>
+          </section>
+        ))}
       </fieldset>
 
       {/* Barra de guardado (inline) */}
