@@ -550,6 +550,43 @@ export type PlayCardExtra = {
 };
 
 /**
+ * SOLO DEV — para probar el mazo: saca una carta extra al azar (respetando las
+ * rarezas, maldiciones incluidas), sin tope de mano ni límite diario.
+ * No existe en producción. Borrar cuando termine la etapa de pruebas.
+ */
+export async function devDrawCardAction(
+  slug: string,
+): Promise<{ ok: boolean; error?: string; card?: CardDef; curse?: boolean }> {
+  if (process.env.NODE_ENV === "production") {
+    return { ok: false, error: "Solo disponible en desarrollo." };
+  }
+  const gate = await funGate(slug);
+  if ("error" in gate) return { ok: false, error: gate.error };
+  const { id, pool } = gate;
+
+  // Sal aleatoria como "fecha" → carta al azar y sin chocar con el índice único.
+  const salt = `dev-${randomUUID().slice(0, 8)}`;
+  const def = dailyCard(pool.id, id, salt);
+  const isCurse = def.kind === "curse";
+  const now = new Date();
+
+  await db.insert(funCards).values({
+    id: randomUUID(),
+    poolId: pool.id,
+    participantId: id,
+    drawDate: salt,
+    cardType: def.type,
+    status: isCurse ? "played" : "held",
+    drawnAt: now,
+    playedAt: isCurse ? now : null,
+    effectDate: isCurse && def.window === "day" ? funToday() : null,
+  });
+
+  revalidatePath("/", "layout");
+  return { ok: true, card: def, curse: isCurse };
+}
+
+/**
  * Juega una carta de la mano. Los ataques eligen víctima; un Anulo mufa de la
  * víctima los bloquea, un Espejito rebotín los devuelve al que los tiró.
  * El Caparazón azul apunta solo al líder; caparazón y Robo de identidad congelan

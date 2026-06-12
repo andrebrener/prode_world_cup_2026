@@ -124,6 +124,7 @@ export default async function PoolTabla({
           state={funState}
           members={leaderboard.map((r) => ({ id: r.id, name: r.name, avatar: r.avatar }))}
           meId={participant.id}
+          devTools={process.env.NODE_ENV !== "production"}
         />
       )}
 

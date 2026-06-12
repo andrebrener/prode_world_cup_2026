@@ -7,7 +7,12 @@
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import confetti from "canvas-confetti";
-import { claimDailyCardAction, playCardAction, type PlayCardExtra } from "@/lib/actions";
+import {
+  claimDailyCardAction,
+  devDrawCardAction,
+  playCardAction,
+  type PlayCardExtra,
+} from "@/lib/actions";
 import {
   RARITY_LABEL,
   MAX_HELD_CARDS,
@@ -122,19 +127,24 @@ const fmtDay = (iso: string, today: string): string => {
   });
 };
 
+// 24h sin am/pm: el formato "p. m." difiere entre server y browser por un
+// espacio invisible (U+202F) y rompe la hidratación.
 const fmtTime = (d: Date): string =>
-  d.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
+  d.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false });
 
 export default function FunZone({
   slug,
   state,
   members,
   meId,
+  devTools = false,
 }: {
   slug: string;
   state: FunState;
   members: FunMember[];
   meId: string;
+  /** SOLO DEV: botón para sacar cartas extra y probar el mazo. */
+  devTools?: boolean;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -166,6 +176,20 @@ export default function FunZone({
     return groups;
   }, [state.feed]);
 
+  function showReveal(card: CardDef, curse: boolean) {
+    // Resetear el flip para poder revelar varias seguidas (botón de pruebas).
+    setFlipped(false);
+    setRevealed(null);
+    requestAnimationFrame(() => {
+      setRevealed({ def: card, curse });
+      requestAnimationFrame(() => {
+        setFlipped(true);
+        setTimeout(() => burst(card.rarity), 500);
+      });
+    });
+    setTimeout(() => router.refresh(), 1800);
+  }
+
   function claim() {
     setError(null);
     start(async () => {
@@ -174,12 +198,19 @@ export default function FunZone({
         setError(res.error ?? "No se pudo reclamar.");
         return;
       }
-      setRevealed({ def: res.card, curse: !!res.curse });
-      requestAnimationFrame(() => {
-        setFlipped(true);
-        setTimeout(() => burst(res.card!.rarity), 500);
-      });
-      setTimeout(() => router.refresh(), 1800);
+      showReveal(res.card, !!res.curse);
+    });
+  }
+
+  function devDraw() {
+    setError(null);
+    start(async () => {
+      const res = await devDrawCardAction(slug);
+      if (!res.ok || !res.card) {
+        setError(res.error ?? "No se pudo sacar.");
+        return;
+      }
+      showReveal(res.card, !!res.curse);
     });
   }
 
@@ -241,7 +272,27 @@ export default function FunZone({
             className="pointer-events-none absolute -top-4 left-0 h-12 w-40"
           />
         </h2>
-        <span className="text-xs text-muted">
+        <span className="flex items-center gap-2 text-xs text-muted">
+          {devTools && (
+            <>
+              <button
+                onClick={devDraw}
+                disabled={pending}
+                title="SOLO PRUEBAS: saca una carta extra al azar (después lo sacamos)"
+                className="rounded-lg border border-dashed border-gold/60 px-2 py-1 font-bold text-gold transition hover:bg-gold/10 disabled:opacity-50"
+              >
+                🧪 +carta
+              </button>
+              <button
+                onClick={() => router.refresh()}
+                disabled={pending}
+                title="SOLO PRUEBAS: refrescar el estado"
+                className="rounded-lg border border-dashed border-gold/60 px-2 py-1 font-bold text-gold transition hover:bg-gold/10 disabled:opacity-50"
+              >
+                🔄
+              </button>
+            </>
+          )}
           Mano: {state.held.length}/{MAX_HELD_CARDS}
         </span>
       </header>
