@@ -74,6 +74,12 @@ export type CardDef = {
   blockable: boolean;
   /** input extra que pide la UI al jugarla */
   input?: "apodo" | "mensaje" | "imagen";
+  /**
+   * Peso dentro de su balde de rareza (default 1). La probabilidad efectiva de
+   * una carta = peso_rareza × (weight / suma de weights del balde).
+   * Para balancear: subí/bajá este número (2 = sale el doble que una de peso 1).
+   */
+  weight?: number;
   description: string;
 };
 

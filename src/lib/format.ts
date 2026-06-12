@@ -5,9 +5,11 @@
 
 /** Hora de inicio en la zona del usuario, con etiqueta de huso. Ej: "23:00 ART". */
 export const fmtKickoffTime = (iso: string): string =>
+  // 24h sin am/pm: el "p. m." difiere entre server y browser (U+202F) y rompe la hidratación.
   new Date(iso).toLocaleTimeString("es-AR", {
     hour: "2-digit",
     minute: "2-digit",
+    hour12: false,
     timeZoneName: "short",
   });
 

@@ -56,8 +56,28 @@ function rarityFor(n: number): CardRarity {
 /** Carta del día para un participante en un prode. Determinística. */
 export function dailyCard(poolId: string, participantId: string, date: string): CardDef {
   const rarity = rarityFor(roll([poolId, participantId, date, "rareza"], 100));
+  // Dentro del balde, sorteo ponderado por `weight` (default 1).
   const options = ALL_CARDS.filter((c) => c.rarity === rarity);
-  return options[roll([poolId, participantId, date, "carta"], options.length)];
+  const total = options.reduce((acc, c) => acc + (c.weight ?? 1), 0);
+  let n = roll([poolId, participantId, date, "carta"], total);
+  for (const c of options) {
+    n -= c.weight ?? 1;
+    if (n < 0) return c;
+  }
+  return options[options.length - 1];
+}
+
+/** Probabilidad efectiva de cada carta en el sorteo diario (sobre 100). */
+export function cardOdds(): Record<CardType, number> {
+  const odds = {} as Record<CardType, number>;
+  for (const rarity of Object.keys(RARITY_WEIGHTS) as CardRarity[]) {
+    const options = ALL_CARDS.filter((c) => c.rarity === rarity);
+    const total = options.reduce((acc, c) => acc + (c.weight ?? 1), 0);
+    for (const c of options) {
+      odds[c.type] = (RARITY_WEIGHTS[rarity] * (c.weight ?? 1)) / total;
+    }
+  }
+  return odds;
 }
 
 /**
@@ -144,6 +164,18 @@ export function dayMatchesAfter(
   );
 }
 
+/**
+ * Día al que se ata una carta de día: hoy si todavía quedan partidos por
+ * arrancar; si no, el próximo día con partidos. (Con jugada obligada no puede
+ * haber cartas muertas por reclamar de noche.)
+ */
+export function bindDay(now: Date, schedule: ScheduledMatch[] = fullSchedule()): string | null {
+  const today = funToday(now);
+  if (dayMatchesAfter(today, now, schedule).length > 0) return today;
+  const next = nextMatchAfter(now, schedule);
+  return next ? matchDay(next.kickoff) : null;
+}
+
 // ---------- Jugar una carta: validación ----------
 
 export type PlayInput = {
@@ -153,16 +185,10 @@ export type PlayInput = {
   targetId: string | null;
   now: Date;
   memberIds: string[];
-  /** "matchId:participanteAfectado" de efectos ya activos (regla: 1 efecto por partido por persona). */
-  occupiedEffects: Set<string>;
-  /** Tipos standing (escudo/espejito/aguante/var) que el dueño ya tiene activos. */
-  ownerActiveStandings: Set<CardType>;
   /** id del Anulo mufa activo de la víctima, si tiene (solo ataques bloqueables). */
   targetShieldCardId: string | null;
   /** id del Espejito rebotín activo de la víctima, si tiene. */
   targetMirrorCardId: string | null;
-  /** "fecha:participante" de duelos ya jugados (1 duelo por persona por día). */
-  occupiedDuels: Set<string>;
   schedule?: ScheduledMatch[];
 };
 
@@ -176,6 +202,9 @@ export type PlayOutcome =
     }
   | { ok: false; error: string };
 
+// Sin regla de 1 efecto: los efectos STACKEAN en orden de jugada (los ceros
+// ganan siempre). Con jugada obligada y mazo random nadie arma pile-ons a
+// propósito. Los standings también se acumulan (dos escudos = dos bloqueos).
 export function resolvePlay(input: PlayInput): PlayOutcome {
   const def = CARD_CATALOG[input.cardType];
   if (!def) return { ok: false, error: "Carta desconocida." };
@@ -193,10 +222,6 @@ export function resolvePlay(input: PlayInput): PlayOutcome {
     return { ok: false, error: "Esta carta no lleva víctima." };
   }
 
-  if (def.standing && input.ownerActiveStandings.has(def.type)) {
-    return { ok: false, error: `Ya tenés un ${def.name} activo. Esperá a que se consuma.` };
-  }
-
   // Defensas de la víctima: el escudo come el ataque; el espejito lo devuelve.
   if (def.blockable && input.targetId && input.targetId !== input.ownerId) {
     if (input.targetShieldCardId) {
@@ -210,24 +235,21 @@ export function resolvePlay(input: PlayInput): PlayOutcome {
     }
     // El duelo no rebota (es simétrico: rebotarlo es el mismo duelo).
     if (input.targetMirrorCardId && def.type !== "duelo") {
-      const r = bindWindow(def, input, input.ownerId);
+      const r = bindWindow(def, input);
       if (!r.ok) return r;
       return { ...r, blockedByShieldId: null, reflectedByMirrorId: input.targetMirrorCardId };
     }
   }
 
-  const affectedId =
-    def.kind === "attack" && input.targetId ? input.targetId : input.ownerId;
-  const r = bindWindow(def, input, affectedId);
+  const r = bindWindow(def, input);
   if (!r.ok) return r;
   return { ...r, blockedByShieldId: null, reflectedByMirrorId: null };
 }
 
-/** Ata la carta a su ventana (partido o día) validando la regla de 1 efecto. */
+/** Ata la carta a su ventana: próximo partido, o próximo día con partidos. */
 function bindWindow(
   def: CardDef,
   input: PlayInput,
-  affectedId: string,
 ):
   | { ok: true; effectMatchId: string | null; effectDate: string | null }
   | { ok: false; error: string } {
@@ -236,45 +258,13 @@ function bindWindow(
   if (def.window === "match") {
     const next = nextMatchAfter(input.now, schedule);
     if (!next) return { ok: false, error: "No quedan partidos por jugarse." };
-    if (input.occupiedEffects.has(`${next.id}:${affectedId}`)) {
-      return {
-        ok: false,
-        error:
-          affectedId === input.ownerId
-            ? "Ya tenés un efecto activo para ese partido."
-            : "La víctima ya tiene un efecto activo para ese partido.",
-      };
-    }
     return { ok: true, effectMatchId: next.id, effectDate: null };
   }
 
   if (def.window === "day") {
-    const today = funToday(input.now);
-    const remaining = dayMatchesAfter(today, input.now, schedule);
-    if (remaining.length === 0) {
-      return { ok: false, error: "Hoy ya no quedan partidos por arrancar. Guardala para mañana." };
-    }
-    if (def.type === "duelo") {
-      // 1 duelo por persona por día (los dos contendientes quedan ocupados).
-      if (
-        input.occupiedDuels.has(`${today}:${input.ownerId}`) ||
-        (input.targetId && input.occupiedDuels.has(`${today}:${input.targetId}`))
-      ) {
-        return { ok: false, error: "Uno de los dos ya tiene un duelo hoy." };
-      }
-      return { ok: true, effectMatchId: null, effectDate: today };
-    }
-    const clash = remaining.find((m) => input.occupiedEffects.has(`${m.id}:${affectedId}`));
-    if (clash) {
-      return {
-        ok: false,
-        error:
-          affectedId === input.ownerId
-            ? "Ya tenés un efecto activo en un partido de hoy."
-            : "La víctima ya tiene un efecto activo en un partido de hoy.",
-      };
-    }
-    return { ok: true, effectMatchId: null, effectDate: today };
+    const date = bindDay(input.now, schedule);
+    if (!date) return { ok: false, error: "No quedan partidos por jugarse." };
+    return { ok: true, effectMatchId: null, effectDate: date };
   }
 
   return { ok: true, effectMatchId: null, effectDate: null };
@@ -307,8 +297,8 @@ export type FunEffects = {
   flat: Record<string, number>;
   /** Delta total por cartas (modificadores + planos) por miembro, para mostrar. */
   delta: Record<string, number>;
-  /** Partido al que el VAR le sumó +2, por miembro. */
-  varAppliedTo: Record<string, string>;
+  /** Partidos a los que el VAR sumó +2, por miembro (puede haber varios VAR). */
+  varAppliedTo: Record<string, string[]>;
   /** Overrides de racha por miembro (costillar/filtro/caído). */
   streakOverrides: Record<string, Record<string, StreakOverride>>;
 };
@@ -339,7 +329,7 @@ export function applyCardEffects(opts: {
   for (const [member, map] of Object.entries(opts.base)) points[member] = { ...map };
 
   const flat: Record<string, number> = {};
-  const varAppliedTo: Record<string, string> = {};
+  const varAppliedTo: Record<string, string[]> = {};
   const streakOverrides: Record<string, Record<string, StreakOverride>> = {};
   const add = (m: Record<string, number>, k: string, v: number) => {
     m[k] = (m[k] ?? 0) + v;
@@ -444,18 +434,22 @@ export function applyCardEffects(opts: {
     if (z.matchId in m) m[z.matchId] = 0;
   }
 
-  // ---- Pase 2: VAR (primer partido con puntos posterior a jugarlo) ----
+  // ---- Pase 2: VAR (primer partido con puntos posterior a jugarlo; cada VAR
+  //      agarra un partido distinto si hay varios) ----
   for (const card of cards) {
     if (card.cardType !== "var") continue;
     const m = map(card.ownerId);
+    const used = (varAppliedTo[card.ownerId] ??= []);
     const playedAt = card.playedAt.getTime();
     const hit = opts.matchOrder.find((id) => {
       const k = opts.kickoffById[id];
-      return k && new Date(k).getTime() > playedAt && (m[id] ?? 0) > 0;
+      return (
+        k && new Date(k).getTime() > playedAt && (m[id] ?? 0) > 0 && !used.includes(id)
+      );
     });
     if (hit) {
       m[hit] += 2;
-      varAppliedTo[card.ownerId] = hit;
+      used.push(hit);
     }
   }
 

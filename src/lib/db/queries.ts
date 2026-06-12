@@ -24,14 +24,13 @@ import type { Score } from "../scoring";
 import { resolveBracket, koKickoff, type KoResult, type ResolvedKoMatch } from "../bracket";
 import { allGroupStandings } from "../standings";
 import { MATCHES } from "../fixtures";
-import { CARD_CATALOG, MAX_HELD_CARDS, type CardDef, type CardType, type PoolMode } from "../cardCatalog";
+import { CARD_CATALOG, type CardDef, type CardType, type PoolMode } from "../cardCatalog";
 import {
   applyCardEffects,
   affectedIdOf,
   caldeadorScore,
   caldeadorKoPred,
   funToday,
-  fullSchedule,
   matchDay,
   type MatchPointsMap,
   type PlayedCardEffect,
@@ -483,7 +482,8 @@ function resolveFun(
     if (mine.some((c) => c.cardType === "escudo")) activeStandings.push("escudo");
     if (mine.some((c) => c.cardType === "espejito")) activeStandings.push("espejito");
     if (aguantes.length > streak.protectionsUsed) activeStandings.push("aguante");
-    if (mine.some((c) => c.cardType === "var") && !effects.varAppliedTo[person.id])
+    const varsPlayed = mine.filter((c) => c.cardType === "var").length;
+    if (varsPlayed > (effects.varAppliedTo[person.id]?.length ?? 0))
       activeStandings.push("var");
 
     // Efectos pendientes que afectan a esta persona: atados a un partido sin
@@ -544,9 +544,9 @@ export type FunState = {
   today: string;
   /** Ya reclamó la carta de hoy en este prode. */
   claimedToday: boolean;
-  handFull: boolean;
   canClaim: boolean;
-  held: HeldCard[];
+  /** Carta sin resolver (pidió víctima/apodo/foto al salir): bloquea el sorteo. */
+  pending: HeldCard | null;
   /** Historial completo de jugadas, más nuevas primero (la UI agrupa por día). */
   feed: FunFeedItem[];
 };
@@ -566,14 +566,19 @@ export async function getFunState(pool: Pool, viewerId: string): Promise<FunStat
 
   const today = funToday();
   const mine = cards.filter((c) => c.participantId === viewerId);
-  const held: HeldCard[] = mine
-    .filter((c) => c.status === "held")
-    .sort((a, b) => a.drawnAt.getTime() - b.drawnAt.getTime())
-    .map((c) => ({ id: c.id, def: CARD_CATALOG[c.cardType as CardType], drawDate: c.drawDate }))
-    .filter((c) => c.def);
+  // Cartas pendientes de resolver (las "held" que quedaron de la era con mano
+  // también caen acá y se resuelven de a una).
+  const pending: HeldCard | null =
+    mine
+      .filter((c) => c.status === "held" && CARD_CATALOG[c.cardType as CardType])
+      .sort((a, b) => a.drawnAt.getTime() - b.drawnAt.getTime())
+      .map((c) => ({
+        id: c.id,
+        def: CARD_CATALOG[c.cardType as CardType],
+        drawDate: c.drawDate,
+      }))[0] ?? null;
 
   const claimedToday = mine.some((c) => c.drawDate === today);
-  const handFull = held.length >= MAX_HELD_CARDS;
 
   const feed: FunFeedItem[] = cards
     .filter((c) => c.status !== "held" && c.playedAt)
@@ -602,21 +607,18 @@ export async function getFunState(pool: Pool, viewerId: string): Promise<FunStat
       };
     });
 
-  return { today, claimedToday, handFull, canClaim: !claimedToday && !handFull, held, feed };
+  return { today, claimedToday, canClaim: !claimedToday && !pending, pending, feed };
 }
 
 export type PlayContext = {
   memberIds: string[];
   /** Tabla actual (para snapshots de caparazón/swap y elegir al líder). */
   rows: LeaderboardRow[];
-  occupiedEffects: Set<string>;
-  occupiedDuels: Set<string>;
-  ownerActiveStandings: Set<CardType>;
   targetShieldCardId: string | null;
   targetMirrorCardId: string | null;
 };
 
-/** Contexto para validar una jugada (regla de 1 efecto, standings, defensas). */
+/** Contexto para jugar una carta: tabla actual + defensas de la víctima. */
 export async function getPlayContext(
   pool: Pool,
   ownerId: string,
@@ -628,48 +630,18 @@ export async function getPlayContext(
     getPoolMemberIds(pool.id),
   ]);
 
-  const schedule = fullSchedule();
-  const occupiedEffects = new Set<string>();
-  const occupiedDuels = new Set<string>();
-  for (const c of cards) {
-    if (c.status !== "played") continue;
-    const affected = c.reflected
-      ? c.participantId
-      : CARD_CATALOG[c.cardType as CardType]?.kind === "attack" && c.targetParticipantId
-        ? c.targetParticipantId
-        : c.participantId;
-    if (c.cardType === "duelo" && c.effectDate) {
-      occupiedDuels.add(`${c.effectDate}:${c.participantId}`);
-      if (c.targetParticipantId) occupiedDuels.add(`${c.effectDate}:${c.targetParticipantId}`);
-      continue;
-    }
-    if (c.effectMatchId) {
-      occupiedEffects.add(`${c.effectMatchId}:${affected}`);
-    } else if (c.effectDate && CARD_CATALOG[c.cardType as CardType]?.kind !== "curse") {
-      // Una carta de día ocupa todos los partidos de su fecha para el afectado.
-      for (const m of schedule) {
-        if (matchDay(m.kickoff) === c.effectDate) {
-          occupiedEffects.add(`${m.id}:${affected}`);
-        }
-      }
-    }
-  }
-
-  const ownerActiveStandings = new Set<CardType>(
-    rows.find((r) => r.id === ownerId)?.fun?.activeStandings ?? [],
-  );
-
+  // Con varios escudos/espejitos activos, se consume el más viejo primero.
   const activeStanding = (memberId: string, type: CardType) =>
-    cards.find(
-      (c) => c.participantId === memberId && c.cardType === type && c.status === "played",
-    )?.id ?? null;
+    cards
+      .filter(
+        (c) => c.participantId === memberId && c.cardType === type && c.status === "played",
+      )
+      .sort((a, b) => (a.playedAt?.getTime() ?? 0) - (b.playedAt?.getTime() ?? 0))[0]?.id ??
+    null;
 
   return {
     memberIds,
     rows,
-    occupiedEffects,
-    occupiedDuels,
-    ownerActiveStandings,
     targetShieldCardId: targetId ? activeStanding(targetId, "escudo") : null,
     targetMirrorCardId: targetId ? activeStanding(targetId, "espejito") : null,
   };

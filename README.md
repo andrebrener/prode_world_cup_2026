@@ -39,7 +39,7 @@ and styled with **Tailwind CSS 4**.
 
 When creating a pool you can pick **Fun mode**: everything from a normal pool, plus cards and streaks (scoped to that pool — predictions stay global).
 
-- **Daily card draw**: every player gets one surprise card per day (common 50% / rare 26% / legendary 9% / **curse 15%**). Curses apply themselves the moment you claim — the daily claim is a gamble. Unclaimed cards expire at midnight (America/Mexico_City). Hand limit: 3. The draw is deterministic per (pool, player, date) — no cron needed; claiming just persists it.
+- **Daily card draw, forced play**: every player gets one surprise card per day (common 50% / rare 26% / legendary 9% / **curse 15%**, per-card weights tunable in the catalog). The card **plays itself on draw**: buffs activate instantly, attacks/socials immediately ask you to pick the victim (no stash, no take-backs), curses just hit you. Effects stack in play order (zeros always win). Unclaimed cards expire at midnight (America/Mexico_City). The draw is deterministic per (pool, player, date) — no cron needed.
 - **Two effect windows**: surgical *next-match* cards (Doblete ×2, El Diego ×3, La Yapa, Mufa, VAR a favor) and *whole-day* cards (Cábala del Echugo ×2, Pelambreada, Filtro 5mm, Se me cayó el Fernet, Costillar 7 AM…). Day effects only cover matches that haven't kicked off yet — no retroactive plays.
 - **Chaos**: Caldeador de las tinieblas replaces a rival's predictions for the day with seeded-random scores; Caparazón azul auto-targets the pool leader and drops them to last−1; Robo de identidad swaps total points (both snapshot at play time).
 - **Duels**: Duelo de matambres — most day points doubles, loser zeroes (one duel per person per day).

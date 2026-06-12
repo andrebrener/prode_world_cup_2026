@@ -127,16 +127,18 @@ export default async function ComoFunciona() {
           <div className="rounded-2xl border border-border bg-surface p-4 text-sm text-muted">
             <h3 className="mb-2 font-bold text-foreground">🎴 Carta del día</h3>
             Cada día tenés una carta sorpresa (común, rara o legendaria)… o una{" "}
-            <strong className="text-foreground">maldición ☠️</strong> que se aplica sola al
-            reclamar. ¿Te la jugás? Si no la reclamás antes de medianoche 🇲🇽, se pierde.
-            Hasta 3 en mano.
+            <strong className="text-foreground">maldición ☠️</strong>. La carta se{" "}
+            <strong className="text-foreground">juega sola al salir</strong>: los buffs se
+            activan, los ataques te piden la víctima en el momento, y no hay vuelta atrás.
+            Si no la reclamás antes de medianoche 🇲🇽, se pierde.
           </div>
           <div className="rounded-2xl border border-border bg-surface p-4 text-sm text-muted">
             <h3 className="mb-2 font-bold text-foreground">😈 Buffs, mufas y traiciones</h3>
             Dobles y triples, días enteros mufados, duelos de matambres, el Caparazón azul
             directo al líder, robos de puntos e identidad. Escudos que bloquean y espejitos
-            que devuelven. Y las sociales: apodos, fotos truchas y declaraciones fijadas —
-            hasta que la víctima juegue Borrón y cuenta nueva 🧽.
+            que devuelven — los efectos se acumulan en orden de jugada. Y las sociales:
+            apodos, fotos truchas y declaraciones fijadas, hasta que la víctima juegue
+            Borrón y cuenta nueva 🧽.
           </div>
           <div className="rounded-2xl border border-border bg-surface p-4 text-sm text-muted">
             <h3 className="mb-2 font-bold text-foreground">🔥 Rachas</h3>

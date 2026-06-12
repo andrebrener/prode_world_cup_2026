@@ -33,7 +33,6 @@ import {
 } from "./db/queries";
 import {
   CARD_CATALOG,
-  MAX_HELD_CARDS,
   MAX_APODO_CHARS,
   MAX_MENSAJE_CHARS,
   MAX_FOTO_CHARS,
@@ -41,7 +40,7 @@ import {
   type CardType,
   type PoolMode,
 } from "./cardCatalog";
-import { dailyCard, funToday, resolvePlay } from "./cards";
+import { bindDay, dailyCard, funToday, resolvePlay } from "./cards";
 
 const VALID_MATCH_IDS = new Set(MATCHES.map((m) => m.id));
 const VALID_KO_IDS = new Set(Object.keys(KO_MATCHES_BY_ID));
@@ -483,63 +482,6 @@ async function funGate(slug: string) {
     return { error: "No estás en este prode." } as const;
   return { id, pool } as const;
 }
-
-/**
- * Reclama la carta del día. El sorteo es determinístico por (prode, jugador, fecha):
- * reclamar solo persiste el resultado. Si no la reclamás hoy, mañana ya no está.
- * Ojo: el mazo tiene maldiciones — si te toca una, se aplica sola en el acto.
- */
-export async function claimDailyCardAction(
-  slug: string,
-): Promise<{ ok: boolean; error?: string; card?: CardDef; curse?: boolean }> {
-  const gate = await funGate(slug);
-  if ("error" in gate) return { ok: false, error: gate.error };
-  const { id, pool } = gate;
-
-  const today = funToday();
-  const def = dailyCard(pool.id, id, today);
-  const isCurse = def.kind === "curse";
-
-  // Las maldiciones no van a la mano: la mano llena no te salva de la timba.
-  if (!isCurse) {
-    const [heldRow] = await db
-      .select({ n: count() })
-      .from(funCards)
-      .where(
-        and(
-          eq(funCards.poolId, pool.id),
-          eq(funCards.participantId, id),
-          eq(funCards.status, "held"),
-        ),
-      );
-    if ((heldRow?.n ?? 0) >= MAX_HELD_CARDS) {
-      return { ok: false, error: "Tenés la mano llena. Jugá una carta para reclamar la de hoy." };
-    }
-  }
-
-  const now = new Date();
-  try {
-    await db.insert(funCards).values({
-      id: randomUUID(),
-      poolId: pool.id,
-      participantId: id,
-      drawDate: today,
-      cardType: def.type,
-      // Maldición: se juega sola al reclamar, atada al día de hoy.
-      status: isCurse ? "played" : "held",
-      drawnAt: now,
-      playedAt: isCurse ? now : null,
-      effectDate: isCurse && def.window === "day" ? today : null,
-    });
-  } catch {
-    // Índice único: ya reclamó hoy (doble click / doble pestaña).
-    return { ok: false, error: "Ya reclamaste la carta de hoy. Mañana hay otra." };
-  }
-
-  revalidatePath("/", "layout");
-  return { ok: true, card: def, curse: isCurse };
-}
-
 export type PlayCardExtra = {
   /** Apodo para "Los apodos del Droco". */
   apodo?: string;
@@ -549,74 +491,26 @@ export type PlayCardExtra = {
   imagen?: string;
 };
 
-/**
- * SOLO DEV — para probar el mazo: saca una carta extra al azar (respetando las
- * rarezas, maldiciones incluidas), sin tope de mano ni límite diario.
- * No existe en producción. Borrar cuando termine la etapa de pruebas.
- */
-export async function devDrawCardAction(
-  slug: string,
-): Promise<{ ok: boolean; error?: string; card?: CardDef; curse?: boolean }> {
-  if (process.env.NODE_ENV === "production") {
-    return { ok: false, error: "Solo disponible en desarrollo." };
-  }
-  const gate = await funGate(slug);
-  if ("error" in gate) return { ok: false, error: gate.error };
-  const { id, pool } = gate;
-
-  // Sal aleatoria como "fecha" → carta al azar y sin chocar con el índice único.
-  const salt = `dev-${randomUUID().slice(0, 8)}`;
-  const def = dailyCard(pool.id, id, salt);
-  const isCurse = def.kind === "curse";
-  const now = new Date();
-
-  await db.insert(funCards).values({
-    id: randomUUID(),
-    poolId: pool.id,
-    participantId: id,
-    drawDate: salt,
-    cardType: def.type,
-    status: isCurse ? "played" : "held",
-    drawnAt: now,
-    playedAt: isCurse ? now : null,
-    effectDate: isCurse && def.window === "day" ? funToday() : null,
-  });
-
-  revalidatePath("/", "layout");
-  return { ok: true, card: def, curse: isCurse };
-}
-
-/**
- * Juega una carta de la mano. Los ataques eligen víctima; un Anulo mufa de la
- * víctima los bloquea, un Espejito rebotín los devuelve al que los tiró.
- * El Caparazón azul apunta solo al líder; caparazón y Robo de identidad congelan
- * su efecto como snapshot de puntos al momento de jugarse.
- */
-export async function playCardAction(
-  slug: string,
-  cardId: string,
-  targetId: string | null,
-  extra?: PlayCardExtra,
-): Promise<{
+type PlayResult = {
   ok: boolean;
   error?: string;
-  card?: CardDef;
   blocked?: boolean;
   reflected?: boolean;
   targetName?: string;
-}> {
-  const gate = await funGate(slug);
-  if ("error" in gate) return { ok: false, error: gate.error };
-  const { id, pool } = gate;
+};
 
-  const [row] = await db.select().from(funCards).where(eq(funCards.id, cardId));
-  if (!row || row.poolId !== pool.id || row.participantId !== id) {
-    return { ok: false, error: "Esa carta no es tuya." };
-  }
-  if (row.status !== "held") return { ok: false, error: "Esa carta ya se jugó." };
-  const def = CARD_CATALOG[row.cardType as CardType];
-  if (!def) return { ok: false, error: "Carta desconocida." };
-
+/**
+ * Núcleo de jugar una carta (la usan el claim con auto-jugada y la resolución
+ * de cartas pendientes). Asume fila propia en estado "held".
+ */
+async function executePlay(
+  pool: NonNullable<Awaited<ReturnType<typeof getPoolBySlug>>>,
+  ownerId: string,
+  cardId: string,
+  def: CardDef,
+  targetId: string | null,
+  extra?: PlayCardExtra,
+): Promise<PlayResult> {
   // Inputs sociales: validar acá (resolvePlay es puro, no ve payloads).
   const payload: Record<string, unknown> = {};
   if (def.input === "apodo") {
@@ -641,24 +535,30 @@ export async function playCardAction(
 
   // El caparazón apunta solo: va directo al líder actual del prode, así que el
   // contexto (defensas de la víctima incluidas) se arma con el target final.
-  let ctx = await getPlayContext(pool, id, targetId);
+  let ctx = await getPlayContext(pool, ownerId, targetId);
   let finalTargetId = targetId;
   if (def.target === "leader") {
     finalTargetId = ctx.rows[0]?.id ?? null;
     if (finalTargetId && finalTargetId !== targetId) {
-      ctx = await getPlayContext(pool, id, finalTargetId);
+      ctx = await getPlayContext(pool, ownerId, finalTargetId);
     }
+  }
+
+  // Sin rivales no hay a quién atacar: la carta sale jugada al vacío.
+  if (def.target === "other" && ctx.memberIds.length < 2) {
+    await db
+      .update(funCards)
+      .set({ status: "played", playedAt: new Date() })
+      .where(eq(funCards.id, cardId));
+    return { ok: true };
   }
 
   const outcome = resolvePlay({
     cardType: def.type,
-    ownerId: id,
+    ownerId,
     targetId: finalTargetId,
     now: new Date(),
     memberIds: ctx.memberIds,
-    occupiedEffects: ctx.occupiedEffects,
-    occupiedDuels: ctx.occupiedDuels,
-    ownerActiveStandings: ctx.ownerActiveStandings,
     targetShieldCardId: ctx.targetShieldCardId,
     targetMirrorCardId: ctx.targetMirrorCardId,
   });
@@ -679,14 +579,13 @@ export async function playCardAction(
       .update(funCards)
       .set({ status: "consumed" })
       .where(eq(funCards.id, outcome.blockedByShieldId));
-    revalidatePath("/", "layout");
-    return { ok: true, card: def, blocked: true, targetName };
+    return { ok: true, blocked: true, targetName };
   }
 
   // Snapshots de puntos: el efecto queda congelado al momento de jugarse.
   if (def.type === "caparazon" && finalTargetId) {
     // Si rebotó en un Espejito, el caparazón vuelve y te baja a VOS.
-    const hitId = outcome.reflectedByMirrorId ? id : finalTargetId;
+    const hitId = outcome.reflectedByMirrorId ? ownerId : finalTargetId;
     const hit = ctx.rows.find((r) => r.id === hitId);
     const last = ctx.rows[ctx.rows.length - 1];
     if (hit && last) {
@@ -694,11 +593,11 @@ export async function playCardAction(
     }
   }
   if (def.type === "swap" && finalTargetId) {
-    const me = ctx.rows.find((r) => r.id === id);
+    const me = ctx.rows.find((r) => r.id === ownerId);
     const victim = ctx.rows.find((r) => r.id === finalTargetId);
     if (me && victim) {
       const diff = victim.total - me.total;
-      payload.deltas = { [id]: diff, [finalTargetId]: -diff };
+      payload.deltas = { [ownerId]: diff, [finalTargetId]: -diff };
     }
   }
 
@@ -732,16 +631,147 @@ export async function playCardAction(
       .where(
         and(
           eq(funCards.poolId, pool.id),
-          eq(funCards.targetParticipantId, id),
+          eq(funCards.targetParticipantId, ownerId),
           eq(funCards.status, "played"),
           inArray(funCards.cardType, socialTypes),
         ),
       );
   }
 
-  revalidatePath("/", "layout");
-  return { ok: true, card: def, blocked: false, reflected, targetName };
+  return { ok: true, blocked: false, reflected, targetName };
 }
+
+type DrawResult = {
+  ok: boolean;
+  error?: string;
+  card?: CardDef;
+  cardId?: string;
+  curse?: boolean;
+  /** La carta necesita que elijas víctima (y/o apodo/foto): quedó pendiente. */
+  needsTarget?: boolean;
+};
+
+/** Saca una carta y la juega en el acto (jugada obligada). */
+async function drawAndPlay(
+  pool: NonNullable<Awaited<ReturnType<typeof getPoolBySlug>>>,
+  participantId: string,
+  drawDate: string,
+  def: CardDef,
+): Promise<DrawResult> {
+  const isCurse = def.kind === "curse";
+  const now = new Date();
+  const cardId = randomUUID();
+
+  try {
+    await db.insert(funCards).values({
+      id: cardId,
+      poolId: pool.id,
+      participantId,
+      drawDate,
+      cardType: def.type,
+      // Maldición: se juega sola al reclamar, atada al día (o próximo día con partidos).
+      status: isCurse ? "played" : "held",
+      drawnAt: now,
+      playedAt: isCurse ? now : null,
+      effectDate: isCurse && def.window === "day" ? (bindDay(now) ?? funToday(now)) : null,
+    });
+  } catch {
+    // Índice único: ya reclamó hoy (doble click / doble pestaña).
+    return { ok: false, error: "Ya reclamaste la carta de hoy. Mañana hay otra." };
+  }
+
+  if (isCurse) {
+    revalidatePath("/", "layout");
+    return { ok: true, card: def, cardId, curse: true };
+  }
+
+  // Jugada obligada: las que no piden elección salen jugadas en el acto.
+  // Las que piden víctima/apodo/foto quedan pendientes hasta que las resuelvas.
+  const needsChoice = def.target === "other" || !!def.input;
+  if (!needsChoice) {
+    await executePlay(pool, participantId, cardId, def, null);
+  }
+
+  revalidatePath("/", "layout");
+  return { ok: true, card: def, cardId, needsTarget: needsChoice };
+}
+
+/**
+ * Reclama la carta del día. El sorteo es determinístico por (prode, jugador, fecha):
+ * reclamar solo persiste el resultado. Si no la reclamás hoy, mañana ya no está.
+ * La carta se JUEGA al salir (no hay mano): las maldiciones se aplican solas, los
+ * buffs se activan al toque y los ataques te piden la víctima en el momento.
+ */
+export async function claimDailyCardAction(slug: string): Promise<DrawResult> {
+  const gate = await funGate(slug);
+  if ("error" in gate) return { ok: false, error: gate.error };
+  const { id, pool } = gate;
+
+  // Una carta pendiente de resolver bloquea el sorteo (jugada obligada).
+  const [pendingRow] = await db
+    .select({ id: funCards.id })
+    .from(funCards)
+    .where(
+      and(
+        eq(funCards.poolId, pool.id),
+        eq(funCards.participantId, id),
+        eq(funCards.status, "held"),
+      ),
+    )
+    .limit(1);
+  if (pendingRow) {
+    return { ok: false, error: "Tenés una carta sin resolver. Elegí la víctima primero." };
+  }
+
+  const today = funToday();
+  return drawAndPlay(pool, id, today, dailyCard(pool.id, id, today));
+}
+
+/**
+ * SOLO DEV — para probar el mazo: saca una carta extra al azar (respetando las
+ * rarezas, maldiciones incluidas), sin límite diario.
+ * No existe en producción. Borrar cuando termine la etapa de pruebas.
+ */
+export async function devDrawCardAction(slug: string): Promise<DrawResult> {
+  if (process.env.NODE_ENV === "production") {
+    return { ok: false, error: "Solo disponible en desarrollo." };
+  }
+  const gate = await funGate(slug);
+  if ("error" in gate) return { ok: false, error: gate.error };
+  const { id, pool } = gate;
+
+  // Sal aleatoria como "fecha" → carta al azar y sin chocar con el índice único.
+  const salt = `dev-${randomUUID().slice(0, 8)}`;
+  return drawAndPlay(pool, id, salt, dailyCard(pool.id, id, salt));
+}
+
+/**
+ * Resuelve una carta pendiente (la que pidió víctima/apodo/foto al salir).
+ * Un Anulo mufa de la víctima la bloquea; un Espejito rebotín la devuelve.
+ */
+export async function playCardAction(
+  slug: string,
+  cardId: string,
+  targetId: string | null,
+  extra?: PlayCardExtra,
+): Promise<PlayResult & { card?: CardDef }> {
+  const gate = await funGate(slug);
+  if ("error" in gate) return { ok: false, error: gate.error };
+  const { id, pool } = gate;
+
+  const [row] = await db.select().from(funCards).where(eq(funCards.id, cardId));
+  if (!row || row.poolId !== pool.id || row.participantId !== id) {
+    return { ok: false, error: "Esa carta no es tuya." };
+  }
+  if (row.status !== "held") return { ok: false, error: "Esa carta ya se jugó." };
+  const def = CARD_CATALOG[row.cardType as CardType];
+  if (!def) return { ok: false, error: "Carta desconocida." };
+
+  const result = await executePlay(pool, id, cardId, def, targetId, extra);
+  if (result.ok) revalidatePath("/", "layout");
+  return { ...result, card: def };
+}
+
 
 /** Carga/actualiza el resultado final del torneo (campeón, subcampeón, goleador, figura). */
 export async function updateTournamentResultAction(extras: {

@@ -1,10 +1,10 @@
 "use client";
 
-// Modo Diversión — panel de cartas: sorteo del día, mano e historial de jugadas.
-// El sorteo es secreto hasta reclamar: el server recién revela la carta en la
-// respuesta de claimDailyCardAction. Si sale maldición, se aplica sola (la timba).
+// Modo Diversión — panel de cartas: sorteo del día (jugada OBLIGADA) e historial.
+// No hay mano: la carta se juega al salir. Si pide víctima/apodo/foto, el modal
+// se abre al toque y no se puede esquivar — hasta no resolverla no hay otro sorteo.
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import confetti from "canvas-confetti";
 import {
@@ -14,8 +14,8 @@ import {
   type PlayCardExtra,
 } from "@/lib/actions";
 import {
+  CARD_CATALOG,
   RARITY_LABEL,
-  MAX_HELD_CARDS,
   MAX_APODO_CHARS,
   MAX_MENSAJE_CHARS,
   type CardDef,
@@ -23,7 +23,7 @@ import {
   type CardType,
 } from "@/lib/cardCatalog";
 import { fileToSquareDataUrl } from "@/lib/imageFile";
-import type { FunState, FunFeedItem } from "@/lib/db/queries";
+import type { FunState, FunFeedItem, FunLeaderboardInfo } from "@/lib/db/queries";
 import Avatar from "./Avatar";
 import LottieFX from "./LottieFX";
 
@@ -79,7 +79,7 @@ function burst(rarity: CardRarity) {
   }
 }
 
-type Verb = (o: string, t: string | null, d: string | null) => string;
+type Verb = (o: string, t: string, d: string | null) => string;
 const FEED_VERB: Record<CardType, Verb> = {
   doblete: (o) => `✌️ ${o} jugó un Doblete`,
   yapa: (o) => `🎁 ${o} pidió La Yapa`,
@@ -113,7 +113,7 @@ const FEED_VERB: Record<CardType, Verb> = {
 
 function feedText(f: FunFeedItem): string {
   return (
-    FEED_VERB[f.cardType]?.(f.ownerName, f.targetName, f.detail) ??
+    FEED_VERB[f.cardType]?.(f.ownerName, f.targetName ?? "nadie", f.detail) ??
     `🃏 ${f.ownerName} jugó una carta`
   );
 }
@@ -132,17 +132,27 @@ const fmtDay = (iso: string, today: string): string => {
 const fmtTime = (d: Date): string =>
   d.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false });
 
+const STANDING_LABEL: Record<string, string> = {
+  escudo: "🛡️ Anulo mufa listo",
+  espejito: "🪞 Espejito colgado",
+  aguante: "🥃 Fernet de Fernemo a mano",
+  var: "📺 VAR al acecho",
+};
+
 export default function FunZone({
   slug,
   state,
   members,
   meId,
+  myInfo = null,
   devTools = false,
 }: {
   slug: string;
   state: FunState;
   members: FunMember[];
   meId: string;
+  /** Info fun del visitante (efectos activos / pendientes sobre él). */
+  myInfo?: FunLeaderboardInfo | null;
   /** SOLO DEV: botón para sacar cartas extra y probar el mazo. */
   devTools?: boolean;
 }) {
@@ -154,7 +164,7 @@ export default function FunZone({
   const [revealed, setRevealed] = useState<{ def: CardDef; curse: boolean } | null>(null);
   const [flipped, setFlipped] = useState(false);
 
-  // Jugar carta (modal)
+  // Resolución obligada (víctima / apodo / foto)
   const [playing, setPlaying] = useState<{ id: string; def: CardDef } | null>(null);
   const [targetId, setTargetId] = useState<string | null>(null);
   const [apodo, setApodo] = useState("");
@@ -163,7 +173,18 @@ export default function FunZone({
   const [lastPlay, setLastPlay] = useState<{ text: string; bad: boolean } | null>(null);
 
   const rivals = members.filter((m) => m.id !== meId);
-  const leaderName = members[0]?.name ?? null; // members viene en orden de tabla
+
+  // Una carta pendiente (de un refresh / sesión anterior) reabre el modal sola.
+  useEffect(() => {
+    if (state.pending && !playing && !revealed) {
+      setTargetId(null);
+      setApodo("");
+      setMensaje("");
+      setImagen(null);
+      setPlaying({ id: state.pending.id, def: state.pending.def });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.pending?.id]);
 
   // Historial agrupado por día (hoy expandido, el resto colapsado).
   const feedByDay = useMemo(() => {
@@ -176,8 +197,7 @@ export default function FunZone({
     return groups;
   }, [state.feed]);
 
-  function showReveal(card: CardDef, curse: boolean) {
-    // Resetear el flip para poder revelar varias seguidas (botón de pruebas).
+  function showReveal(card: CardDef, curse: boolean, then?: () => void) {
     setFlipped(false);
     setRevealed(null);
     requestAnimationFrame(() => {
@@ -187,55 +207,49 @@ export default function FunZone({
         setTimeout(() => burst(card.rarity), 500);
       });
     });
-    setTimeout(() => router.refresh(), 1800);
+    setTimeout(() => {
+      router.refresh();
+      then?.();
+    }, 1600);
   }
 
-  function claim() {
+  function draw(action: typeof claimDailyCardAction) {
     setError(null);
     start(async () => {
-      const res = await claimDailyCardAction(slug);
+      const res = await action(slug);
       if (!res.ok || !res.card) {
         setError(res.error ?? "No se pudo reclamar.");
         return;
       }
-      showReveal(res.card, !!res.curse);
+      const def = res.card;
+      showReveal(def, !!res.curse, () => {
+        // Jugada obligada: si pide elección, el modal se abre solo tras el reveal.
+        if (res.needsTarget && res.cardId) {
+          setTargetId(null);
+          setApodo("");
+          setMensaje("");
+          setImagen(null);
+          setPlaying({ id: res.cardId, def });
+        }
+      });
     });
   }
 
-  function devDraw() {
+  function resolve() {
+    if (!playing) return;
+    const { id, def } = playing;
     setError(null);
     start(async () => {
-      const res = await devDrawCardAction(slug);
-      if (!res.ok || !res.card) {
-        setError(res.error ?? "No se pudo sacar.");
-        return;
-      }
-      showReveal(res.card, !!res.curse);
-    });
-  }
-
-  function openPlay(id: string, def: CardDef) {
-    // Self-cards sin input se juegan directo; el resto abre el modal.
-    if (def.target === "self" && !def.input) {
-      play(id, def, null, undefined);
-      return;
-    }
-    setTargetId(null);
-    setApodo("");
-    setMensaje("");
-    setImagen(null);
-    setPlaying({ id, def });
-  }
-
-  function play(cardId: string, def: CardDef, target: string | null, extra?: PlayCardExtra) {
-    setError(null);
-    setPlaying(null);
-    start(async () => {
-      const res = await playCardAction(slug, cardId, target, extra);
+      const res = await playCardAction(slug, id, def.target === "other" ? targetId : null, {
+        apodo: apodo || undefined,
+        mensaje: mensaje || undefined,
+        imagen: imagen || undefined,
+      });
       if (!res.ok) {
         setError(res.error ?? "No se pudo jugar.");
         return;
       }
+      setPlaying(null);
       if (res.blocked) {
         setLastPlay({
           text: `🛡️ ¡${res.targetName} tenía un Anulo mufa! Tu ${def.name} quedó en la nada.`,
@@ -255,12 +269,32 @@ export default function FunZone({
   }
 
   const modalReady =
-    !playing?.def.input ||
-    (playing.def.input === "apodo" && apodo.trim().length >= 2) ||
-    (playing.def.input === "mensaje" && mensaje.trim().length >= 2) ||
-    (playing.def.input === "imagen" && !!imagen);
+    (!playing?.def.input ||
+      (playing.def.input === "apodo" && apodo.trim().length >= 2) ||
+      (playing.def.input === "mensaje" && mensaje.trim().length >= 2) ||
+      (playing.def.input === "imagen" && !!imagen)) &&
+    (playing?.def.target !== "other" || !!targetId || rivals.length === 0);
 
-  const needsTarget = playing?.def.target === "other";
+  // Efectos activos del visitante (standings + lo que tiene encima/en juego).
+  const activeChips: { key: string; text: string; hostile: boolean }[] = [];
+  if (myInfo) {
+    for (const s of myInfo.activeStandings) {
+      activeChips.push({ key: `s-${s}`, text: STANDING_LABEL[s] ?? s, hostile: false });
+    }
+    myInfo.pendingEffects.forEach((e, i) => {
+      const def = CARD_CATALOG[e.cardType];
+      const where = e.matchId
+        ? `partido ${e.matchId}`
+        : e.day === state.today
+          ? "hoy"
+          : e.day;
+      activeChips.push({
+        key: `p-${i}`,
+        text: `${def?.emoji ?? "🃏"} ${def?.name ?? e.cardType}${e.fromName ? ` de ${e.fromName}` : ""} — ${where}`,
+        hostile: !!e.fromName,
+      });
+    });
+  }
 
   return (
     <section className="fun-border relative rounded-3xl bg-surface p-5">
@@ -272,29 +306,26 @@ export default function FunZone({
             className="pointer-events-none absolute -top-4 left-0 h-12 w-40"
           />
         </h2>
-        <span className="flex items-center gap-2 text-xs text-muted">
-          {devTools && (
-            <>
-              <button
-                onClick={devDraw}
-                disabled={pending}
-                title="SOLO PRUEBAS: saca una carta extra al azar (después lo sacamos)"
-                className="rounded-lg border border-dashed border-gold/60 px-2 py-1 font-bold text-gold transition hover:bg-gold/10 disabled:opacity-50"
-              >
-                🧪 +carta
-              </button>
-              <button
-                onClick={() => router.refresh()}
-                disabled={pending}
-                title="SOLO PRUEBAS: refrescar el estado"
-                className="rounded-lg border border-dashed border-gold/60 px-2 py-1 font-bold text-gold transition hover:bg-gold/10 disabled:opacity-50"
-              >
-                🔄
-              </button>
-            </>
-          )}
-          Mano: {state.held.length}/{MAX_HELD_CARDS}
-        </span>
+        {devTools && (
+          <span className="flex items-center gap-2 text-xs">
+            <button
+              onClick={() => draw(devDrawCardAction)}
+              disabled={pending || !!state.pending}
+              title="SOLO PRUEBAS: saca una carta extra al azar (después lo sacamos)"
+              className="rounded-lg border border-dashed border-gold/60 px-2 py-1 font-bold text-gold transition hover:bg-gold/10 disabled:opacity-50"
+            >
+              🧪 +carta
+            </button>
+            <button
+              onClick={() => router.refresh()}
+              disabled={pending}
+              title="SOLO PRUEBAS: refrescar el estado"
+              className="rounded-lg border border-dashed border-gold/60 px-2 py-1 font-bold text-gold transition hover:bg-gold/10 disabled:opacity-50"
+            >
+              🔄
+            </button>
+          </span>
+        )}
       </header>
 
       {/* Carta del día */}
@@ -349,31 +380,40 @@ export default function FunZone({
               )}
               <p className="fun-pop text-sm text-foreground">{revealed.def.description}</p>
             </>
+          ) : state.pending ? (
+            <>
+              <p className="text-sm text-foreground">
+                {state.pending.def.emoji} Tenés un{" "}
+                <strong>{state.pending.def.name}</strong> sin resolver. La carta se juega sí
+                o sí: elegí.
+              </p>
+              <button
+                onClick={() => setPlaying({ id: state.pending!.id, def: state.pending!.def })}
+                className="fun-gradient fun-wiggle mx-auto rounded-xl px-5 py-2.5 text-sm font-black text-white transition hover:brightness-110 sm:mx-0"
+              >
+                ⚡ Resolver ahora
+              </button>
+            </>
           ) : state.canClaim ? (
             <>
               <p className="text-sm text-muted">
-                Hay una carta esperándote. Si no la reclamás hoy, a medianoche se pierde.
-                Eso sí: el mazo tiene maldiciones… ¿te la jugás?
+                Hay una carta esperándote y se juega al salir: puede ser gloria o
+                maldición ☠️. Si no la reclamás hoy, a medianoche se pierde. ¿Te la jugás?
               </p>
               <button
-                onClick={claim}
+                onClick={() => draw(claimDailyCardAction)}
                 disabled={pending}
                 className="fun-gradient fun-wiggle mx-auto rounded-xl px-5 py-2.5 text-sm font-black text-white transition hover:brightness-110 disabled:opacity-60 sm:mx-0"
               >
                 {pending ? "Abriendo…" : "✨ Reclamar carta"}
               </button>
             </>
-          ) : state.claimedToday ? (
+          ) : (
             <p className="text-sm text-muted">
               Ya reclamaste la de hoy. Mañana hay otra (cambia a la medianoche de México 🇲🇽).
             </p>
-          ) : (
-            <p className="text-sm text-muted">
-              Tenés la mano llena ({MAX_HELD_CARDS}). Jugá una carta para poder reclamar la de
-              hoy antes de medianoche.
-            </p>
           )}
-          {error && <p className="text-sm text-danger">{error}</p>}
+          {error && !playing && <p className="text-sm text-danger">{error}</p>}
           {lastPlay && (
             <p
               className={`fun-pop text-sm font-bold ${lastPlay.bad ? "fun-shake text-danger" : "text-foreground"}`}
@@ -384,80 +424,48 @@ export default function FunZone({
         </div>
       </div>
 
-      {/* Mano */}
-      {state.held.length > 0 && (
-        <div className="mt-5">
+      {/* Tus efectos en juego */}
+      {activeChips.length > 0 && (
+        <div className="mt-4">
           <h3 className="mb-2 text-xs font-bold uppercase tracking-widest text-muted">
-            Tu mano
+            En juego sobre vos
           </h3>
-          <div className="grid gap-3 sm:grid-cols-3">
-            {state.held.map((c) => {
-              const st = RARITY_STYLE[c.def.rarity];
-              return (
-                <div
-                  key={c.id}
-                  className={`flex flex-col rounded-2xl border bg-background p-3 ${st.ring} ${st.glow}`}
-                >
-                  <div className="flex items-center gap-2">
-                    <span className="fun-float text-2xl">{c.def.emoji}</span>
-                    <div>
-                      <div className="text-sm font-black leading-tight text-foreground">
-                        {c.def.name}
-                      </div>
-                      <div className={`text-[10px] font-bold uppercase tracking-widest ${st.text}`}>
-                        {RARITY_LABEL[c.def.rarity]}
-                      </div>
-                    </div>
-                  </div>
-                  <p className="mt-2 flex-1 text-xs text-muted">{c.def.description}</p>
-                  <button
-                    onClick={() => openPlay(c.id, c.def)}
-                    disabled={pending}
-                    className="mt-3 rounded-lg bg-primary px-3 py-1.5 text-xs font-bold text-primary-ink transition hover:brightness-110 disabled:opacity-60"
-                  >
-                    {c.def.target === "other"
-                      ? "Elegir víctima →"
-                      : c.def.target === "leader"
-                        ? "Apuntar al líder →"
-                        : "Jugar"}
-                  </button>
-                </div>
-              );
-            })}
+          <div className="flex flex-wrap gap-1.5">
+            {activeChips.map((c) => (
+              <span
+                key={c.key}
+                className={`rounded-lg border px-2 py-1 text-xs font-semibold ${
+                  c.hostile
+                    ? "border-danger/50 bg-danger/10 text-danger"
+                    : "border-border bg-background text-foreground"
+                }`}
+              >
+                {c.text}
+              </span>
+            ))}
           </div>
         </div>
       )}
 
-      {/* Modal de jugada (víctima / inputs / confirmación) */}
+      {/* Modal de resolución obligada (víctima / inputs) */}
       {playing && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
-          onClick={() => setPlaying(null)}
-        >
-          <div
-            className="fun-mode fun-pop w-full max-w-sm rounded-3xl border border-border bg-surface p-6"
-            onClick={(e) => e.stopPropagation()}
-          >
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <div className="fun-mode fun-pop w-full max-w-sm rounded-3xl border border-border bg-surface p-6">
             <h3 className="wordmark text-xl text-foreground">
               {playing.def.emoji} {playing.def.name}
             </h3>
             <p className="mt-1 text-xs text-muted">{playing.def.description}</p>
-
-            {/* Caparazón: confirmación con el líder a la vista */}
-            {playing.def.target === "leader" && (
-              <p className="mt-4 rounded-xl border border-border bg-background p-3 text-sm text-foreground">
-                Va directo al puntero: <strong>{leaderName ?? "—"}</strong>
-                {leaderName && members[0]?.id === meId && (
-                  <span className="text-danger"> (…que sos vos, campeón 🫠)</span>
-                )}
-              </p>
-            )}
+            <p className="mt-2 text-xs font-bold uppercase tracking-wider text-gold">
+              ⚡ Jugada obligada: no hay vuelta atrás
+            </p>
 
             {/* Selector de víctima */}
-            {needsTarget && (
+            {playing.def.target === "other" && (
               <div className="mt-4 flex max-h-56 flex-col gap-2 overflow-y-auto">
                 {rivals.length === 0 && (
-                  <p className="text-sm text-muted">No hay rivales todavía. Invitá gente 😈</p>
+                  <p className="text-sm text-muted">
+                    No hay rivales todavía: la carta se va a jugar al vacío 🫥
+                  </p>
                 )}
                 {rivals.map((m) => (
                   <button
@@ -522,27 +530,14 @@ export default function FunZone({
               </label>
             )}
 
-            <div className="mt-4 flex gap-2">
-              <button
-                onClick={() => setPlaying(null)}
-                className="flex-1 rounded-xl border border-border px-4 py-2 text-sm text-muted transition hover:text-foreground"
-              >
-                Mejor no…
-              </button>
-              <button
-                disabled={pending || !modalReady || (needsTarget && !targetId)}
-                onClick={() =>
-                  play(playing.id, playing.def, needsTarget ? targetId : null, {
-                    apodo: apodo || undefined,
-                    mensaje: mensaje || undefined,
-                    imagen: imagen || undefined,
-                  })
-                }
-                className="fun-gradient flex-1 rounded-xl px-4 py-2 text-sm font-black text-white transition hover:brightness-110 disabled:opacity-50"
-              >
-                {pending ? "Jugando…" : `${playing.def.emoji} Jugarla`}
-              </button>
-            </div>
+            {error && <p className="mt-2 text-sm text-danger">{error}</p>}
+            <button
+              disabled={pending || !modalReady}
+              onClick={resolve}
+              className="fun-gradient mt-4 w-full rounded-xl px-4 py-2 text-sm font-black text-white transition hover:brightness-110 disabled:opacity-50"
+            >
+              {pending ? "Jugando…" : `${playing.def.emoji} Jugarla`}
+            </button>
           </div>
         </div>
       )}

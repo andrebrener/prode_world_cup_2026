@@ -29,10 +29,12 @@ const fmtLong = (iso: string) =>
   });
 
 // Hora de inicio en la zona horaria del navegador del usuario, con etiqueta de TZ.
+// 24h sin am/pm: el "p. m." difiere entre server y browser (U+202F) y rompe la hidratación.
 const fmtTime = (iso: string) =>
   new Date(iso).toLocaleTimeString("es-AR", {
     hour: "2-digit",
     minute: "2-digit",
+    hour12: false,
     timeZoneName: "short",
   });
 
