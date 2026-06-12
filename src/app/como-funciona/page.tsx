@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getTotalParticipantCount } from "@/lib/db/queries";
 import { getParticipantId } from "@/lib/session";
 import { MATCHES, SCORING } from "@/lib/fixtures";
+import { STREAK_MILESTONES } from "@/lib/cardCatalog";
 import WorldCupMark from "@/components/WorldCupMark";
 
 export const dynamic = "force-dynamic";
@@ -110,6 +111,41 @@ export default async function ComoFunciona() {
             </li>
           </ul>
         </Card>
+      </section>
+
+      {/* Modo Diversión */}
+      <section className="fun-mode fun-border rounded-3xl p-6">
+        <h2 className="wordmark flex items-center gap-3 text-3xl">
+          <span className="fun-text">Modo Diversión</span> 🃏✨
+        </h2>
+        <p className="mt-2 max-w-2xl text-sm text-muted">
+          Al crear un prode podés elegirlo en <strong className="text-foreground">modo
+          Diversión</strong>: todo lo del prode normal, más cartas y rachas. Solo vale en
+          ese prode — tus pronósticos siguen siendo los mismos en todos.
+        </p>
+        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+          <div className="rounded-2xl border border-border bg-surface p-4 text-sm text-muted">
+            <h3 className="mb-2 font-bold text-foreground">🎴 Carta del día</h3>
+            Cada día tenés una carta sorpresa esperándote (común, rara o legendaria). Si no
+            la reclamás antes de medianoche 🇲🇽, se pierde. Podés tener hasta 3 en mano.
+          </div>
+          <div className="rounded-2xl border border-border bg-surface p-4 text-sm text-muted">
+            <h3 className="mb-2 font-bold text-foreground">😈 Buffs y mufas</h3>
+            Dobles y triples para tus partidos, mufas y afanos para tus amigos, escudos
+            para defenderte. Un solo efecto por partido por persona: no hay pile-on.
+          </div>
+          <div className="rounded-2xl border border-border bg-surface p-4 text-sm text-muted">
+            <h3 className="mb-2 font-bold text-foreground">🔥 Rachas</h3>
+            Partidos seguidos sumando puntos encienden tu racha:{" "}
+            {STREAK_MILESTONES.map((m, i) => (
+              <span key={m.len}>
+                {i > 0 && " · "}
+                {m.len} seguidos <Pts n={m.bonus} />
+              </span>
+            ))}
+            . Un partido en cero la corta (salvo que tengas Aguante 💪).
+          </div>
+        </div>
       </section>
 
       <section className="rounded-2xl border border-border bg-surface p-5 text-sm text-muted">

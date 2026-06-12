@@ -18,6 +18,7 @@ import {
 } from "@/lib/cardCatalog";
 import type { FunState } from "@/lib/db/queries";
 import Avatar from "./Avatar";
+import LottieFX from "./LottieFX";
 
 export type FunMember = { id: string; name: string; avatar: string | null };
 
@@ -145,8 +146,12 @@ export default function FunZone({
   return (
     <section className="fun-border relative rounded-3xl bg-surface p-5">
       <header className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="wordmark text-2xl">
+        <h2 className="wordmark relative text-2xl">
           <span className="fun-text">Zona de cartas</span> 🃏
+          <LottieFX
+            src="/lottie/sparkles.json"
+            className="pointer-events-none absolute -top-4 left-0 h-12 w-40"
+          />
         </h2>
         <span className="text-xs text-muted">
           Mano: {state.held.length}/{MAX_HELD_CARDS}
@@ -155,7 +160,14 @@ export default function FunZone({
 
       {/* Carta del día */}
       <div className="mt-4 flex flex-col items-center gap-3 sm:flex-row sm:items-stretch">
-        <div className="fun-card-3d h-44 w-32 shrink-0">
+        <div className="fun-card-3d relative h-44 w-32 shrink-0">
+          {/* Estallido detrás de la carta al revelarla */}
+          {revealed && (
+            <LottieFX
+              src="/lottie/card-burst.json"
+              className="pointer-events-none absolute -inset-16"
+            />
+          )}
           <div className={`fun-card-inner h-full w-full ${flipped ? "flipped" : ""}`}>
             {/* Dorso */}
             <div className="fun-card-face relative flex h-full w-full flex-col items-center justify-center overflow-hidden rounded-2xl border border-border bg-background">

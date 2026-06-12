@@ -35,6 +35,16 @@ and styled with **Tailwind CSS 4**.
 
 > Values are defined in [`src/lib/fixtures.ts`](src/lib/fixtures.ts) (`SCORING`) and the logic lives in [`src/lib/scoring.ts`](src/lib/scoring.ts).
 
+## Fun mode 🃏✨
+
+When creating a pool you can pick **Fun mode**: everything from a normal pool, plus cards and streaks (scoped to that pool — predictions stay global).
+
+- **Daily card draw**: every player gets one surprise card per day (common 60% / rare 30% / legendary 10%). Unclaimed cards expire at midnight (America/Mexico_City). Hand limit: 3. The draw is deterministic per (pool, player, date) — no cron needed; claiming just persists it.
+- **Cards**: self-buffs (Doblete ×2, El Diego ×3, La Yapa +1, VAR a favor +2), attacks on chosen rivals (Afano steals 2 points, Mufa halves their next match), and defenses (Escudo blocks the next attack, Aguante saves your streak once). Catalog in [`src/lib/cardCatalog.ts`](src/lib/cardCatalog.ts).
+- **Fairness**: max one active effect per player per match; shields consume attacks; effects resolve at pool-scoring time and never touch predictions.
+- **Streaks**: consecutive matches scoring >0 points pay milestone bonuses (3→+3, 5→+6, 8→+12, 12→+20). A 0-point match resets the streak.
+- Engine in [`src/lib/cards.ts`](src/lib/cards.ts) + [`src/lib/streaks.ts`](src/lib/streaks.ts) (pure + unit-tested); resolution happens inside `getLeaderboard`.
+
 ---
 
 ## Structure
