@@ -3,7 +3,7 @@ import { Geist } from "next/font/google";
 import SiteNav from "@/components/SiteNav";
 import WorldCupMark from "@/components/WorldCupMark";
 import { getParticipantId } from "@/lib/session";
-import { getUserPools } from "@/lib/db/queries";
+import { getParticipant, getUserPools } from "@/lib/db/queries";
 import "./globals.css";
 
 export const dynamic = "force-dynamic";
@@ -23,8 +23,12 @@ export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   const id = await getParticipantId();
-  const myPools = id ? await getUserPools(id) : [];
+  const [myPools, me] = await Promise.all([
+    id ? getUserPools(id) : Promise.resolve([]),
+    id ? getParticipant(id) : Promise.resolve(null),
+  ]);
   const navPools = myPools.map((p) => ({ name: p.name, slug: p.slug }));
+  const navMe = me ? { name: me.name, avatar: me.avatar ?? null } : null;
   return (
     <html lang="es" className={`${geistSans.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col">
@@ -39,7 +43,7 @@ export default async function RootLayout({
             <span className="sm:hidden">Jun–Jul</span>
           </div>
         </div>
-        <SiteNav pools={navPools} />
+        <SiteNav pools={navPools} me={navMe} />
         <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-6">{children}</main>
         <footer className="flex flex-col items-center gap-3 border-t border-border py-8 text-center text-xs text-muted">
           <WorldCupMark size="sm" />

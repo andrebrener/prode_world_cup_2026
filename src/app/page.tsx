@@ -8,6 +8,7 @@ import {
 import JoinForm from "@/components/JoinForm";
 import JoinByCode from "@/components/JoinByCode";
 import JoinPoolButton from "@/components/JoinPoolButton";
+import Avatar from "@/components/Avatar";
 
 export const dynamic = "force-dynamic";
 
@@ -37,13 +38,18 @@ export default async function Home() {
 
   return (
     <div className="flex flex-col gap-8">
-      <header>
-        <h1 className="wordmark text-4xl">
-          Hola <span className="text-primary">{participant.name}</span> 👋
-        </h1>
-        <p className="mt-1 text-sm text-muted">
-          Tus prodes del Mundial 2026. Tus pronósticos son únicos y cuentan en todos.
-        </p>
+      <header className="flex items-center gap-4">
+        <Link href="/perfil" className="transition hover:opacity-80" aria-label="Mi perfil">
+          <Avatar name={participant.name} avatar={participant.avatar ?? null} size={56} />
+        </Link>
+        <div>
+          <h1 className="wordmark text-4xl">
+            Hola <span className="text-primary">{participant.name}</span> 👋
+          </h1>
+          <p className="mt-1 text-sm text-muted">
+            Tus prodes del Mundial 2026. Tus pronósticos son únicos y cuentan en todos.
+          </p>
+        </div>
       </header>
 
       {/* Mis prodes */}

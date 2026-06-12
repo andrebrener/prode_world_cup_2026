@@ -12,6 +12,8 @@ export const participants = sqliteTable(
   {
     id: text("id").primaryKey(),
     name: text("name").notNull(),
+    // Foto de perfil: data URL (image/jpeg) ya comprimida y recortada en el cliente.
+    avatar: text("avatar"),
     createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
   },
   // El nombre es la identidad: único sin distinguir mayúsculas/minúsculas.

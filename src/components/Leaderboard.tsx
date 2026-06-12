@@ -5,6 +5,7 @@ import { GROUPS, teamName, teamFlag } from "@/lib/fixtures";
 import { ROUND_LABEL, type KoRound } from "@/lib/bracket";
 import { fetchParticipantDetailAction } from "@/lib/actions";
 import type { LeaderboardRow, ParticipantDetail } from "@/lib/db/queries";
+import Avatar from "./Avatar";
 
 const medal = ["🥇", "🥈", "🥉"];
 const KO_ROUND_ORDER: KoRound[] = ["R32", "R16", "QF", "SF", "3P", "F"];
@@ -61,12 +62,17 @@ export default function Leaderboard({ rows }: { rows: LeaderboardRow[] }) {
               >
                 <td className="px-4 py-3 font-bold text-muted">{medal[i] ?? i + 1}</td>
                 <td className="px-2 py-3 font-semibold text-foreground">
-                  {row.name}
-                  <span className="ml-1 text-xs text-muted">›</span>
-                  {/* Desglose en móvil (las columnas se ocultan en pantallas chicas) */}
-                  <span className="mt-0.5 block text-[11px] font-normal text-muted sm:hidden">
-                    🎯 {row.exactCount} · G {row.matchPoints} · Ll {row.koPoints} · Ex{" "}
-                    {row.extraPoints}
+                  <span className="flex items-center gap-2">
+                    <Avatar name={row.name} avatar={row.avatar} size={32} />
+                    <span>
+                      {row.name}
+                      <span className="ml-1 text-xs text-muted">›</span>
+                      {/* Desglose en móvil (las columnas se ocultan en pantallas chicas) */}
+                      <span className="mt-0.5 block text-[11px] font-normal text-muted sm:hidden">
+                        🎯 {row.exactCount} · G {row.matchPoints} · Ll {row.koPoints} · Ex{" "}
+                        {row.extraPoints}
+                      </span>
+                    </span>
                   </span>
                 </td>
                 <td className="hidden px-2 py-3 text-center text-muted sm:table-cell">{row.exactCount}</td>
@@ -118,12 +124,15 @@ function Drawer({
       <aside className="relative flex h-full w-full max-w-md flex-col border-l border-border bg-background shadow-2xl">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-border px-5 py-4">
-          <div>
-            <h3 className="wordmark text-2xl">{row.name}</h3>
-            <p className="text-xs text-muted">
-              Grupos {row.matchPoints} · Llaves {row.koPoints} · Extras {row.extraPoints} ·{" "}
-              <span className="font-bold text-primary">Total {row.total}</span>
-            </p>
+          <div className="flex items-center gap-3">
+            <Avatar name={row.name} avatar={row.avatar} size={44} />
+            <div>
+              <h3 className="wordmark text-2xl">{row.name}</h3>
+              <p className="text-xs text-muted">
+                Grupos {row.matchPoints} · Llaves {row.koPoints} · Extras {row.extraPoints} ·{" "}
+                <span className="font-bold text-primary">Total {row.total}</span>
+              </p>
+            </div>
           </div>
           <button
             onClick={onClose}

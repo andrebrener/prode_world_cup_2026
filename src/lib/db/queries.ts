@@ -162,6 +162,7 @@ export async function getParticipantExtras(id: string): Promise<ExtraPick> {
 export type LeaderboardRow = {
   id: string;
   name: string;
+  avatar: string | null;
   matchPoints: number;
   koPoints: number;
   extraPoints: number;
@@ -243,6 +244,7 @@ export async function getLeaderboard(poolId: string): Promise<LeaderboardRow[]> 
     return {
       id: person.id,
       name: person.name,
+      avatar: person.avatar ?? null,
       matchPoints: mp,
       koPoints: kp,
       extraPoints: ep,

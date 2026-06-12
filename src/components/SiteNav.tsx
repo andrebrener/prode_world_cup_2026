@@ -3,10 +3,18 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import Avatar from "./Avatar";
 
 type NavPool = { name: string; slug: string };
+type NavMe = { name: string; avatar: string | null };
 
-export default function SiteNav({ pools = [] }: { pools?: NavPool[] }) {
+export default function SiteNav({
+  pools = [],
+  me = null,
+}: {
+  pools?: NavPool[];
+  me?: NavMe | null;
+}) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [switcherOpen, setSwitcherOpen] = useState(false);
@@ -23,11 +31,13 @@ export default function SiteNav({ pools = [] }: { pools?: NavPool[] }) {
         { href: `/p/${currentSlug}/jugar`, label: "Jugar" },
         { href: "/resultados", label: "Resultados oficiales" },
         { href: "/como-funciona", label: "Cómo funciona" },
+        { href: "/perfil", label: "Mi perfil" },
       ]
     : [
         { href: "/", label: "Mis prodes" },
         { href: "/resultados", label: "Resultados oficiales" },
         { href: "/como-funciona", label: "Cómo funciona" },
+        { href: "/perfil", label: "Mi perfil" },
       ];
 
   // Cerrar menús al navegar.
@@ -136,6 +146,19 @@ export default function SiteNav({ pools = [] }: { pools?: NavPool[] }) {
               </Link>
             ))}
           </div>
+
+          {/* Avatar -> Mi perfil */}
+          {me && (
+            <Link
+              href="/perfil"
+              aria-label="Mi perfil"
+              className={`rounded-full transition hover:opacity-80 ${
+                pathname === "/perfil" ? "ring-2 ring-primary ring-offset-2 ring-offset-background" : ""
+              }`}
+            >
+              <Avatar name={me.name} avatar={me.avatar} size={32} />
+            </Link>
+          )}
 
           {/* Botón hamburguesa (móvil) */}
           <button

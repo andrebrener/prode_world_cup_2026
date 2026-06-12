@@ -87,6 +87,37 @@ export async function joinAction(name: string): Promise<{ ok: boolean; error?: s
   return { ok: true };
 }
 
+/** Tamaño máximo del data URL del avatar (~200 KB). El cliente ya lo comprime. */
+const MAX_AVATAR_CHARS = 280_000;
+
+/**
+ * Actualiza la foto de perfil del participante actual.
+ * `avatar` es un data URL (image/*) o `null` para quitarla.
+ */
+export async function updateAvatarAction(
+  avatar: string | null,
+): Promise<{ ok: boolean; error?: string }> {
+  const id = await getParticipantId();
+  if (!id) return { ok: false, error: "Primero ingresá tu nombre." };
+  const found = await db.select().from(participants).where(eq(participants.id, id));
+  if (!found[0]) return { ok: false, error: "Sesión inválida, volvé a ingresar tu nombre." };
+
+  let value: string | null = null;
+  if (avatar) {
+    if (!avatar.startsWith("data:image/")) {
+      return { ok: false, error: "La foto no es válida." };
+    }
+    if (avatar.length > MAX_AVATAR_CHARS) {
+      return { ok: false, error: "La foto es muy pesada. Probá con una más chica." };
+    }
+    value = avatar;
+  }
+
+  await db.update(participants).set({ avatar: value }).where(eq(participants.id, id));
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
 // ---------- Prodes (grupos) ----------
 
 function slugify(name: string): string {
