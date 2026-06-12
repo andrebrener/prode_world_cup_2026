@@ -130,6 +130,30 @@ export async function updateAvatarAction(
   return { ok: true };
 }
 
+/**
+ * Guarda (o borra con null) el mail del participante actual, para el resumen
+ * diario del modo Diversión.
+ */
+export async function saveEmailAction(
+  email: string | null,
+): Promise<{ ok: boolean; error?: string }> {
+  const id = await getParticipantId();
+  if (!id) return { ok: false, error: "Primero ingresá tu nombre." };
+
+  let value: string | null = null;
+  if (email !== null) {
+    const clean = email.trim().toLowerCase().slice(0, 120);
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(clean)) {
+      return { ok: false, error: "Ese mail no parece válido." };
+    }
+    value = clean;
+  }
+
+  await db.update(participants).set({ email: value }).where(eq(participants.id, id));
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
 // ---------- Prodes (grupos) ----------
 
 function slugify(name: string): string {

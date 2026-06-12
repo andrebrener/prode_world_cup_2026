@@ -12,6 +12,7 @@ import {
 } from "@/lib/db/queries";
 import FunBadge from "@/components/FunBadge";
 import FunZone from "@/components/FunZone";
+import EmailCapture from "@/components/EmailCapture";
 import { getParticipantId } from "@/lib/session";
 import { getParticipant } from "@/lib/db/queries";
 import { allGroupStandings } from "@/lib/standings";
@@ -116,6 +117,9 @@ export default async function PoolTabla({
       </header>
 
       <ShareCode code={pool.code} slug={pool.slug} />
+
+      {/* Pedir el mail para el resumen diario (solo modo Diversión, una vez) */}
+      {isFun && !participant.email && <EmailCapture />}
 
       {/* Zona de cartas (solo modo Diversión) */}
       {isFun && funState && (

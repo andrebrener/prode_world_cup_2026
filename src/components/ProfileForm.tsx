@@ -2,19 +2,22 @@
 
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { joinAction, updateAvatarAction } from "@/lib/actions";
+import { joinAction, updateAvatarAction, saveEmailAction } from "@/lib/actions";
 import { fileToSquareDataUrl as fileToAvatar } from "@/lib/imageFile";
 import Avatar from "./Avatar";
 
 export default function ProfileForm({
   currentName,
   currentAvatar,
+  currentEmail = null,
 }: {
   currentName: string;
   currentAvatar: string | null;
+  currentEmail?: string | null;
 }) {
   const [name, setName] = useState(currentName);
   const [avatar, setAvatar] = useState<string | null>(currentAvatar);
+  const [email, setEmail] = useState(currentEmail ?? "");
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
   const [pending, start] = useTransition();
@@ -48,6 +51,13 @@ export default function ProfileForm({
       if (!r2.ok) {
         setError(r2.error ?? "No se pudo guardar la foto.");
         return;
+      }
+      if ((email.trim() || null) !== (currentEmail ?? null)) {
+        const r3 = await saveEmailAction(email.trim() ? email : null);
+        if (!r3.ok) {
+          setError(r3.error ?? "No se pudo guardar el mail.");
+          return;
+        }
       }
       setDone(true);
       router.refresh();
@@ -105,6 +115,18 @@ export default function ProfileForm({
         onChange={(e) => setName(e.target.value)}
         placeholder="Tu nombre…"
         maxLength={40}
+        className="mt-1.5 w-full rounded-xl border border-border bg-background px-4 py-3 text-foreground outline-none focus:border-primary"
+      />
+
+      {/* Mail (resumen diario del modo Diversión) */}
+      <label className="mt-5 block text-xs font-semibold uppercase tracking-wider text-muted">
+        Mail (resumen diario de tus prodes Diversión)
+      </label>
+      <input
+        type="email"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        placeholder="tu@mail.com — vacío para no recibir nada"
         className="mt-1.5 w-full rounded-xl border border-border bg-background px-4 py-3 text-foreground outline-none focus:border-primary"
       />
 

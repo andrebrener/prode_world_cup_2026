@@ -49,6 +49,22 @@ When creating a pool you can pick **Fun mode**: everything from a normal pool, p
 - **Streaks**: consecutive matches scoring >0 points pay milestone bonuses (3→+3, 5→+6, 8→+12, 12→+20). A 0-point match resets (unless protected by Fernet de Fernemo / Costillar).
 - Catalog (data-only, easy to tune) in [`src/lib/cardCatalog.ts`](src/lib/cardCatalog.ts); engine in [`src/lib/cards.ts`](src/lib/cards.ts) + [`src/lib/streaks.ts`](src/lib/streaks.ts) (pure + unit-tested); resolution happens inside `getLeaderboard`.
 
+### Daily email digest (fun pools)
+
+Fun-pool members who leave their email (banner in the pool, or `/perfil`) get a morning digest: reminder to claim today's card, standings (total + pure), yesterday's results and yesterday's plays. Powered by **Vercel Cron** (`vercel.json`, 13:00 UTC = 07:00 CDMX) hitting `/api/cron/daily-fun-email`.
+
+Env vars:
+
+| Var | Purpose |
+|---|---|
+| `CRON_SECRET` | Required in prod — Vercel sends it as `Authorization: Bearer …` |
+| `RESEND_API_KEY` | Option A: send via Resend (needs the domain verified in Resend) |
+| `GMAIL_USER` + `GMAIL_APP_PASSWORD` | Option B: send via Gmail SMTP ([app password](https://myaccount.google.com/apppasswords), not the real password) |
+| `MAIL_FROM` | From address, e.g. `Prode Mundial <prode@prodemundial2026.xyz>` |
+| `APP_BASE_URL` | Links in the email (default `https://prodemundial2026.xyz`) |
+
+With neither provider configured the cron logs and skips (dev). Local preview: `GET /api/cron/daily-fun-email?debug=1` returns the first rendered email as HTML (non-production only).
+
 ---
 
 ## Structure

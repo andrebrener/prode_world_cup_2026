@@ -23,6 +23,10 @@ export default async function PerfilPage() {
   }
 
   return (
-    <ProfileForm currentName={participant.name} currentAvatar={participant.avatar ?? null} />
+    <ProfileForm
+      currentName={participant.name}
+      currentAvatar={participant.avatar ?? null}
+      currentEmail={participant.email ?? null}
+    />
   );
 }
