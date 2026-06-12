@@ -4,15 +4,10 @@
 // No hay mano: la carta se juega al salir. Si pide víctima/apodo/foto, el modal
 // se abre al toque y no se puede esquivar — hasta no resolverla no hay otro sorteo.
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import confetti from "canvas-confetti";
-import {
-  claimDailyCardAction,
-  devDrawCardAction,
-  playCardAction,
-  type PlayCardExtra,
-} from "@/lib/actions";
+import { claimDailyCardAction, devDrawCardAction, playCardAction } from "@/lib/actions";
 import {
   CARD_CATALOG,
   RARITY_LABEL,
@@ -165,7 +160,9 @@ export default function FunZone({
   const [flipped, setFlipped] = useState(false);
 
   // Resolución obligada (víctima / apodo / foto)
-  const [playing, setPlaying] = useState<{ id: string; def: CardDef } | null>(null);
+  const [localPlaying, setLocalPlaying] = useState<{ id: string; def: CardDef } | null>(null);
+  // Carta ya resuelta en esta sesión (evita reabrir el modal hasta que llegue el refresh).
+  const [resolvedId, setResolvedId] = useState<string | null>(null);
   const [targetId, setTargetId] = useState<string | null>(null);
   const [apodo, setApodo] = useState("");
   const [mensaje, setMensaje] = useState("");
@@ -174,17 +171,13 @@ export default function FunZone({
 
   const rivals = members.filter((m) => m.id !== meId);
 
-  // Una carta pendiente (de un refresh / sesión anterior) reabre el modal sola.
-  useEffect(() => {
-    if (state.pending && !playing && !revealed) {
-      setTargetId(null);
-      setApodo("");
-      setMensaje("");
-      setImagen(null);
-      setPlaying({ id: state.pending.id, def: state.pending.def });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.pending?.id]);
+  // Una carta pendiente (de un refresh / sesión anterior) reabre el modal sola:
+  // derivado del estado del server, sin efectos.
+  const playing =
+    localPlaying ??
+    (state.pending && state.pending.id !== resolvedId && !revealed
+      ? { id: state.pending.id, def: state.pending.def }
+      : null);
 
   // Historial agrupado por día (hoy expandido, el resto colapsado).
   const feedByDay = useMemo(() => {
@@ -229,7 +222,7 @@ export default function FunZone({
           setApodo("");
           setMensaje("");
           setImagen(null);
-          setPlaying({ id: res.cardId, def });
+          setLocalPlaying({ id: res.cardId, def });
         }
       });
     });
@@ -249,7 +242,8 @@ export default function FunZone({
         setError(res.error ?? "No se pudo jugar.");
         return;
       }
-      setPlaying(null);
+      setResolvedId(id);
+      setLocalPlaying(null);
       if (res.blocked) {
         setLastPlay({
           text: `🛡️ ¡${res.targetName} tenía un Anulo mufa! Tu ${def.name} quedó en la nada.`,
@@ -388,7 +382,7 @@ export default function FunZone({
                 o sí: elegí.
               </p>
               <button
-                onClick={() => setPlaying({ id: state.pending!.id, def: state.pending!.def })}
+                onClick={() => setLocalPlaying({ id: state.pending!.id, def: state.pending!.def })}
                 className="fun-gradient fun-wiggle mx-auto rounded-xl px-5 py-2.5 text-sm font-black text-white transition hover:brightness-110 sm:mx-0"
               >
                 ⚡ Resolver ahora

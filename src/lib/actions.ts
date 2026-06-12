@@ -16,7 +16,7 @@ import {
   poolMembers,
   funCards,
 } from "./db/schema";
-import { eq, and, count, inArray } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import { getParticipantId, setParticipantId } from "./session";
 import { MATCHES, predictionsLocked } from "./fixtures";
 import { allGroupStandings } from "./standings";
