@@ -13,7 +13,7 @@ import {
   getPoolBySlug,
   isPoolMember,
 } from "@/lib/db/queries";
-import { PREDICTIONS_DEADLINE, predictionsLocked } from "@/lib/fixtures";
+import { PREDICTIONS_DEADLINE, predictionsLockedForName } from "@/lib/fixtures";
 
 export const dynamic = "force-dynamic";
 
@@ -79,7 +79,7 @@ export default async function JugarPage({
         initialPredictions={predictions}
         initialExtras={extras}
         hasSaved={hasSaved}
-        locked={predictionsLocked()}
+        locked={predictionsLockedForName(participant.name)}
         deadlineISO={PREDICTIONS_DEADLINE}
       />
       {bracket.generated && (

@@ -335,6 +335,27 @@ export function predictionsLocked(now: Date = new Date()): boolean {
   return now.getTime() >= new Date(PREDICTIONS_DEADLINE).getTime();
 }
 
+// Participantes con permiso para editar sus pronósticos incluso después del cierre.
+// Se compara por token del nombre, sin distinguir mayúsculas (ej "Oscar Brener" → "oscar").
+const EDIT_AFTER_DEADLINE_NAMES = new Set(["bj", "oscar"]);
+
+export function canEditAfterDeadline(name: string | null | undefined): boolean {
+  if (!name) return false;
+  return name
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .some((token) => EDIT_AFTER_DEADLINE_NAMES.has(token));
+}
+
+/** Como predictionsLocked, pero deja pasar a los participantes con permiso especial. */
+export function predictionsLockedForName(
+  name: string | null | undefined,
+  now: Date = new Date(),
+): boolean {
+  if (canEditAfterDeadline(name)) return false;
+  return predictionsLocked(now);
+}
+
 // Puntajes del prode.
 export const SCORING = {
   // Fase de grupos

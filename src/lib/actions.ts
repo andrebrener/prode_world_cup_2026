@@ -19,7 +19,7 @@ import {
 } from "./db/schema";
 import { eq, and, inArray } from "drizzle-orm";
 import { getParticipantId, setParticipantId } from "./session";
-import { MATCHES, predictionsLocked } from "./fixtures";
+import { MATCHES, predictionsLockedForName } from "./fixtures";
 import { allGroupStandings } from "./standings";
 import { computeR32, KO_MATCHES_BY_ID } from "./bracket";
 import {
@@ -264,11 +264,11 @@ export async function savePredictionsAction(
 ): Promise<{ ok: boolean; error?: string }> {
   const id = await getParticipantId();
   if (!id) return { ok: false, error: "Primero ingresá tu nombre." };
-  if (predictionsLocked()) {
-    return { ok: false, error: "El Mundial ya empezó: los pronósticos están cerrados." };
-  }
   const found = await db.select().from(participants).where(eq(participants.id, id));
   if (!found[0]) return { ok: false, error: "Sesión inválida, volvé a ingresar tu nombre." };
+  if (predictionsLockedForName(found[0].name)) {
+    return { ok: false, error: "El Mundial ya empezó: los pronósticos están cerrados." };
+  }
 
   for (const m of input.matches) {
     if (!VALID_MATCH_IDS.has(m.matchId)) continue;
