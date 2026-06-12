@@ -63,7 +63,7 @@ Env vars:
 | `MAIL_FROM` | From address, e.g. `Prode Mundial <prode@prodemundial2026.xyz>` |
 | `APP_BASE_URL` | Links in the email (default `https://prodemundial2026.xyz`) |
 
-With neither provider configured the cron logs and skips (dev). Local preview: `GET /api/cron/daily-fun-email?debug=1` returns the first rendered email as HTML (non-production only).
+Besides the daily digest, victims get an **instant email** when a card is played on them (attack landed / shield blocked it / mirror bounced it back) — sent via `next/server` `after()` so plays are never delayed. With neither provider configured everything logs to console instead (dev). Local preview: `GET /api/cron/daily-fun-email?debug=1` returns the first rendered email as HTML (non-production only).
 
 ---
 

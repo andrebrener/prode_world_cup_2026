@@ -2,6 +2,7 @@
 
 import { randomUUID } from "crypto";
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { db } from "./db";
 import {
   participants,
@@ -41,6 +42,8 @@ import {
   type PoolMode,
 } from "./cardCatalog";
 import { bindDay, dailyCard, funToday, resolvePlay } from "./cards";
+import { renderAttackEmail } from "./funDigest";
+import { sendEmail } from "./mailer";
 
 const VALID_MATCH_IDS = new Set(MATCHES.map((m) => m.id));
 const VALID_KO_IDS = new Set(Object.keys(KO_MATCHES_BY_ID));
@@ -524,6 +527,44 @@ type PlayResult = {
 };
 
 /**
+ * Aviso instantáneo a la víctima (si dejó su mail): te jugaron una carta, tu
+ * escudo te salvó, o tu espejito la devolvió. Corre después de responder
+ * (next/server `after`) para no demorar la jugada del atacante.
+ */
+function notifyVictim(opts: {
+  pool: NonNullable<Awaited<ReturnType<typeof getPoolBySlug>>>;
+  attackerName: string;
+  victimId: string;
+  victimName: string;
+  cardType: CardType;
+  detail: string | null;
+  blocked: boolean;
+  reflected: boolean;
+}) {
+  after(async () => {
+    try {
+      const [victim] = await db
+        .select({ email: participants.email })
+        .from(participants)
+        .where(eq(participants.id, opts.victimId));
+      if (!victim?.email) return;
+      const mail = renderAttackEmail({
+        pool: opts.pool,
+        attackerName: opts.attackerName,
+        victimName: opts.victimName,
+        cardType: opts.cardType,
+        detail: opts.detail,
+        blocked: opts.blocked,
+        reflected: opts.reflected,
+      });
+      await sendEmail({ to: victim.email, subject: mail.subject, html: mail.html });
+    } catch (e) {
+      console.error("[notifyVictim]", e);
+    }
+  });
+}
+
+/**
  * Núcleo de jugar una carta (la usan el claim con auto-jugada y la resolución
  * de cartas pendientes). Asume fila propia en estado "held".
  */
@@ -603,6 +644,18 @@ async function executePlay(
       .update(funCards)
       .set({ status: "consumed" })
       .where(eq(funCards.id, outcome.blockedByShieldId));
+    if (finalTargetId && finalTargetId !== ownerId) {
+      notifyVictim({
+        pool,
+        attackerName: ctx.rows.find((r) => r.id === ownerId)?.name ?? "Alguien",
+        victimId: finalTargetId,
+        victimName: targetName ?? "vos",
+        cardType: def.type,
+        detail: null,
+        blocked: true,
+        reflected: false,
+      });
+    }
     return { ok: true, blocked: true, targetName };
   }
 
@@ -644,6 +697,26 @@ async function executePlay(
       .update(funCards)
       .set({ status: "consumed" })
       .where(eq(funCards.id, outcome.reflectedByMirrorId));
+  }
+
+  // Aviso a la víctima (ataques y sociales contra otro; el rebote también avisa
+  // al que se salvó con el espejito).
+  if (finalTargetId && finalTargetId !== ownerId) {
+    notifyVictim({
+      pool,
+      attackerName: ctx.rows.find((r) => r.id === ownerId)?.name ?? "Alguien",
+      victimId: finalTargetId,
+      victimName: targetName ?? "vos",
+      cardType: def.type,
+      detail:
+        typeof payload.apodo === "string"
+          ? payload.apodo
+          : typeof payload.mensaje === "string"
+            ? payload.mensaje
+            : null,
+      blocked: false,
+      reflected,
+    });
   }
 
   // Borrón y cuenta nueva: limpia todos los overlays sociales colgados sobre mí.

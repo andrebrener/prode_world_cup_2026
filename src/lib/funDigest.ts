@@ -8,6 +8,7 @@ import { MATCHES, teamFlag, teamName } from "./fixtures";
 import { koKickoff } from "./bracket";
 import { funToday, matchDay } from "./cards";
 import { playText } from "./funText";
+import { CARD_CATALOG, type CardType } from "./cardCatalog";
 import {
   getLeaderboard,
   getFunState,
@@ -18,6 +19,73 @@ import {
 } from "./db/queries";
 
 export const APP_BASE_URL = process.env.APP_BASE_URL ?? "https://prodemundial2026.xyz";
+
+// ---------- Mail instantáneo: te jugaron una carta ----------
+
+/**
+ * Mail para la víctima cuando le juegan una carta encima (o cuando su defensa
+ * la salvó). Se manda al momento de la jugada, no espera al resumen diario.
+ */
+export function renderAttackEmail(opts: {
+  pool: Pool;
+  attackerName: string;
+  victimName: string;
+  cardType: CardType;
+  detail: string | null;
+  blocked: boolean;
+  reflected: boolean;
+}): { subject: string; html: string } {
+  const { pool, attackerName, victimName, cardType, detail, blocked, reflected } = opts;
+  const def = CARD_CATALOG[cardType];
+  const poolUrl = `${APP_BASE_URL}/p/${pool.slug}`;
+  const headline = playText({
+    cardType,
+    ownerName: attackerName,
+    targetName: victimName,
+    detail,
+    blocked,
+    reflected,
+  });
+
+  let subject: string;
+  let title: string;
+  let body: string;
+  let cta: string;
+  if (blocked) {
+    subject = `🛡️ Tu Anulo mufa te salvó de ${attackerName}`;
+    title = `🛡️ ¡Bloqueado!`;
+    body = `${attackerName} te quiso tirar <strong>${esc(def?.name ?? cardType)}</strong> y tu Anulo mufa se lo comió entero. El escudo se consumió — atento, quedaste descubierto.`;
+    cta = "Ver el papelón en el libro de pases";
+  } else if (reflected) {
+    subject = `🪞 Tu Espejito le devolvió la ${def?.name ?? "carta"} a ${attackerName}`;
+    title = `🪞 ¡Rebotó!`;
+    body = `${attackerName} te quiso tirar <strong>${esc(def?.name ?? cardType)}</strong>… y tu Espejito rebotín se la devolvió en la cara. Ahora la sufre él. El espejito se consumió.`;
+    cta = "Ver cómo le explotó";
+  } else {
+    subject = `${def?.emoji ?? "🃏"} ${attackerName} te jugó ${def?.name ?? "una carta"} en ${pool.name}`;
+    title = `${def?.emoji ?? "🃏"} Te la jugaron`;
+    body = `<strong>${esc(headline)}</strong>.<br/>${esc(def?.description ?? "")}`;
+    cta = "Entrar y devolverla 😈";
+  }
+
+  const html = `
+  <div style="font-family:system-ui,-apple-system,sans-serif;max-width:560px;margin:0 auto;padding:24px;background:#ffffff;color:#1a1a1a;">
+    <p style="margin:0;font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#8b3cff;font-weight:800;">
+      Prode Mundial 2026 · ${esc(pool.name)} ✨
+    </p>
+    <h1 style="margin:8px 0 0;font-size:24px;">${title}</h1>
+    <p style="margin:12px 0 16px;color:#333;font-size:15px;line-height:1.5;">${body}</p>
+    <a href="${poolUrl}" style="display:inline-block;background:linear-gradient(115deg,#ff3d8b,#8b3cff);color:#fff;font-weight:800;padding:12px 22px;border-radius:12px;text-decoration:none;">
+      ${cta} →
+    </a>
+    <p style="margin:24px 0 0;font-size:12px;color:#999;">
+      Recibís este mail porque dejaste tu dirección en el prode «${esc(pool.name)}».
+      <a href="${APP_BASE_URL}/perfil" style="color:#8b3cff;">Sacarme de la lista</a>
+    </p>
+  </div>`;
+
+  return { subject, html };
+}
 
 export type PoolDigest = {
   yesterday: string;
