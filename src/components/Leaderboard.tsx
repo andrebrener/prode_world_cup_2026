@@ -64,6 +64,8 @@ const fmtDelta = (n: number) =>
 export default function Leaderboard({ rows }: { rows: LeaderboardRow[] }) {
   const fun = rows.some((r) => r.fun);
   const [openRow, setOpenRow] = useState<LeaderboardRow | null>(null);
+  // Lightbox: click en una foto la abre a tamaño real (sin abrir el drawer).
+  const [photo, setPhoto] = useState<{ src: string; name: string } | null>(null);
   const [detail, setDetail] = useState<ParticipantDetail | null>(null);
   const [pending, start] = useTransition();
 
@@ -131,9 +133,18 @@ export default function Leaderboard({ rows }: { rows: LeaderboardRow[] }) {
                 {/* Foto full-bleed con la posición superpuesta (sin columna #).
                     El alto fijo del bloque dicta la altura de la fila: absolute
                     inset-0 directo en el td no funciona en tablas. */}
-                <td className="w-14 p-1 align-middle sm:w-[68px]">
-                  <div className="relative h-12 w-12 sm:h-14 sm:w-14">
-                  <div className="absolute inset-0 overflow-hidden rounded-xl">
+                <td className="w-14 p-0 align-middle sm:w-16">
+                  <div
+                    className="relative h-14 w-14 sm:h-16 sm:w-16"
+                    onClick={(e) => {
+                      const src = row.fun?.overlay?.avatar?.dataUrl ?? row.avatar;
+                      if (src) {
+                        e.stopPropagation();
+                        setPhoto({ src, name: row.name });
+                      }
+                    }}
+                  >
+                  <div className="absolute inset-0 overflow-hidden">
                     <AvatarFill
                       name={row.name}
                       avatar={row.fun?.overlay?.avatar?.dataUrl ?? row.avatar}
@@ -223,6 +234,21 @@ export default function Leaderboard({ rows }: { rows: LeaderboardRow[] }) {
           </tbody>
         </table>
       </div>
+
+      {/* Lightbox de foto a tamaño real */}
+      {photo && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/85 p-4 backdrop-blur-sm"
+          onClick={() => setPhoto(null)}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={photo.src}
+            alt={photo.name}
+            className="max-h-[85vh] max-w-[92vw] rounded-2xl object-contain shadow-2xl"
+          />
+        </div>
+      )}
 
       {openRow && (
         <Drawer
