@@ -20,6 +20,31 @@ function initials(name: string): string {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
+/**
+ * Variante full-bleed: llena el contenedor (absolute inset-0), cuadrada.
+ * Para celdas de tabla donde la foto va de borde a borde.
+ */
+export function AvatarFill({ name, avatar }: { name: string; avatar?: string | null }) {
+  if (avatar) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img src={avatar} alt={name} className="absolute inset-0 h-full w-full object-cover" />
+    );
+  }
+  // Sin foto: iniciales en el color del nombre sobre fondo oscuro tintado —
+  // un bloque sólido saturado de 56px grita demasiado en la tabla.
+  const color = colorFor(name);
+  return (
+    <span
+      style={{ backgroundColor: `${color}26`, color }}
+      className="absolute inset-0 grid place-items-center text-base font-black leading-none"
+      aria-hidden
+    >
+      {initials(name)}
+    </span>
+  );
+}
+
 export default function Avatar({
   name,
   avatar,
