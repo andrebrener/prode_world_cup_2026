@@ -377,9 +377,8 @@ export default function FunZone({
           ) : state.pending ? (
             <>
               <p className="text-sm text-foreground">
-                {state.pending.def.emoji} Tenés un{" "}
-                <strong>{state.pending.def.name}</strong> sin resolver. La carta se juega sí
-                o sí: elegí.
+                {state.pending.def.emoji} Te salió{" "}
+                <strong>{state.pending.def.name}</strong> y falta elegir a quién.
               </p>
               <button
                 onClick={() => setLocalPlaying({ id: state.pending!.id, def: state.pending!.def })}
@@ -449,9 +448,6 @@ export default function FunZone({
               {playing.def.emoji} {playing.def.name}
             </h3>
             <p className="mt-1 text-xs text-muted">{playing.def.description}</p>
-            <p className="mt-2 text-xs font-bold uppercase tracking-wider text-gold">
-              ⚡ Jugada obligada: no hay vuelta atrás
-            </p>
 
             {/* Selector de víctima */}
             {playing.def.target === "other" && (
