@@ -126,13 +126,17 @@ export default async function ComoFunciona() {
         <div className="mt-4 grid gap-3 sm:grid-cols-3">
           <div className="rounded-2xl border border-border bg-surface p-4 text-sm text-muted">
             <h3 className="mb-2 font-bold text-foreground">🎴 Carta del día</h3>
-            Cada día tenés una carta sorpresa esperándote (común, rara o legendaria). Si no
-            la reclamás antes de medianoche 🇲🇽, se pierde. Podés tener hasta 3 en mano.
+            Cada día tenés una carta sorpresa (común, rara o legendaria)… o una{" "}
+            <strong className="text-foreground">maldición ☠️</strong> que se aplica sola al
+            reclamar. ¿Te la jugás? Si no la reclamás antes de medianoche 🇲🇽, se pierde.
+            Hasta 3 en mano.
           </div>
           <div className="rounded-2xl border border-border bg-surface p-4 text-sm text-muted">
-            <h3 className="mb-2 font-bold text-foreground">😈 Buffs y mufas</h3>
-            Dobles y triples para tus partidos, mufas y afanos para tus amigos, escudos
-            para defenderte. Un solo efecto por partido por persona: no hay pile-on.
+            <h3 className="mb-2 font-bold text-foreground">😈 Buffs, mufas y traiciones</h3>
+            Dobles y triples, días enteros mufados, duelos de matambres, el Caparazón azul
+            directo al líder, robos de puntos e identidad. Escudos que bloquean y espejitos
+            que devuelven. Y las sociales: apodos, fotos truchas y declaraciones fijadas —
+            hasta que la víctima juegue Borrón y cuenta nueva 🧽.
           </div>
           <div className="rounded-2xl border border-border bg-surface p-4 text-sm text-muted">
             <h3 className="mb-2 font-bold text-foreground">🔥 Rachas</h3>
@@ -143,7 +147,7 @@ export default async function ComoFunciona() {
                 {m.len} seguidos <Pts n={m.bonus} />
               </span>
             ))}
-            . Un partido en cero la corta (salvo que tengas Aguante 💪).
+            . Un partido en cero la corta (salvo que tengas un Fernet de Fernemo 🥃 a mano).
           </div>
         </div>
       </section>

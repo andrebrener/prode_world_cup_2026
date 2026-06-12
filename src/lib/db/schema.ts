@@ -76,8 +76,15 @@ export const funCards = sqliteTable(
     targetParticipantId: text("target_participant_id").references(() => participants.id, {
       onDelete: "cascade",
     }),
-    // Partido al que quedó atado el efecto (cartas bindsMatch), fijado al jugarla.
+    // Partido al que quedó atado el efecto (ventana "match"), fijado al jugarla.
     effectMatchId: text("effect_match_id"),
+    // Día al que quedó atado el efecto (ventana "day"), yyyy-mm-dd huso MX.
+    effectDate: text("effect_date"),
+    // JSON con datos extra del efecto: { deltas } para snapshots (caparazón/swap),
+    // { apodo | mensaje | imagen } para sociales.
+    payload: text("payload"),
+    // El ataque rebotó en un Espejito: el efecto vuelve al que la jugó.
+    reflected: integer("reflected", { mode: "boolean" }).notNull().default(false),
   },
   // Una sola carta por día por participante por prode.
   (table) => [

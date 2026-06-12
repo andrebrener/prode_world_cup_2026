@@ -1,4 +1,4 @@
-// Modo Diversión — motor de cartas (solo server / lógica pura).
+// Modo Diversión — motor de cartas v2 (solo server / lógica pura).
 //
 // No hay cron: el "azar" del sorteo diario es determinístico por
 // (prode, participante, fecha) — reclamar solo persiste el resultado, y refrescar
@@ -7,6 +7,10 @@
 //
 // Las cartas NUNCA tocan pronósticos (son globales entre prodes): todos los
 // efectos se resuelven al calcular la tabla del prode (queries.getLeaderboard).
+//
+// Regla anti-viveza de las cartas de día: el efecto vale solo para los partidos
+// del día que TODAVÍA NO ARRANCARON al jugarla (nada de jugar la Cábala a la
+// noche para duplicar retroactivamente lo que ya viste).
 
 import { createHash } from "crypto";
 import { MATCHES } from "./fixtures";
@@ -44,7 +48,9 @@ function rarityFor(n: number): CardRarity {
   // n ∈ [0, 100)
   if (n < RARITY_WEIGHTS.comun) return "comun";
   if (n < RARITY_WEIGHTS.comun + RARITY_WEIGHTS.rara) return "rara";
-  return "legendaria";
+  if (n < RARITY_WEIGHTS.comun + RARITY_WEIGHTS.rara + RARITY_WEIGHTS.legendaria)
+    return "legendaria";
+  return "maldicion";
 }
 
 /** Carta del día para un participante en un prode. Determinística. */
@@ -52,6 +58,47 @@ export function dailyCard(poolId: string, participantId: string, date: string): 
   const rarity = rarityFor(roll([poolId, participantId, date, "rareza"], 100));
   const options = ALL_CARDS.filter((c) => c.rarity === rarity);
   return options[roll([poolId, participantId, date, "carta"], options.length)];
+}
+
+/**
+ * Resultado random del Caldeador para un partido. Determinístico por
+ * (carta, partido) — no cambia entre refreshes. Goles con distribución
+ * futbolera: 0 y 1 frecuentes, 4 es milagro.
+ */
+export function caldeadorScore(
+  cardId: string,
+  matchId: string,
+): { homeGoals: number; awayGoals: number } {
+  const GOAL_WEIGHTS = [28, 34, 22, 11, 5]; // 0..4
+  const pick = (salt: string) => {
+    const n = roll([cardId, matchId, salt], 100);
+    let acc = 0;
+    for (let g = 0; g < GOAL_WEIGHTS.length; g++) {
+      acc += GOAL_WEIGHTS[g];
+      if (n < acc) return g;
+    }
+    return 0;
+  };
+  return { homeGoals: pick("local"), awayGoals: pick("visitante") };
+}
+
+/** Pronóstico random completo del Caldeador para un cruce de llaves. */
+export function caldeadorKoPred(
+  cardId: string,
+  matchId: string,
+  home: string,
+  away: string,
+): { homeGoals: number; awayGoals: number; advance: string } {
+  const s = caldeadorScore(cardId, matchId);
+  const advance =
+    s.homeGoals > s.awayGoals
+      ? home
+      : s.awayGoals > s.homeGoals
+        ? away
+        : roll([cardId, matchId, "penales"], 2) === 0
+          ? home
+          : away;
+  return { ...s, advance };
 }
 
 // ---------- Calendario unificado (grupos + llaves) ----------
@@ -70,9 +117,31 @@ export function fullSchedule(): ScheduledMatch[] {
   );
 }
 
-/** Próximo partido que todavía no arrancó (las cartas atadas a partido apuntan acá). */
-export function nextMatchAfter(now: Date, schedule: ScheduledMatch[] = fullSchedule()): ScheduledMatch | null {
+/** Próximo partido que todavía no arrancó (las cartas de partido apuntan acá). */
+export function nextMatchAfter(
+  now: Date,
+  schedule: ScheduledMatch[] = fullSchedule(),
+): ScheduledMatch | null {
   return schedule.find((m) => new Date(m.kickoff).getTime() > now.getTime()) ?? null;
+}
+
+/**
+ * Día (yyyy-mm-dd, huso MX) de un partido del calendario. Los kickoffs vienen
+ * con offset de la sede; acá los normalizamos al huso del torneo.
+ */
+export function matchDay(kickoffIso: string): string {
+  return funToday(new Date(kickoffIso));
+}
+
+/** Partidos de un día que todavía no arrancaron a la hora dada. */
+export function dayMatchesAfter(
+  date: string,
+  now: Date,
+  schedule: ScheduledMatch[] = fullSchedule(),
+): ScheduledMatch[] {
+  return schedule.filter(
+    (m) => matchDay(m.kickoff) === date && new Date(m.kickoff).getTime() > now.getTime(),
+  );
 }
 
 // ---------- Jugar una carta: validación ----------
@@ -80,33 +149,47 @@ export function nextMatchAfter(now: Date, schedule: ScheduledMatch[] = fullSched
 export type PlayInput = {
   cardType: CardType;
   ownerId: string;
+  /** Para target "other"; para "leader" la acción ya lo resolvió al puntero. */
   targetId: string | null;
   now: Date;
   memberIds: string[];
   /** "matchId:participanteAfectado" de efectos ya activos (regla: 1 efecto por partido por persona). */
   occupiedEffects: Set<string>;
-  /** Tipos standing (escudo/aguante/var) que el dueño ya tiene activos sin consumir. */
+  /** Tipos standing (escudo/espejito/aguante/var) que el dueño ya tiene activos. */
   ownerActiveStandings: Set<CardType>;
-  /** id de la carta Escudo activa de la víctima, si tiene (solo para ataques). */
+  /** id del Anulo mufa activo de la víctima, si tiene (solo ataques bloqueables). */
   targetShieldCardId: string | null;
+  /** id del Espejito rebotín activo de la víctima, si tiene. */
+  targetMirrorCardId: string | null;
+  /** "fecha:participante" de duelos ya jugados (1 duelo por persona por día). */
+  occupiedDuels: Set<string>;
   schedule?: ScheduledMatch[];
 };
 
 export type PlayOutcome =
-  | { ok: true; effectMatchId: string | null; blockedByShieldId: string | null }
+  | {
+      ok: true;
+      effectMatchId: string | null;
+      effectDate: string | null;
+      blockedByShieldId: string | null;
+      reflectedByMirrorId: string | null;
+    }
   | { ok: false; error: string };
 
 export function resolvePlay(input: PlayInput): PlayOutcome {
   const def = CARD_CATALOG[input.cardType];
   if (!def) return { ok: false, error: "Carta desconocida." };
+  if (def.kind === "curse") return { ok: false, error: "Las maldiciones se aplican solas." };
 
-  if (def.kind === "attack") {
+  if (def.target === "other") {
     if (!input.targetId) return { ok: false, error: "Elegí una víctima." };
     if (input.targetId === input.ownerId)
-      return { ok: false, error: "No te podés atacar a vos mismo (para eso está la mufa ajena)." };
+      return { ok: false, error: "No te podés atacar a vos mismo." };
     if (!input.memberIds.includes(input.targetId))
       return { ok: false, error: "La víctima no está en este prode." };
-  } else if (input.targetId) {
+  } else if (def.target === "leader") {
+    if (!input.targetId) return { ok: false, error: "No hay líder para apuntarle." };
+  } else if (input.targetId && input.targetId !== input.ownerId) {
     return { ok: false, error: "Esta carta no lleva víctima." };
   }
 
@@ -114,29 +197,87 @@ export function resolvePlay(input: PlayInput): PlayOutcome {
     return { ok: false, error: `Ya tenés un ${def.name} activo. Esperá a que se consuma.` };
   }
 
-  // Escudo de la víctima: el ataque se juega igual pero queda bloqueado.
-  if (def.kind === "attack" && input.targetShieldCardId) {
-    return { ok: true, effectMatchId: null, blockedByShieldId: input.targetShieldCardId };
-  }
-
-  let effectMatchId: string | null = null;
-  if (def.bindsMatch) {
-    const next = nextMatchAfter(input.now, input.schedule);
-    if (!next) return { ok: false, error: "No quedan partidos por jugarse." };
-    effectMatchId = next.id;
-    const affectedId = def.kind === "attack" ? input.targetId! : input.ownerId;
-    if (input.occupiedEffects.has(`${effectMatchId}:${affectedId}`)) {
+  // Defensas de la víctima: el escudo come el ataque; el espejito lo devuelve.
+  if (def.blockable && input.targetId && input.targetId !== input.ownerId) {
+    if (input.targetShieldCardId) {
       return {
-        ok: false,
-        error:
-          def.kind === "attack"
-            ? "La víctima ya tiene un efecto activo para ese partido."
-            : "Ya tenés un efecto activo para ese partido.",
+        ok: true,
+        effectMatchId: null,
+        effectDate: null,
+        blockedByShieldId: input.targetShieldCardId,
+        reflectedByMirrorId: null,
       };
+    }
+    // El duelo no rebota (es simétrico: rebotarlo es el mismo duelo).
+    if (input.targetMirrorCardId && def.type !== "duelo") {
+      const r = bindWindow(def, input, input.ownerId);
+      if (!r.ok) return r;
+      return { ...r, blockedByShieldId: null, reflectedByMirrorId: input.targetMirrorCardId };
     }
   }
 
-  return { ok: true, effectMatchId, blockedByShieldId: null };
+  const affectedId =
+    def.kind === "attack" && input.targetId ? input.targetId : input.ownerId;
+  const r = bindWindow(def, input, affectedId);
+  if (!r.ok) return r;
+  return { ...r, blockedByShieldId: null, reflectedByMirrorId: null };
+}
+
+/** Ata la carta a su ventana (partido o día) validando la regla de 1 efecto. */
+function bindWindow(
+  def: CardDef,
+  input: PlayInput,
+  affectedId: string,
+):
+  | { ok: true; effectMatchId: string | null; effectDate: string | null }
+  | { ok: false; error: string } {
+  const schedule = input.schedule ?? fullSchedule();
+
+  if (def.window === "match") {
+    const next = nextMatchAfter(input.now, schedule);
+    if (!next) return { ok: false, error: "No quedan partidos por jugarse." };
+    if (input.occupiedEffects.has(`${next.id}:${affectedId}`)) {
+      return {
+        ok: false,
+        error:
+          affectedId === input.ownerId
+            ? "Ya tenés un efecto activo para ese partido."
+            : "La víctima ya tiene un efecto activo para ese partido.",
+      };
+    }
+    return { ok: true, effectMatchId: next.id, effectDate: null };
+  }
+
+  if (def.window === "day") {
+    const today = funToday(input.now);
+    const remaining = dayMatchesAfter(today, input.now, schedule);
+    if (remaining.length === 0) {
+      return { ok: false, error: "Hoy ya no quedan partidos por arrancar. Guardala para mañana." };
+    }
+    if (def.type === "duelo") {
+      // 1 duelo por persona por día (los dos contendientes quedan ocupados).
+      if (
+        input.occupiedDuels.has(`${today}:${input.ownerId}`) ||
+        (input.targetId && input.occupiedDuels.has(`${today}:${input.targetId}`))
+      ) {
+        return { ok: false, error: "Uno de los dos ya tiene un duelo hoy." };
+      }
+      return { ok: true, effectMatchId: null, effectDate: today };
+    }
+    const clash = remaining.find((m) => input.occupiedEffects.has(`${m.id}:${affectedId}`));
+    if (clash) {
+      return {
+        ok: false,
+        error:
+          affectedId === input.ownerId
+            ? "Ya tenés un efecto activo en un partido de hoy."
+            : "La víctima ya tiene un efecto activo en un partido de hoy.",
+      };
+    }
+    return { ok: true, effectMatchId: null, effectDate: today };
+  }
+
+  return { ok: true, effectMatchId: null, effectDate: null };
 }
 
 // ---------- Resolución de efectos sobre los puntos ----------
@@ -147,31 +288,50 @@ export type PlayedCardEffect = {
   ownerId: string;
   targetId: string | null;
   effectMatchId: string | null;
+  effectDate: string | null;
+  /** Snapshot de deltas (caparazón, swap): { deltas: { participantId: ±n } } */
+  payload: { deltas?: Record<string, number> } | null;
+  reflected: boolean;
   playedAt: Date;
 };
 
 /** matchId → puntos del miembro en ese partido. */
 export type MatchPointsMap = Record<string, number>;
 
+export type StreakOverride = "protect" | "skip";
+
 export type FunEffects = {
   /** Puntos por partido DESPUÉS de aplicar cartas (por miembro). */
   points: Record<string, MatchPointsMap>;
-  /** Ajustes planos (afanos): ±puntos por miembro. */
+  /** Ajustes planos (robos, snapshots, maldiciones de puntos): ±puntos por miembro. */
   flat: Record<string, number>;
   /** Delta total por cartas (modificadores + planos) por miembro, para mostrar. */
   delta: Record<string, number>;
-  /** Partido al que el VAR le sumó +2, por miembro (para la UI). */
+  /** Partido al que el VAR le sumó +2, por miembro. */
   varAppliedTo: Record<string, string>;
+  /** Overrides de racha por miembro (costillar/filtro/caído). */
+  streakOverrides: Record<string, Record<string, StreakOverride>>;
 };
+
+/** A quién le pega el efecto de una carta (los rebotes vuelven al que la tiró). */
+export function affectedIdOf(card: PlayedCardEffect): string {
+  const def = CARD_CATALOG[card.cardType];
+  if (def?.kind === "attack" && card.targetId) {
+    return card.reflected ? card.ownerId : card.targetId;
+  }
+  return card.ownerId;
+}
 
 /**
  * Aplica las cartas jugadas sobre los puntos base por partido.
  * Pura: no toca la base; las cartas bloqueadas no deben venir en `cards`.
+ * El Caldeador NO pasa por acá: se aplica antes, al construir la base
+ * (reemplaza pronósticos, no puntos).
  */
 export function applyCardEffects(opts: {
   cards: PlayedCardEffect[];
   base: Record<string, MatchPointsMap>;
-  /** Partidos CON resultado, ordenados por kickoff (para el VAR). */
+  /** Partidos CON resultado, ordenados por kickoff. */
   matchOrder: string[];
   kickoffById: Record<string, string>;
 }): FunEffects {
@@ -180,15 +340,34 @@ export function applyCardEffects(opts: {
 
   const flat: Record<string, number> = {};
   const varAppliedTo: Record<string, string> = {};
+  const streakOverrides: Record<string, Record<string, StreakOverride>> = {};
   const add = (m: Record<string, number>, k: string, v: number) => {
     m[k] = (m[k] ?? 0) + v;
   };
+  const override = (member: string, matchId: string, kind: StreakOverride) => {
+    (streakOverrides[member] ??= {})[matchId] = kind;
+  };
+  const map = (id: string) => (points[id] ??= {});
+
+  // Partidos (con resultado) de un día, posteriores a jugar la carta.
+  const dayIds = (card: PlayedCardEffect): string[] =>
+    opts.matchOrder.filter((id) => {
+      const k = opts.kickoffById[id];
+      return (
+        k &&
+        matchDay(k) === card.effectDate &&
+        new Date(k).getTime() > card.playedAt.getTime()
+      );
+    });
 
   // Orden estable por playedAt para que la resolución sea determinística.
   const cards = [...opts.cards].sort((a, b) => a.playedAt.getTime() - b.playedAt.getTime());
 
+  // ---- Pase 1: modificadores de partido y de día (los ceros pisan al final) ----
+  const zeroings: { member: string; matchId: string }[] = [];
+
   for (const card of cards) {
-    const map = (id: string) => (points[id] ??= {});
+    const affected = affectedIdOf(card);
     switch (card.cardType) {
       case "doblete":
       case "diego": {
@@ -207,36 +386,127 @@ export function applyCardEffects(opts: {
         break;
       }
       case "mufa": {
-        if (!card.targetId) break;
-        const m = map(card.targetId);
+        const m = map(affected);
         if (card.effectMatchId && card.effectMatchId in m) {
           m[card.effectMatchId] = Math.floor(m[card.effectMatchId] / 2);
         }
         break;
       }
-      case "afano": {
-        if (!card.targetId) break;
-        add(flat, card.ownerId, 2);
-        add(flat, card.targetId, -2);
+      case "cabala": {
+        const m = map(card.ownerId);
+        for (const id of dayIds(card)) if (id in m) m[id] = m[id] * 2;
         break;
       }
-      case "var": {
-        // Primer partido con puntos posterior a jugarla (una sola vez).
-        const m = map(card.ownerId);
-        const playedAt = card.playedAt.getTime();
-        const hit = opts.matchOrder.find((id) => {
-          const k = opts.kickoffById[id];
-          return k && new Date(k).getTime() > playedAt && (m[id] ?? 0) > 0;
-        });
-        if (hit) {
-          m[hit] += 2;
-          varAppliedTo[card.ownerId] = hit;
+      case "costillar": {
+        for (const id of dayIds(card)) override(card.ownerId, id, "protect");
+        break;
+      }
+      case "pelambreada": {
+        // 0 en todo el día; los ceros cortan la racha solos.
+        for (const id of dayIds(card)) zeroings.push({ member: affected, matchId: id });
+        break;
+      }
+      case "caido": {
+        // 0 puntos, pero los partidos que IGUAL hubiese acertado mantienen la racha.
+        const m = map(affected);
+        for (const id of dayIds(card)) {
+          if ((m[id] ?? 0) > 0) override(affected, id, "protect");
+          zeroings.push({ member: affected, matchId: id });
         }
         break;
       }
-      // escudo: se resuelve al jugarse el ataque · aguante: se resuelve en streaks.ts
-      case "escudo":
-      case "aguante":
+      case "filtro": {
+        // 0 puntos y el día no cuenta para la racha (ni a favor ni en contra).
+        for (const id of dayIds(card)) {
+          override(affected, id, "skip");
+          zeroings.push({ member: affected, matchId: id });
+        }
+        break;
+      }
+      case "nemo":
+      case "heladera":
+      case "matambrito": {
+        // Maldición: 0 en los partidos del día (posteriores al reclamo).
+        for (const id of dayIds(card)) zeroings.push({ member: card.ownerId, matchId: id });
+        break;
+      }
+      // ramirez/papas/speed/pedo/caparazon/swap → pase de planos.
+      // escudo/espejito → se resuelven al jugarse el ataque.
+      // duelo → pase 3. var → pase 2. caldeador → upstream. sociales/borron → no tocan puntos.
+      default:
+        break;
+    }
+  }
+
+  // Los ceros ganan siempre (una maldición pisa una cábala).
+  for (const z of zeroings) {
+    const m = map(z.member);
+    if (z.matchId in m) m[z.matchId] = 0;
+  }
+
+  // ---- Pase 2: VAR (primer partido con puntos posterior a jugarlo) ----
+  for (const card of cards) {
+    if (card.cardType !== "var") continue;
+    const m = map(card.ownerId);
+    const playedAt = card.playedAt.getTime();
+    const hit = opts.matchOrder.find((id) => {
+      const k = opts.kickoffById[id];
+      return k && new Date(k).getTime() > playedAt && (m[id] ?? 0) > 0;
+    });
+    if (hit) {
+      m[hit] += 2;
+      varAppliedTo[card.ownerId] = hit;
+    }
+  }
+
+  // ---- Pase 3: duelos (sobre los puntos del día ya modificados) ----
+  for (const card of cards) {
+    if (card.cardType !== "duelo" || !card.targetId) continue;
+    const ids = dayIds(card);
+    if (ids.length === 0) continue;
+    const total = (member: string) =>
+      ids.reduce((acc, id) => acc + (points[member]?.[id] ?? 0), 0);
+    const a = total(card.ownerId);
+    const b = total(card.targetId);
+    if (a === b) continue; // empate: no pasa nada
+    const winner = a > b ? card.ownerId : card.targetId;
+    const loser = a > b ? card.targetId : card.ownerId;
+    for (const id of ids) {
+      const wm = map(winner);
+      if (id in wm) wm[id] = wm[id] * 2;
+      const lm = map(loser);
+      if (id in lm) lm[id] = 0;
+    }
+  }
+
+  // ---- Pase 4: planos (robos, snapshots, maldición de plata) ----
+  for (const card of cards) {
+    switch (card.cardType) {
+      case "papas":
+        add(flat, card.ownerId, 5);
+        break;
+      case "speed":
+        add(flat, card.ownerId, 2);
+        break;
+      case "ramirez":
+        add(flat, card.ownerId, -5);
+        break;
+      case "pedo": {
+        if (!card.targetId) break;
+        const to = card.reflected ? card.targetId : card.ownerId;
+        const from = card.reflected ? card.ownerId : card.targetId;
+        add(flat, to, 5);
+        add(flat, from, -5);
+        break;
+      }
+      case "caparazon":
+      case "swap": {
+        for (const [member, delta] of Object.entries(card.payload?.deltas ?? {})) {
+          add(flat, member, delta);
+        }
+        break;
+      }
+      default:
         break;
     }
   }
@@ -249,5 +519,5 @@ export function applyCardEffects(opts: {
     delta[id] = after - before + (flat[id] ?? 0);
   }
 
-  return { points, flat, delta, varAppliedTo };
+  return { points, flat, delta, varAppliedTo, streakOverrides };
 }

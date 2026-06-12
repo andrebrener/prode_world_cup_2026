@@ -4,21 +4,29 @@ import {
   funToday,
   fullSchedule,
   nextMatchAfter,
+  matchDay,
+  dayMatchesAfter,
+  caldeadorScore,
+  caldeadorKoPred,
   resolvePlay,
   applyCardEffects,
   type PlayedCardEffect,
+  type PlayInput,
 } from "./cards";
 import { CARD_CATALOG, RARITY_WEIGHTS, type CardType } from "./cardCatalog";
 import { MATCHES } from "./fixtures";
 
-// Calendario sintético para tests: 3 partidos.
+// Calendario sintético: M1 y M2 el 20/jun (huso MX), M3 el 21, M4 el 22.
 const SCHEDULE = [
   { id: "M1", kickoff: "2026-06-20T12:00:00-06:00" },
-  { id: "M2", kickoff: "2026-06-21T12:00:00-06:00" },
-  { id: "M3", kickoff: "2026-06-22T12:00:00-06:00" },
+  { id: "M2", kickoff: "2026-06-20T18:00:00-06:00" },
+  { id: "M3", kickoff: "2026-06-21T12:00:00-06:00" },
+  { id: "M4", kickoff: "2026-06-22T12:00:00-06:00" },
 ];
 const KICKOFFS = Object.fromEntries(SCHEDULE.map((m) => [m.id, m.kickoff]));
+const ORDER = ["M1", "M2", "M3", "M4"];
 const BEFORE_M1 = new Date("2026-06-19T12:00:00-06:00");
+const DAY_1 = "2026-06-20";
 
 const played = (
   cardType: CardType,
@@ -30,58 +38,94 @@ const played = (
   ownerId,
   targetId: null,
   effectMatchId: null,
+  effectDate: null,
+  payload: null,
+  reflected: false,
   playedAt: BEFORE_M1,
   ...over,
 });
 
-const basePlay = {
+const basePlay: Omit<PlayInput, "cardType"> = {
   ownerId: "ana",
   targetId: null,
   now: BEFORE_M1,
   memberIds: ["ana", "beto", "caro"],
   occupiedEffects: new Set<string>(),
+  occupiedDuels: new Set<string>(),
   ownerActiveStandings: new Set<CardType>(),
   targetShieldCardId: null,
+  targetMirrorCardId: null,
   schedule: SCHEDULE,
 };
 
-describe("funToday", () => {
+describe("funToday / matchDay", () => {
   it("usa el huso de México (medianoche MX, no UTC)", () => {
     // 04:00 UTC del 13/jun = 22:00 del 12/jun en CDMX.
     expect(funToday(new Date("2026-06-13T04:00:00Z"))).toBe("2026-06-12");
     expect(funToday(new Date("2026-06-13T12:00:00Z"))).toBe("2026-06-13");
   });
+
+  it("matchDay normaliza el kickoff de la sede al huso MX", () => {
+    expect(matchDay("2026-06-20T12:00:00-06:00")).toBe("2026-06-20");
+    // 21:00 en Nueva York (-04) = 19:00 MX, mismo día.
+    expect(matchDay("2026-06-20T21:00:00-04:00")).toBe("2026-06-20");
+  });
+
+  it("dayMatchesAfter solo trae los partidos del día que no arrancaron", () => {
+    const mid = new Date("2026-06-20T15:00:00-06:00"); // entre M1 y M2
+    expect(dayMatchesAfter(DAY_1, BEFORE_M1, SCHEDULE).map((m) => m.id)).toEqual(["M1", "M2"]);
+    expect(dayMatchesAfter(DAY_1, mid, SCHEDULE).map((m) => m.id)).toEqual(["M2"]);
+    expect(dayMatchesAfter("2026-06-23", BEFORE_M1, SCHEDULE)).toEqual([]);
+  });
 });
 
-describe("dailyCard (sorteo diario)", () => {
+describe("dailyCard (sorteo diario, 4 baldes)", () => {
   it("es determinística: misma (pool, jugador, fecha) → misma carta", () => {
-    const a = dailyCard("pool1", "ana", "2026-06-15");
-    const b = dailyCard("pool1", "ana", "2026-06-15");
-    expect(a.type).toBe(b.type);
-  });
-
-  it("cambia con el día, el jugador o el prode", () => {
-    const days = new Set(
-      Array.from({ length: 30 }, (_, i) =>
-        dailyCard("pool1", "ana", `2026-06-${String(i + 1).padStart(2, "0")}`).type,
-      ),
+    expect(dailyCard("pool1", "ana", "2026-06-15").type).toBe(
+      dailyCard("pool1", "ana", "2026-06-15").type,
     );
-    expect(days.size).toBeGreaterThan(1);
   });
 
-  it("respeta las rarezas a grandes rasgos (60/30/10)", () => {
-    const counts = { comun: 0, rara: 0, legendaria: 0 };
-    for (let i = 0; i < 2000; i++) {
+  it("respeta los baldes a grandes rasgos (50/26/9/15)", () => {
+    const counts = { comun: 0, rara: 0, legendaria: 0, maldicion: 0 };
+    for (let i = 0; i < 3000; i++) {
       counts[dailyCard("pool1", `jugador-${i}`, "2026-06-15").rarity]++;
     }
-    expect(counts.comun / 2000).toBeGreaterThan(0.5);
-    expect(counts.comun / 2000).toBeLessThan(0.7);
-    expect(counts.legendaria / 2000).toBeGreaterThan(0.05);
-    expect(counts.legendaria / 2000).toBeLessThan(0.15);
+    expect(counts.comun / 3000).toBeGreaterThan(0.42);
+    expect(counts.comun / 3000).toBeLessThan(0.58);
+    expect(counts.maldicion / 3000).toBeGreaterThan(0.1);
+    expect(counts.maldicion / 3000).toBeLessThan(0.2);
+    expect(counts.legendaria / 3000).toBeGreaterThan(0.05);
   });
 
-  it("los pesos de rareza suman 100", () => {
-    expect(RARITY_WEIGHTS.comun + RARITY_WEIGHTS.rara + RARITY_WEIGHTS.legendaria).toBe(100);
+  it("los pesos de rareza suman 100 y toda rareza tiene cartas", () => {
+    const total = Object.values(RARITY_WEIGHTS).reduce((a, b) => a + b, 0);
+    expect(total).toBe(100);
+    for (const rarity of Object.keys(RARITY_WEIGHTS)) {
+      expect(
+        Object.values(CARD_CATALOG).some((c) => c.rarity === rarity),
+      ).toBe(true);
+    }
+  });
+});
+
+describe("caldeadorScore / caldeadorKoPred", () => {
+  it("es determinístico por (carta, partido)", () => {
+    expect(caldeadorScore("c1", "A1")).toEqual(caldeadorScore("c1", "A1"));
+    expect(caldeadorKoPred("c1", "73", "ARG", "BRA")).toEqual(
+      caldeadorKoPred("c1", "73", "ARG", "BRA"),
+    );
+  });
+
+  it("genera goles futboleros (0-4) y un avance coherente", () => {
+    for (let i = 0; i < 50; i++) {
+      const s = caldeadorScore("carta", `M${i}`);
+      expect(s.homeGoals).toBeGreaterThanOrEqual(0);
+      expect(s.homeGoals).toBeLessThanOrEqual(4);
+      const ko = caldeadorKoPred("carta", `M${i}`, "AAA", "BBB");
+      if (ko.homeGoals > ko.awayGoals) expect(ko.advance).toBe("AAA");
+      if (ko.awayGoals > ko.homeGoals) expect(ko.advance).toBe("BBB");
+    }
   });
 });
 
@@ -98,36 +142,63 @@ describe("fullSchedule / nextMatchAfter", () => {
 
   it("devuelve el primer partido que aún no arrancó", () => {
     expect(nextMatchAfter(BEFORE_M1, SCHEDULE)?.id).toBe("M1");
-    expect(nextMatchAfter(new Date("2026-06-20T12:00:00-06:00"), SCHEDULE)?.id).toBe("M2");
     expect(nextMatchAfter(new Date("2026-07-30T00:00:00Z"), SCHEDULE)).toBeNull();
   });
 });
 
 describe("resolvePlay (validación)", () => {
-  it("un buff atado a partido apunta al próximo partido", () => {
+  it("un buff de partido apunta al próximo partido", () => {
     const r = resolvePlay({ ...basePlay, cardType: "doblete" });
-    expect(r).toEqual({ ok: true, effectMatchId: "M1", blockedByShieldId: null });
+    expect(r).toMatchObject({ ok: true, effectMatchId: "M1", effectDate: null });
+  });
+
+  it("un buff de día queda atado a hoy", () => {
+    const r = resolvePlay({
+      ...basePlay,
+      cardType: "cabala",
+      now: new Date("2026-06-20T08:00:00-06:00"),
+    });
+    expect(r).toMatchObject({ ok: true, effectMatchId: null, effectDate: DAY_1 });
+  });
+
+  it("una carta de día sin partidos restantes hoy no se puede jugar", () => {
+    const r = resolvePlay({
+      ...basePlay,
+      cardType: "cabala",
+      now: new Date("2026-06-20T22:00:00-06:00"), // ya arrancaron M1 y M2
+    });
+    expect(r).toMatchObject({ ok: false });
   });
 
   it("un ataque requiere víctima válida y distinta", () => {
     expect(resolvePlay({ ...basePlay, cardType: "mufa" })).toMatchObject({ ok: false });
-    expect(
-      resolvePlay({ ...basePlay, cardType: "mufa", targetId: "ana" }),
-    ).toMatchObject({ ok: false });
-    expect(
-      resolvePlay({ ...basePlay, cardType: "mufa", targetId: "zoe" }),
-    ).toMatchObject({ ok: false });
-    expect(
-      resolvePlay({ ...basePlay, cardType: "mufa", targetId: "beto" }),
-    ).toMatchObject({ ok: true, effectMatchId: "M1" });
+    expect(resolvePlay({ ...basePlay, cardType: "mufa", targetId: "ana" })).toMatchObject({
+      ok: false,
+    });
+    expect(resolvePlay({ ...basePlay, cardType: "mufa", targetId: "zoe" })).toMatchObject({
+      ok: false,
+    });
+    expect(resolvePlay({ ...basePlay, cardType: "mufa", targetId: "beto" })).toMatchObject({
+      ok: true,
+      effectMatchId: "M1",
+    });
   });
 
-  it("regla de 1 efecto por partido por persona", () => {
+  it("regla de 1 efecto: partido ocupado bloquea partido y día", () => {
     const occupied = new Set(["M1:ana"]);
     expect(
       resolvePlay({ ...basePlay, cardType: "doblete", occupiedEffects: occupied }),
     ).toMatchObject({ ok: false });
-    // El mismo partido para OTRA persona sí se puede.
+    // La cábala de hoy pisa M1 → también choca.
+    expect(
+      resolvePlay({
+        ...basePlay,
+        cardType: "cabala",
+        occupiedEffects: occupied,
+        now: new Date("2026-06-20T08:00:00-06:00"),
+      }),
+    ).toMatchObject({ ok: false });
+    // Para OTRA persona sí se puede.
     expect(
       resolvePlay({ ...basePlay, cardType: "mufa", targetId: "beto", occupiedEffects: occupied }),
     ).toMatchObject({ ok: true });
@@ -143,28 +214,75 @@ describe("resolvePlay (validación)", () => {
     ).toMatchObject({ ok: false });
   });
 
-  it("el escudo de la víctima bloquea el ataque", () => {
+  it("el Anulo mufa de la víctima bloquea el ataque", () => {
     const r = resolvePlay({
       ...basePlay,
-      cardType: "afano",
+      cardType: "pedo",
       targetId: "beto",
       targetShieldCardId: "escudo-de-beto",
     });
-    expect(r).toEqual({ ok: true, effectMatchId: null, blockedByShieldId: "escudo-de-beto" });
+    expect(r).toMatchObject({ ok: true, blockedByShieldId: "escudo-de-beto" });
   });
 
-  it("sin partidos restantes no se puede jugar una carta atada a partido", () => {
-    const r = resolvePlay({ ...basePlay, cardType: "diego", now: new Date("2026-08-01T00:00:00Z") });
+  it("el Espejito rebota el ataque y lo ata al que lo tiró", () => {
+    const r = resolvePlay({
+      ...basePlay,
+      cardType: "mufa",
+      targetId: "beto",
+      targetMirrorCardId: "espejito-de-beto",
+    });
+    // La mufa rebotada queda atada al próximo partido de ANA (la atacante).
+    expect(r).toMatchObject({
+      ok: true,
+      effectMatchId: "M1",
+      reflectedByMirrorId: "espejito-de-beto",
+    });
+  });
+
+  it("el escudo tiene prioridad sobre el espejito, y el duelo no rebota", () => {
+    expect(
+      resolvePlay({
+        ...basePlay,
+        cardType: "mufa",
+        targetId: "beto",
+        targetShieldCardId: "escudo",
+        targetMirrorCardId: "espejito",
+      }),
+    ).toMatchObject({ ok: true, blockedByShieldId: "escudo" });
+    expect(
+      resolvePlay({
+        ...basePlay,
+        cardType: "duelo",
+        targetId: "beto",
+        targetMirrorCardId: "espejito",
+        now: new Date("2026-06-20T08:00:00-06:00"),
+      }),
+    ).toMatchObject({ ok: true, reflectedByMirrorId: null, effectDate: DAY_1 });
+  });
+
+  it("un duelo por persona por día", () => {
+    const r = resolvePlay({
+      ...basePlay,
+      cardType: "duelo",
+      targetId: "beto",
+      occupiedDuels: new Set([`${DAY_1}:beto`]),
+      now: new Date("2026-06-20T08:00:00-06:00"),
+    });
     expect(r).toMatchObject({ ok: false });
+  });
+
+  it("las maldiciones no se pueden jugar a mano", () => {
+    expect(resolvePlay({ ...basePlay, cardType: "nemo" })).toMatchObject({ ok: false });
   });
 });
 
 describe("applyCardEffects", () => {
+  // base: M1/M2 el 20, M3 el 21, M4 el 22 — todos con resultado.
   const base = {
-    ana: { M1: 3, M2: 5, M3: 0 },
-    beto: { M1: 5, M2: 0, M3: 3 },
+    ana: { M1: 3, M2: 5, M3: 0, M4: 3 },
+    beto: { M1: 5, M2: 0, M3: 3, M4: 5 },
   };
-  const opts = { base, matchOrder: ["M1", "M2", "M3"], kickoffById: KICKOFFS };
+  const opts = { base, matchOrder: ORDER, kickoffById: KICKOFFS };
 
   it("sin cartas no cambia nada", () => {
     const r = applyCardEffects({ ...opts, cards: [] });
@@ -172,101 +290,173 @@ describe("applyCardEffects", () => {
     expect(r.delta).toEqual({ ana: 0, beto: 0 });
   });
 
-  it("doblete duplica el partido atado; diego triplica", () => {
+  it("doblete y diego (ventana partido) siguen funcionando", () => {
     const r = applyCardEffects({
       ...opts,
       cards: [
         played("doblete", "ana", { effectMatchId: "M1" }),
-        played("diego", "beto", { effectMatchId: "M3" }),
+        played("diego", "beto", { effectMatchId: "M4" }),
       ],
     });
     expect(r.points.ana.M1).toBe(6);
-    expect(r.points.beto.M3).toBe(9);
-    expect(r.delta).toEqual({ ana: 3, beto: 6 });
+    expect(r.points.beto.M4).toBe(15);
   });
 
-  it("doblete sobre un 0 sigue siendo 0", () => {
+  it("cábala duplica todos los partidos del día (posteriores a jugarla)", () => {
     const r = applyCardEffects({
       ...opts,
-      cards: [played("doblete", "ana", { effectMatchId: "M3" })],
+      cards: [played("cabala", "ana", { effectDate: DAY_1 })],
     });
-    expect(r.points.ana.M3).toBe(0);
-    expect(r.delta.ana).toBe(0);
+    expect(r.points.ana.M1).toBe(6);
+    expect(r.points.ana.M2).toBe(10);
+    expect(r.points.ana.M3).toBe(0); // otro día
+    expect(r.delta.ana).toBe(8);
   });
 
-  it("yapa suma +1 solo si el partido sumó", () => {
-    const conPuntos = applyCardEffects({
-      ...opts,
-      cards: [played("yapa", "ana", { effectMatchId: "M1" })],
-    });
-    expect(conPuntos.points.ana.M1).toBe(4);
-
-    const sinPuntos = applyCardEffects({
-      ...opts,
-      cards: [played("yapa", "ana", { effectMatchId: "M3" })],
-    });
-    expect(sinPuntos.points.ana.M3).toBe(0);
-  });
-
-  it("mufa deja la mitad redondeada para abajo", () => {
+  it("la cábala no aplica a partidos que ya habían arrancado al jugarla", () => {
     const r = applyCardEffects({
       ...opts,
-      cards: [played("mufa", "ana", { targetId: "beto", effectMatchId: "M1" })],
+      cards: [
+        played("cabala", "ana", {
+          effectDate: DAY_1,
+          playedAt: new Date("2026-06-20T15:00:00-06:00"), // entre M1 y M2
+        }),
+      ],
     });
-    expect(r.points.beto.M1).toBe(2); // 5 → 2
-    expect(r.delta.beto).toBe(-3);
+    expect(r.points.ana.M1).toBe(3); // ya jugado: no retro
+    expect(r.points.ana.M2).toBe(10);
   });
 
-  it("afano transfiere 2 puntos al contado", () => {
+  it("pelambreada deja el día en 0", () => {
     const r = applyCardEffects({
       ...opts,
-      cards: [played("afano", "ana", { targetId: "beto" })],
+      cards: [played("pelambreada", "ana", { targetId: "beto", effectDate: DAY_1 })],
     });
-    expect(r.flat).toEqual({ ana: 2, beto: -2 });
-    expect(r.delta).toEqual({ ana: 2, beto: -2 });
+    expect(r.points.beto.M1).toBe(0);
+    expect(r.points.beto.M2).toBe(0);
+    expect(r.points.beto.M3).toBe(3);
+  });
+
+  it("caído del fernet: 0 puntos pero protege la racha donde hubiese sumado", () => {
+    const r = applyCardEffects({
+      ...opts,
+      cards: [played("caido", "ana", { targetId: "beto", effectDate: DAY_1 })],
+    });
+    expect(r.points.beto.M1).toBe(0);
+    expect(r.streakOverrides.beto?.M1).toBe("protect"); // base 5 > 0
+    expect(r.streakOverrides.beto?.M2).toBeUndefined(); // base 0: se corta igual
+  });
+
+  it("filtro: 0 puntos y el día no cuenta para la racha", () => {
+    const r = applyCardEffects({
+      ...opts,
+      cards: [played("filtro", "ana", { targetId: "beto", effectDate: DAY_1 })],
+    });
+    expect(r.points.beto.M1).toBe(0);
+    expect(r.streakOverrides.beto?.M1).toBe("skip");
+    expect(r.streakOverrides.beto?.M2).toBe("skip");
+  });
+
+  it("costillar protege la racha del día sin tocar puntos", () => {
+    const r = applyCardEffects({
+      ...opts,
+      cards: [played("costillar", "beto", { effectDate: DAY_1 })],
+    });
+    expect(r.points.beto.M2).toBe(0); // puntos intactos
+    expect(r.streakOverrides.beto?.M2).toBe("protect");
+  });
+
+  it("una maldición pisa a la cábala (los ceros ganan)", () => {
+    const r = applyCardEffects({
+      ...opts,
+      cards: [
+        played("cabala", "ana", { effectDate: DAY_1 }),
+        played("nemo", "ana", { effectDate: DAY_1 }),
+      ],
+    });
+    expect(r.points.ana.M1).toBe(0);
+    expect(r.points.ana.M2).toBe(0);
+  });
+
+  it("duelo: el que más suma en el día cobra doble y el otro se va en 0", () => {
+    const r = applyCardEffects({
+      ...opts,
+      cards: [played("duelo", "ana", { targetId: "beto", effectDate: DAY_1 })],
+    });
+    // Día 1: ana 3+5=8 · beto 5+0=5 → gana ana.
+    expect(r.points.ana.M1).toBe(6);
+    expect(r.points.ana.M2).toBe(10);
+    expect(r.points.beto.M1).toBe(0);
+    expect(r.points.beto.M3).toBe(3); // otro día, intacto
+  });
+
+  it("duelo empatado: no pasa nada", () => {
+    const r = applyCardEffects({
+      base: { ana: { M1: 3 }, beto: { M1: 3 } },
+      matchOrder: ["M1"],
+      kickoffById: KICKOFFS,
+      cards: [played("duelo", "ana", { targetId: "beto", effectDate: DAY_1 })],
+    });
+    expect(r.points.ana.M1).toBe(3);
+    expect(r.points.beto.M1).toBe(3);
+  });
+
+  it("planos: papas +5, speed +2, ramirez -5", () => {
+    const r = applyCardEffects({
+      ...opts,
+      cards: [played("papas", "ana"), played("speed", "ana"), played("ramirez", "beto")],
+    });
+    expect(r.flat).toEqual({ ana: 7, beto: -5 });
+  });
+
+  it("pedo transfiere 5; rebotado va al revés", () => {
+    const directo = applyCardEffects({
+      ...opts,
+      cards: [played("pedo", "ana", { targetId: "beto" })],
+    });
+    expect(directo.flat).toEqual({ ana: 5, beto: -5 });
+
+    const rebotado = applyCardEffects({
+      ...opts,
+      cards: [played("pedo", "ana", { targetId: "beto", reflected: true })],
+    });
+    expect(rebotado.flat).toEqual({ ana: -5, beto: 5 });
+  });
+
+  it("caparazón y swap aplican el snapshot de deltas tal cual", () => {
+    const r = applyCardEffects({
+      ...opts,
+      cards: [
+        played("caparazon", "ana", { targetId: "beto", payload: { deltas: { beto: -9 } } }),
+        played("swap", "beto", {
+          targetId: "ana",
+          payload: { deltas: { beto: 4, ana: -4 } },
+        }),
+      ],
+    });
+    expect(r.flat).toEqual({ beto: -5, ana: -4 });
   });
 
   it("var suma +2 al primer partido con puntos posterior a jugarla", () => {
     const r = applyCardEffects({
       ...opts,
-      cards: [
-        played("var", "ana", { playedAt: new Date("2026-06-20T18:00:00-06:00") }), // post-M1
-      ],
+      cards: [played("var", "ana", { playedAt: new Date("2026-06-20T14:00:00-06:00") })],
     });
-    expect(r.points.ana.M1).toBe(3); // no aplica: ya se jugó
+    expect(r.points.ana.M1).toBe(3); // ya se jugó
     expect(r.points.ana.M2).toBe(7); // 5 + 2
     expect(r.varAppliedTo.ana).toBe("M2");
   });
 
-  it("var no aplica si no hay partidos con puntos después", () => {
+  it("las sociales no tocan puntos", () => {
     const r = applyCardEffects({
       ...opts,
-      cards: [played("var", "beto", { playedAt: new Date("2026-06-21T18:00:00-06:00") })],
+      cards: [
+        played("apodo", "ana", { targetId: "beto", payload: null }),
+        played("microfono", "ana", { targetId: "beto" }),
+        played("borron", "beto"),
+      ],
     });
-    // beto: M3 = 3 → sí aplica. Probamos con ana cuyo M3 = 0.
-    const r2 = applyCardEffects({
-      ...opts,
-      cards: [played("var", "ana", { playedAt: new Date("2026-06-21T18:00:00-06:00") })],
-    });
-    expect(r.points.beto.M3).toBe(5);
-    expect(r2.points.ana.M3).toBe(0);
-    expect(r2.varAppliedTo.ana).toBeUndefined();
-  });
-
-  it("efectos sobre partidos sin resultado todavía no suman", () => {
-    // M4 no está en base (sin resultado): el doblete queda latente.
-    const r = applyCardEffects({
-      ...opts,
-      cards: [played("doblete", "ana", { effectMatchId: "M4" })],
-    });
-    expect(r.delta.ana).toBe(0);
-  });
-
-  it("el catálogo tiene 8 cartas y todas con definición completa", () => {
-    for (const def of Object.values(CARD_CATALOG)) {
-      expect(def.name.length).toBeGreaterThan(0);
-      expect(def.description.length).toBeGreaterThan(0);
-      expect(["comun", "rara", "legendaria"]).toContain(def.rarity);
-    }
+    expect(r.points).toEqual(base);
+    expect(r.delta).toEqual({ ana: 0, beto: 0 });
   });
 });

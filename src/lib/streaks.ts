@@ -10,7 +10,7 @@
 // en 1 no te corta la racha; un Doblete sobre 0 sigue siendo 0.
 
 import { STREAK_MILESTONES } from "./cardCatalog";
-import type { MatchPointsMap } from "./cards";
+import type { MatchPointsMap, StreakOverride } from "./cards";
 
 export type StreakResult = {
   /** Racha en curso (al último partido con resultado). */
@@ -21,8 +21,10 @@ export type StreakResult = {
   bonus: number;
   /** Hitos cobrados, en orden (puede repetir entre rachas). */
   milestones: number[];
-  /** Partidos en 0 salvados por un Aguante. */
+  /** Partidos en 0 salvados (por Fernet de Fernemo o por cartas de día). */
   protectedMatchIds: string[];
+  /** Cuántos Fernet de Fernemo se consumieron (para saber si queda uno activo). */
+  protectionsUsed: number;
 };
 
 export function computeStreak(opts: {
@@ -31,8 +33,14 @@ export function computeStreak(opts: {
   /** Partidos CON resultado, ordenados por kickoff. */
   matchOrder: string[];
   kickoffById: Record<string, string>;
-  /** playedAt de los Aguantes jugados (cada uno protege un solo partido posterior). */
+  /** playedAt de los Fernet de Fernemo jugados (cada uno protege un solo partido posterior). */
   protections?: Date[];
+  /**
+   * Overrides por partido (de cartas de día):
+   * "protect" = un 0 no corta la racha (Costillar / Se me cayó el Fernet) ·
+   * "skip" = el partido no cuenta ni a favor ni en contra (Filtro 5mm).
+   */
+  overrides?: Record<string, StreakOverride>;
 }): StreakResult {
   const protections = [...(opts.protections ?? [])].sort((a, b) => a.getTime() - b.getTime());
   const usedProtection = new Array(protections.length).fill(false);
@@ -44,6 +52,9 @@ export function computeStreak(opts: {
   const protectedMatchIds: string[] = [];
 
   for (const matchId of opts.matchOrder) {
+    const ov = opts.overrides?.[matchId];
+    if (ov === "skip") continue; // el partido no existe para la racha
+
     const pts = opts.points[matchId] ?? 0;
     if (pts > 0) {
       run++;
@@ -56,7 +67,13 @@ export function computeStreak(opts: {
       continue;
     }
 
-    // Partido en 0: ¿hay un Aguante jugado antes del kickoff, sin usar?
+    // Partido en 0 protegido por una carta de día: la racha sobrevive sin sumar.
+    if (ov === "protect") {
+      protectedMatchIds.push(matchId);
+      continue;
+    }
+
+    // Partido en 0: ¿hay un Fernet de Fernemo jugado antes del kickoff, sin usar?
     const kickoff = opts.kickoffById[matchId];
     const idx = protections.findIndex(
       (p, i) => !usedProtection[i] && kickoff && p.getTime() < new Date(kickoff).getTime(),
@@ -70,5 +87,12 @@ export function computeStreak(opts: {
     run = 0;
   }
 
-  return { current: run, best, bonus, milestones, protectedMatchIds };
+  return {
+    current: run,
+    best,
+    bonus,
+    milestones,
+    protectedMatchIds,
+    protectionsUsed: usedProtection.filter(Boolean).length,
+  };
 }

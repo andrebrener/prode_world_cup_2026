@@ -39,11 +39,15 @@ and styled with **Tailwind CSS 4**.
 
 When creating a pool you can pick **Fun mode**: everything from a normal pool, plus cards and streaks (scoped to that pool — predictions stay global).
 
-- **Daily card draw**: every player gets one surprise card per day (common 60% / rare 30% / legendary 10%). Unclaimed cards expire at midnight (America/Mexico_City). Hand limit: 3. The draw is deterministic per (pool, player, date) — no cron needed; claiming just persists it.
-- **Cards**: self-buffs (Doblete ×2, El Diego ×3, La Yapa +1, VAR a favor +2), attacks on chosen rivals (Afano steals 2 points, Mufa halves their next match), and defenses (Escudo blocks the next attack, Aguante saves your streak once). Catalog in [`src/lib/cardCatalog.ts`](src/lib/cardCatalog.ts).
-- **Fairness**: max one active effect per player per match; shields consume attacks; effects resolve at pool-scoring time and never touch predictions.
-- **Streaks**: consecutive matches scoring >0 points pay milestone bonuses (3→+3, 5→+6, 8→+12, 12→+20). A 0-point match resets the streak.
-- Engine in [`src/lib/cards.ts`](src/lib/cards.ts) + [`src/lib/streaks.ts`](src/lib/streaks.ts) (pure + unit-tested); resolution happens inside `getLeaderboard`.
+- **Daily card draw**: every player gets one surprise card per day (common 50% / rare 26% / legendary 9% / **curse 15%**). Curses apply themselves the moment you claim — the daily claim is a gamble. Unclaimed cards expire at midnight (America/Mexico_City). Hand limit: 3. The draw is deterministic per (pool, player, date) — no cron needed; claiming just persists it.
+- **Two effect windows**: surgical *next-match* cards (Doblete ×2, El Diego ×3, La Yapa, Mufa, VAR a favor) and *whole-day* cards (Cábala del Echugo ×2, Pelambreada, Filtro 5mm, Se me cayó el Fernet, Costillar 7 AM…). Day effects only cover matches that haven't kicked off yet — no retroactive plays.
+- **Chaos**: Caldeador de las tinieblas replaces a rival's predictions for the day with seeded-random scores; Caparazón azul auto-targets the pool leader and drops them to last−1; Robo de identidad swaps total points (both snapshot at play time).
+- **Duels**: Duelo de matambres — most day points doubles, loser zeroes (one duel per person per day).
+- **Defenses**: Anulo mufa blocks the next attack; Espejito rebotín bounces it back to the attacker.
+- **Social cards** (no points, pure ego): Los apodos del Droco (sticky nickname rendered as Name «Apodo»), Foto trucha (pool-scoped avatar swap), Micrófono abierto (pinned message) — all until the victim plays Borrón y cuenta nueva. Pool-scoped: real name/avatar untouched elsewhere.
+- **Fairness**: max one active effect per player per match; effects resolve at pool-scoring time and never touch predictions.
+- **Streaks**: consecutive matches scoring >0 points pay milestone bonuses (3→+3, 5→+6, 8→+12, 12→+20). A 0-point match resets (unless protected by Fernet de Fernemo / Costillar).
+- Catalog (data-only, easy to tune) in [`src/lib/cardCatalog.ts`](src/lib/cardCatalog.ts); engine in [`src/lib/cards.ts`](src/lib/cards.ts) + [`src/lib/streaks.ts`](src/lib/streaks.ts) (pure + unit-tested); resolution happens inside `getLeaderboard`.
 
 ---
 

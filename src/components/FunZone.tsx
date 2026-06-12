@@ -1,22 +1,24 @@
 "use client";
 
-// Modo Diversión — panel de cartas: sorteo del día, mano y actividad.
+// Modo Diversión — panel de cartas: sorteo del día, mano e historial de jugadas.
 // El sorteo es secreto hasta reclamar: el server recién revela la carta en la
-// respuesta de claimDailyCardAction, y acá la mostramos con flip + confeti.
+// respuesta de claimDailyCardAction. Si sale maldición, se aplica sola (la timba).
 
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import confetti from "canvas-confetti";
-import { claimDailyCardAction, playCardAction } from "@/lib/actions";
+import { claimDailyCardAction, playCardAction, type PlayCardExtra } from "@/lib/actions";
 import {
-  CARD_CATALOG,
   RARITY_LABEL,
   MAX_HELD_CARDS,
+  MAX_APODO_CHARS,
+  MAX_MENSAJE_CHARS,
   type CardDef,
   type CardRarity,
   type CardType,
 } from "@/lib/cardCatalog";
-import type { FunState } from "@/lib/db/queries";
+import { fileToSquareDataUrl } from "@/lib/imageFile";
+import type { FunState, FunFeedItem } from "@/lib/db/queries";
 import Avatar from "./Avatar";
 import LottieFX from "./LottieFX";
 
@@ -30,9 +32,26 @@ const RARITY_STYLE: Record<CardRarity, { ring: string; text: string; glow: strin
     text: "text-gold",
     glow: "shadow-[0_0_32px_#ffd24a55]",
   },
+  maldicion: {
+    ring: "border-[#39ff5a99]",
+    text: "text-[#7dff96]",
+    glow: "shadow-[0_0_32px_#39ff5a44]",
+  },
 };
 
 function burst(rarity: CardRarity) {
+  if (rarity === "maldicion") {
+    // Nube verde de mufa: cae, no festeja.
+    confetti({
+      particleCount: 90,
+      spread: 100,
+      startVelocity: 16,
+      gravity: 1.4,
+      origin: { y: 0.4 },
+      colors: ["#39ff5a", "#1d7a2f", "#0a3d14"],
+    });
+    return;
+  }
   const power = rarity === "legendaria" ? 3 : rarity === "rara" ? 2 : 1;
   confetti({
     particleCount: 60 * power,
@@ -42,7 +61,6 @@ function burst(rarity: CardRarity) {
     colors: ["#ff3d8b", "#8b3cff", "#00e5ff", "#ffd24a", "#ffffff"],
   });
   if (rarity === "legendaria") {
-    // Lluvia dorada extra para el 10% más fino.
     setTimeout(() => {
       confetti({
         particleCount: 120,
@@ -56,25 +74,56 @@ function burst(rarity: CardRarity) {
   }
 }
 
-const FEED_VERB: Record<CardType, (owner: string, target: string | null) => string> = {
-  afano: (o, t) => `🥷 ${o} le afanó 2 puntos a ${t}`,
-  mufa: (o, t) => `🐈‍⬛ ${o} mufó el próximo partido de ${t}`,
+type Verb = (o: string, t: string | null, d: string | null) => string;
+const FEED_VERB: Record<CardType, Verb> = {
   doblete: (o) => `✌️ ${o} jugó un Doblete`,
-  diego: (o) => `🔟 ${o} sacó El Diego`,
-  escudo: (o) => `🛡️ ${o} levantó un Escudo`,
-  aguante: (o) => `💪 ${o} se aseguró el Aguante`,
   yapa: (o) => `🎁 ${o} pidió La Yapa`,
+  mufa: (o, t) => `🐈‍⬛ ${o} mufó el próximo partido de ${t}`,
+  diego: (o) => `🔟 ${o} sacó El Diego`,
   var: (o) => `📺 ${o} llamó al VAR`,
+  costillar: (o) => `🥩 ${o} desayunó costillar a las 7 AM`,
+  cabala: (o) => `🍀 ${o} activó la Cábala del Echugo`,
+  pelambreada: (o, t) => `🤦 ${o} le clavó una Pelambreada a ${t}`,
+  caido: (o, t) => `😭 ${o} le tiró el fernet de ${t} al piso`,
+  filtro: (o, t) => `🚬 ${o} le afanó el filtro de 5mm a ${t}`,
+  caldeador: (o, t) => `🤮 ${o} caldeó los pronósticos de ${t}`,
+  caparazon: (o, t) => `🐢 ${o} soltó el Caparazón azul — directo a ${t}`,
+  swap: (o, t) => `🎭 ${o} se robó la identidad de ${t}: puntos intercambiados`,
+  duelo: (o, t) => `🥊 ${o} retó a ${t} a un Duelo de matambres`,
+  papas: (o) => `🍟 A ${o} le sobran papas: +5`,
+  speed: (o) => `🏎️ ${o} está built for speed: +2`,
+  pedo: (o, t) => `💨 ${o} se lo soltó en la cara a ${t}`,
+  escudo: (o) => `🛡️ ${o} levantó el Anulo mufa`,
+  aguante: (o) => `🥃 ${o} se aseguró el Fernet de Fernemo`,
+  espejito: (o) => `🪞 ${o} colgó el Espejito rebotín`,
+  nemo: (o) => `🛏️ Nemo usó las sábanas de ${o}: hoy no suma`,
+  heladera: (o) => `🧊 A ${o} le tocó limpiar la heladera: 0 hoy`,
+  matambrito: (o) => `🐄 ${o} quedó como matambrito de vaca: 0 hoy`,
+  ramirez: (o) => `💸 ${o} le prestó plata a un Ramirez: -5`,
+  apodo: (o, t, d) => `🏷️ ${o} bautizó a ${t}: «${d ?? "…"}»`,
+  foto: (o, t) => `📸 ${o} le cambió la foto a ${t}`,
+  microfono: (o, t, d) => `🎤 ${o} dejó dicho sobre ${t}: “${d ?? "…"}”`,
+  borron: (o) => `🧽 ${o} pasó el borrón: cuenta nueva`,
 };
 
-function timeAgo(d: Date): string {
-  const mins = Math.max(0, Math.floor((Date.now() - d.getTime()) / 60000));
-  if (mins < 1) return "recién";
-  if (mins < 60) return `hace ${mins} min`;
-  const hs = Math.floor(mins / 60);
-  if (hs < 24) return `hace ${hs} h`;
-  return `hace ${Math.floor(hs / 24)} d`;
+function feedText(f: FunFeedItem): string {
+  return (
+    FEED_VERB[f.cardType]?.(f.ownerName, f.targetName, f.detail) ??
+    `🃏 ${f.ownerName} jugó una carta`
+  );
 }
+
+const fmtDay = (iso: string, today: string): string => {
+  if (iso === today) return "Hoy";
+  return new Date(iso + "T12:00:00").toLocaleDateString("es-AR", {
+    weekday: "long",
+    day: "2-digit",
+    month: "short",
+  });
+};
+
+const fmtTime = (d: Date): string =>
+  d.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
 
 export default function FunZone({
   slug,
@@ -92,14 +141,30 @@ export default function FunZone({
   const [error, setError] = useState<string | null>(null);
 
   // Reveal de la carta del día
-  const [revealed, setRevealed] = useState<CardDef | null>(null);
+  const [revealed, setRevealed] = useState<{ def: CardDef; curse: boolean } | null>(null);
   const [flipped, setFlipped] = useState(false);
 
-  // Jugar carta
+  // Jugar carta (modal)
   const [playing, setPlaying] = useState<{ id: string; def: CardDef } | null>(null);
-  const [lastPlay, setLastPlay] = useState<{ text: string; blocked: boolean } | null>(null);
+  const [targetId, setTargetId] = useState<string | null>(null);
+  const [apodo, setApodo] = useState("");
+  const [mensaje, setMensaje] = useState("");
+  const [imagen, setImagen] = useState<string | null>(null);
+  const [lastPlay, setLastPlay] = useState<{ text: string; bad: boolean } | null>(null);
 
   const rivals = members.filter((m) => m.id !== meId);
+  const leaderName = members[0]?.name ?? null; // members viene en orden de tabla
+
+  // Historial agrupado por día (hoy expandido, el resto colapsado).
+  const feedByDay = useMemo(() => {
+    const groups: { day: string; items: FunFeedItem[] }[] = [];
+    for (const f of state.feed) {
+      const last = groups[groups.length - 1];
+      if (last && last.day === f.day) last.items.push(f);
+      else groups.push({ day: f.day, items: [f] });
+    }
+    return groups;
+  }, [state.feed]);
 
   function claim() {
     setError(null);
@@ -109,39 +174,62 @@ export default function FunZone({
         setError(res.error ?? "No se pudo reclamar.");
         return;
       }
-      setRevealed(res.card);
+      setRevealed({ def: res.card, curse: !!res.curse });
       requestAnimationFrame(() => {
         setFlipped(true);
         setTimeout(() => burst(res.card!.rarity), 500);
       });
-      setTimeout(() => router.refresh(), 1600);
+      setTimeout(() => router.refresh(), 1800);
     });
   }
 
-  function play(cardId: string, def: CardDef, targetId: string | null) {
+  function openPlay(id: string, def: CardDef) {
+    // Self-cards sin input se juegan directo; el resto abre el modal.
+    if (def.target === "self" && !def.input) {
+      play(id, def, null, undefined);
+      return;
+    }
+    setTargetId(null);
+    setApodo("");
+    setMensaje("");
+    setImagen(null);
+    setPlaying({ id, def });
+  }
+
+  function play(cardId: string, def: CardDef, target: string | null, extra?: PlayCardExtra) {
     setError(null);
     setPlaying(null);
     start(async () => {
-      const res = await playCardAction(slug, cardId, targetId);
+      const res = await playCardAction(slug, cardId, target, extra);
       if (!res.ok) {
         setError(res.error ?? "No se pudo jugar.");
         return;
       }
-      const targetName = targetId
-        ? (members.find((m) => m.id === targetId)?.name ?? "—")
-        : null;
       if (res.blocked) {
         setLastPlay({
-          text: `🛡️ ¡${targetName} tenía un Escudo! Tu ${def.name} rebotó.`,
-          blocked: true,
+          text: `🛡️ ¡${res.targetName} tenía un Anulo mufa! Tu ${def.name} quedó en la nada.`,
+          bad: true,
+        });
+      } else if (res.reflected) {
+        setLastPlay({
+          text: `🪞 ¡${res.targetName} tenía el Espejito rebotín! Tu ${def.name} te volvió en la cara.`,
+          bad: true,
         });
       } else {
-        setLastPlay({ text: `${def.emoji} ¡${def.name} jugada!`, blocked: false });
-        burst(def.rarity);
+        setLastPlay({ text: `${def.emoji} ¡${def.name} jugada!`, bad: false });
+        burst(def.rarity === "maldicion" ? "comun" : def.rarity);
       }
       router.refresh();
     });
   }
+
+  const modalReady =
+    !playing?.def.input ||
+    (playing.def.input === "apodo" && apodo.trim().length >= 2) ||
+    (playing.def.input === "mensaje" && mensaje.trim().length >= 2) ||
+    (playing.def.input === "imagen" && !!imagen);
+
+  const needsTarget = playing?.def.target === "other";
 
   return (
     <section className="fun-border relative rounded-3xl bg-surface p-5">
@@ -161,14 +249,17 @@ export default function FunZone({
       {/* Carta del día */}
       <div className="mt-4 flex flex-col items-center gap-3 sm:flex-row sm:items-stretch">
         <div className="fun-card-3d relative h-44 w-32 shrink-0">
-          {/* Estallido detrás de la carta al revelarla */}
-          {revealed && (
+          {revealed && !revealed.curse && (
             <LottieFX
               src="/lottie/card-burst.json"
               className="pointer-events-none absolute -inset-16"
             />
           )}
-          <div className={`fun-card-inner h-full w-full ${flipped ? "flipped" : ""}`}>
+          <div
+            className={`fun-card-inner h-full w-full ${flipped ? "flipped" : ""} ${
+              revealed?.curse && flipped ? "fun-shake" : ""
+            }`}
+          >
             {/* Dorso */}
             <div className="fun-card-face relative flex h-full w-full flex-col items-center justify-center overflow-hidden rounded-2xl border border-border bg-background">
               <div className="fun-gradient absolute inset-0 opacity-20" />
@@ -181,14 +272,16 @@ export default function FunZone({
             {/* Frente (revelada) */}
             {revealed && (
               <div
-                className={`fun-card-face fun-card-front flex h-full w-full flex-col items-center justify-center rounded-2xl border-2 bg-background p-3 text-center ${RARITY_STYLE[revealed.rarity].ring} ${RARITY_STYLE[revealed.rarity].glow}`}
+                className={`fun-card-face fun-card-front flex h-full w-full flex-col items-center justify-center rounded-2xl border-2 bg-background p-3 text-center ${RARITY_STYLE[revealed.def.rarity].ring} ${RARITY_STYLE[revealed.def.rarity].glow}`}
               >
-                <span className="fun-pop text-4xl">{revealed.emoji}</span>
-                <span className="mt-1 font-black text-foreground">{revealed.name}</span>
+                <span className="fun-pop text-4xl">{revealed.def.emoji}</span>
+                <span className="mt-1 text-sm font-black leading-tight text-foreground">
+                  {revealed.def.name}
+                </span>
                 <span
-                  className={`mt-0.5 text-[10px] font-bold uppercase tracking-widest ${RARITY_STYLE[revealed.rarity].text}`}
+                  className={`mt-0.5 text-[10px] font-bold uppercase tracking-widest ${RARITY_STYLE[revealed.def.rarity].text}`}
                 >
-                  {RARITY_LABEL[revealed.rarity]}
+                  {revealed.curse ? "☠️ Maldición" : RARITY_LABEL[revealed.def.rarity]}
                 </span>
               </div>
             )}
@@ -197,11 +290,19 @@ export default function FunZone({
 
         <div className="flex flex-1 flex-col justify-center gap-2 text-center sm:text-left">
           {revealed ? (
-            <p className="fun-pop text-sm text-foreground">{revealed.description}</p>
+            <>
+              {revealed.curse && (
+                <p className="fun-pop text-sm font-black text-[#7dff96]">
+                  ☠️ Te tocó una maldición. Se aplica sola, no hay nada que puedas hacer.
+                </p>
+              )}
+              <p className="fun-pop text-sm text-foreground">{revealed.def.description}</p>
+            </>
           ) : state.canClaim ? (
             <>
               <p className="text-sm text-muted">
                 Hay una carta esperándote. Si no la reclamás hoy, a medianoche se pierde.
+                Eso sí: el mazo tiene maldiciones… ¿te la jugás?
               </p>
               <button
                 onClick={claim}
@@ -224,7 +325,7 @@ export default function FunZone({
           {error && <p className="text-sm text-danger">{error}</p>}
           {lastPlay && (
             <p
-              className={`fun-pop text-sm font-bold ${lastPlay.blocked ? "fun-shake text-danger" : "text-foreground"}`}
+              className={`fun-pop text-sm font-bold ${lastPlay.bad ? "fun-shake text-danger" : "text-foreground"}`}
             >
               {lastPlay.text}
             </p>
@@ -249,7 +350,9 @@ export default function FunZone({
                   <div className="flex items-center gap-2">
                     <span className="fun-float text-2xl">{c.def.emoji}</span>
                     <div>
-                      <div className="text-sm font-black text-foreground">{c.def.name}</div>
+                      <div className="text-sm font-black leading-tight text-foreground">
+                        {c.def.name}
+                      </div>
                       <div className={`text-[10px] font-bold uppercase tracking-widest ${st.text}`}>
                         {RARITY_LABEL[c.def.rarity]}
                       </div>
@@ -257,15 +360,15 @@ export default function FunZone({
                   </div>
                   <p className="mt-2 flex-1 text-xs text-muted">{c.def.description}</p>
                   <button
-                    onClick={() =>
-                      c.def.kind === "attack"
-                        ? setPlaying({ id: c.id, def: c.def })
-                        : play(c.id, c.def, null)
-                    }
+                    onClick={() => openPlay(c.id, c.def)}
                     disabled={pending}
                     className="mt-3 rounded-lg bg-primary px-3 py-1.5 text-xs font-bold text-primary-ink transition hover:brightness-110 disabled:opacity-60"
                   >
-                    {c.def.kind === "attack" ? "Elegir víctima →" : "Jugar"}
+                    {c.def.target === "other"
+                      ? "Elegir víctima →"
+                      : c.def.target === "leader"
+                        ? "Apuntar al líder →"
+                        : "Jugar"}
                   </button>
                 </div>
               );
@@ -274,7 +377,7 @@ export default function FunZone({
         </div>
       )}
 
-      {/* Selector de víctima */}
+      {/* Modal de jugada (víctima / inputs / confirmación) */}
       {playing && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
@@ -285,56 +388,161 @@ export default function FunZone({
             onClick={(e) => e.stopPropagation()}
           >
             <h3 className="wordmark text-xl text-foreground">
-              {playing.def.emoji} {playing.def.name}: ¿a quién?
+              {playing.def.emoji} {playing.def.name}
             </h3>
             <p className="mt-1 text-xs text-muted">{playing.def.description}</p>
-            <div className="mt-4 flex max-h-72 flex-col gap-2 overflow-y-auto">
-              {rivals.length === 0 && (
-                <p className="text-sm text-muted">No hay rivales todavía. Invitá gente 😈</p>
-              )}
-              {rivals.map((m) => (
-                <button
-                  key={m.id}
-                  onClick={() => play(playing.id, playing.def, m.id)}
-                  disabled={pending}
-                  className="flex items-center gap-3 rounded-xl border border-border bg-background px-3 py-2 text-left transition hover:border-primary disabled:opacity-60"
-                >
-                  <Avatar name={m.name} avatar={m.avatar} size={32} />
-                  <span className="font-bold text-foreground">{m.name}</span>
-                  <span className="ml-auto text-muted">🎯</span>
-                </button>
-              ))}
+
+            {/* Caparazón: confirmación con el líder a la vista */}
+            {playing.def.target === "leader" && (
+              <p className="mt-4 rounded-xl border border-border bg-background p-3 text-sm text-foreground">
+                Va directo al puntero: <strong>{leaderName ?? "—"}</strong>
+                {leaderName && members[0]?.id === meId && (
+                  <span className="text-danger"> (…que sos vos, campeón 🫠)</span>
+                )}
+              </p>
+            )}
+
+            {/* Selector de víctima */}
+            {needsTarget && (
+              <div className="mt-4 flex max-h-56 flex-col gap-2 overflow-y-auto">
+                {rivals.length === 0 && (
+                  <p className="text-sm text-muted">No hay rivales todavía. Invitá gente 😈</p>
+                )}
+                {rivals.map((m) => (
+                  <button
+                    key={m.id}
+                    onClick={() => setTargetId(m.id)}
+                    className={`flex items-center gap-3 rounded-xl border px-3 py-2 text-left transition ${
+                      targetId === m.id
+                        ? "border-primary bg-background"
+                        : "border-border bg-background/50 hover:border-primary/50"
+                    }`}
+                  >
+                    <Avatar name={m.name} avatar={m.avatar} size={32} />
+                    <span className="font-bold text-foreground">{m.name}</span>
+                    {targetId === m.id && <span className="ml-auto">🎯</span>}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Inputs sociales */}
+            {playing.def.input === "apodo" && (
+              <input
+                value={apodo}
+                onChange={(e) => setApodo(e.target.value)}
+                placeholder="El apodo…"
+                maxLength={MAX_APODO_CHARS}
+                className="mt-3 w-full rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-primary"
+              />
+            )}
+            {playing.def.input === "mensaje" && (
+              <input
+                value={mensaje}
+                onChange={(e) => setMensaje(e.target.value)}
+                placeholder="La declaración…"
+                maxLength={MAX_MENSAJE_CHARS}
+                className="mt-3 w-full rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-primary"
+              />
+            )}
+            {playing.def.input === "imagen" && (
+              <label className="mt-3 flex cursor-pointer items-center gap-3 rounded-xl border border-dashed border-border bg-background px-3 py-2 text-sm text-muted hover:border-primary">
+                {imagen ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={imagen} alt="" className="h-10 w-10 rounded-lg object-cover" />
+                ) : (
+                  <span className="text-2xl">🖼️</span>
+                )}
+                {imagen ? "Cambiar foto…" : "Elegir la foto trucha…"}
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={async (e) => {
+                    const f = e.target.files?.[0];
+                    if (!f) return;
+                    try {
+                      setImagen(await fileToSquareDataUrl(f));
+                    } catch {
+                      setError("No se pudo procesar la imagen.");
+                    }
+                  }}
+                />
+              </label>
+            )}
+
+            <div className="mt-4 flex gap-2">
+              <button
+                onClick={() => setPlaying(null)}
+                className="flex-1 rounded-xl border border-border px-4 py-2 text-sm text-muted transition hover:text-foreground"
+              >
+                Mejor no…
+              </button>
+              <button
+                disabled={pending || !modalReady || (needsTarget && !targetId)}
+                onClick={() =>
+                  play(playing.id, playing.def, needsTarget ? targetId : null, {
+                    apodo: apodo || undefined,
+                    mensaje: mensaje || undefined,
+                    imagen: imagen || undefined,
+                  })
+                }
+                className="fun-gradient flex-1 rounded-xl px-4 py-2 text-sm font-black text-white transition hover:brightness-110 disabled:opacity-50"
+              >
+                {pending ? "Jugando…" : `${playing.def.emoji} Jugarla`}
+              </button>
             </div>
-            <button
-              onClick={() => setPlaying(null)}
-              className="mt-4 w-full rounded-xl border border-border px-4 py-2 text-sm text-muted transition hover:text-foreground"
-            >
-              Mejor no…
-            </button>
           </div>
         </div>
       )}
 
-      {/* Actividad */}
-      {state.feed.length > 0 && (
+      {/* Historial de jugadas, agrupado por día */}
+      {feedByDay.length > 0 && (
         <div className="mt-5">
           <h3 className="mb-2 text-xs font-bold uppercase tracking-widest text-muted">
-            Últimas jugadas
+            El libro de pases
           </h3>
-          <ul className="flex flex-col gap-1.5">
-            {state.feed.map((f) => (
-              <li key={f.id} className="flex items-baseline gap-2 text-sm">
-                <span className="text-foreground">
-                  {FEED_VERB[f.cardType]?.(f.ownerName, f.targetName) ??
-                    `${CARD_CATALOG[f.cardType]?.emoji ?? "🃏"} ${f.ownerName} jugó una carta`}
-                  {f.blocked && (
-                    <span className="font-bold text-gold"> — ¡bloqueado por su Escudo! 🛡️</span>
-                  )}
-                </span>
-                <span className="ml-auto shrink-0 text-[10px] text-muted">{timeAgo(f.at)}</span>
-              </li>
+          <div className="flex flex-col gap-2">
+            {feedByDay.map((g, gi) => (
+              <details
+                key={g.day}
+                open={gi === 0}
+                className="group rounded-xl border border-border/60 bg-background/40"
+              >
+                <summary className="flex cursor-pointer items-center gap-2 px-3 py-2 text-xs font-bold uppercase tracking-wider text-muted [&::-webkit-details-marker]:hidden">
+                  <span className="transition group-open:rotate-90">▸</span>
+                  {fmtDay(g.day, state.today)}
+                  <span className="ml-auto font-normal normal-case tracking-normal">
+                    {g.items.length} {g.items.length === 1 ? "jugada" : "jugadas"}
+                  </span>
+                </summary>
+                <ul className="flex flex-col gap-1.5 px-3 pb-3">
+                  {g.items.map((f) => (
+                    <li key={f.id} className="flex items-baseline gap-2 text-sm">
+                      <span className={f.curse ? "text-[#7dff96]" : "text-foreground"}>
+                        {feedText(f)}
+                        {f.blocked && (
+                          <span className="font-bold text-gold">
+                            {" "}
+                            — ¡bloqueado por su Anulo mufa! 🛡️
+                          </span>
+                        )}
+                        {f.reflected && (
+                          <span className="font-bold text-gold">
+                            {" "}
+                            — ¡el Espejito se lo devolvió! 🪞
+                          </span>
+                        )}
+                      </span>
+                      <span className="ml-auto shrink-0 text-[10px] text-muted">
+                        {fmtTime(f.at)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </details>
             ))}
-          </ul>
+          </div>
         </div>
       )}
     </section>

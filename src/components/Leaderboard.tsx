@@ -28,8 +28,9 @@ function StreakFlame({ current }: { current: number }) {
 }
 
 const STANDING_BADGE: Record<string, { emoji: string; title: string }> = {
-  escudo: { emoji: "🛡️", title: "Escudo activo: bloquea el próximo ataque" },
-  aguante: { emoji: "💪", title: "Aguante activo: la racha sobrevive un 0" },
+  escudo: { emoji: "🛡️", title: "Anulo mufa activo: bloquea el próximo ataque" },
+  espejito: { emoji: "🪞", title: "Espejito rebotín activo: el próximo ataque rebota" },
+  aguante: { emoji: "🥃", title: "Fernet de Fernemo activo: la racha sobrevive un 0" },
   var: { emoji: "📺", title: "VAR a favor activo: +2 en su próximo partido con puntos" },
 };
 
@@ -38,9 +39,10 @@ function FunBadges({ row }: { row: LeaderboardRow }) {
   if (!row.fun) return null;
   const pending = row.fun.pendingEffects.map((e, i) => {
     const def = CARD_CATALOG[e.cardType];
+    const where = e.matchId ? `para el partido ${e.matchId}` : `para los partidos de hoy`;
     const title = e.fromName
-      ? `${def?.name ?? e.cardType} de ${e.fromName} para el partido ${e.matchId}`
-      : `${def?.name ?? e.cardType} para el partido ${e.matchId}`;
+      ? `${def?.name ?? e.cardType} de ${e.fromName} ${where}`
+      : `${def?.name ?? e.cardType} ${where}`;
     return (
       <span key={`p${i}`} title={title} className="fun-float inline-block cursor-help">
         {def?.emoji ?? "🃏"}
@@ -123,11 +125,31 @@ export default function Leaderboard({ rows }: { rows: LeaderboardRow[] }) {
                 <td className="px-4 py-3 font-bold text-muted">{medal[i] ?? i + 1}</td>
                 <td className="px-2 py-3 font-semibold text-foreground">
                   <span className="flex items-center gap-2">
-                    <Avatar name={row.name} avatar={row.avatar} size={32} />
+                    <Avatar
+                      name={row.name}
+                      avatar={row.fun?.overlay?.avatar?.dataUrl ?? row.avatar}
+                      size={32}
+                    />
                     <span>
                       {row.name}
+                      {row.fun?.overlay?.nickname && (
+                        <span
+                          className="fun-text ml-1 font-black"
+                          title={`Bautizado por ${row.fun.overlay.nickname.byName}`}
+                        >
+                          «{row.fun.overlay.nickname.text}»
+                        </span>
+                      )}
                       <FunBadges row={row} />
                       <span className="ml-1 text-xs text-muted">›</span>
+                      {row.fun?.overlay?.message && (
+                        <span
+                          className="mt-0.5 block text-[11px] font-normal italic text-gold"
+                          title={`Fijado por ${row.fun.overlay.message.byName}`}
+                        >
+                          🎤 “{row.fun.overlay.message.text}” — {row.fun.overlay.message.byName}
+                        </span>
+                      )}
                       {/* Desglose en móvil (las columnas se ocultan en pantallas chicas) */}
                       <span className="mt-0.5 block text-[11px] font-normal text-muted sm:hidden">
                         🎯 {row.exactCount} · G {row.matchPoints} · Ll {row.koPoints} · Ex{" "}

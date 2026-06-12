@@ -16,7 +16,7 @@ import {
   poolMembers,
   funCards,
 } from "./db/schema";
-import { eq, and, count } from "drizzle-orm";
+import { eq, and, count, inArray } from "drizzle-orm";
 import { getParticipantId, setParticipantId } from "./session";
 import { MATCHES, predictionsLocked } from "./fixtures";
 import { allGroupStandings } from "./standings";
@@ -31,7 +31,16 @@ import {
   getPlayContext,
   type ParticipantDetail,
 } from "./db/queries";
-import { CARD_CATALOG, MAX_HELD_CARDS, type CardDef, type CardType, type PoolMode } from "./cardCatalog";
+import {
+  CARD_CATALOG,
+  MAX_HELD_CARDS,
+  MAX_APODO_CHARS,
+  MAX_MENSAJE_CHARS,
+  MAX_FOTO_CHARS,
+  type CardDef,
+  type CardType,
+  type PoolMode,
+} from "./cardCatalog";
 import { dailyCard, funToday, resolvePlay } from "./cards";
 
 const VALID_MATCH_IDS = new Set(MATCHES.map((m) => m.id));
@@ -478,30 +487,37 @@ async function funGate(slug: string) {
 /**
  * Reclama la carta del día. El sorteo es determinístico por (prode, jugador, fecha):
  * reclamar solo persiste el resultado. Si no la reclamás hoy, mañana ya no está.
+ * Ojo: el mazo tiene maldiciones — si te toca una, se aplica sola en el acto.
  */
 export async function claimDailyCardAction(
   slug: string,
-): Promise<{ ok: boolean; error?: string; card?: CardDef }> {
+): Promise<{ ok: boolean; error?: string; card?: CardDef; curse?: boolean }> {
   const gate = await funGate(slug);
   if ("error" in gate) return { ok: false, error: gate.error };
   const { id, pool } = gate;
 
   const today = funToday();
-  const [heldRow] = await db
-    .select({ n: count() })
-    .from(funCards)
-    .where(
-      and(
-        eq(funCards.poolId, pool.id),
-        eq(funCards.participantId, id),
-        eq(funCards.status, "held"),
-      ),
-    );
-  if ((heldRow?.n ?? 0) >= MAX_HELD_CARDS) {
-    return { ok: false, error: "Tenés la mano llena. Jugá una carta para reclamar la de hoy." };
+  const def = dailyCard(pool.id, id, today);
+  const isCurse = def.kind === "curse";
+
+  // Las maldiciones no van a la mano: la mano llena no te salva de la timba.
+  if (!isCurse) {
+    const [heldRow] = await db
+      .select({ n: count() })
+      .from(funCards)
+      .where(
+        and(
+          eq(funCards.poolId, pool.id),
+          eq(funCards.participantId, id),
+          eq(funCards.status, "held"),
+        ),
+      );
+    if ((heldRow?.n ?? 0) >= MAX_HELD_CARDS) {
+      return { ok: false, error: "Tenés la mano llena. Jugá una carta para reclamar la de hoy." };
+    }
   }
 
-  const def = dailyCard(pool.id, id, today);
+  const now = new Date();
   try {
     await db.insert(funCards).values({
       id: randomUUID(),
@@ -509,8 +525,11 @@ export async function claimDailyCardAction(
       participantId: id,
       drawDate: today,
       cardType: def.type,
-      status: "held",
-      drawnAt: new Date(),
+      // Maldición: se juega sola al reclamar, atada al día de hoy.
+      status: isCurse ? "played" : "held",
+      drawnAt: now,
+      playedAt: isCurse ? now : null,
+      effectDate: isCurse && def.window === "day" ? today : null,
     });
   } catch {
     // Índice único: ya reclamó hoy (doble click / doble pestaña).
@@ -518,23 +537,36 @@ export async function claimDailyCardAction(
   }
 
   revalidatePath("/", "layout");
-  return { ok: true, card: def };
+  return { ok: true, card: def, curse: isCurse };
 }
 
+export type PlayCardExtra = {
+  /** Apodo para "Los apodos del Droco". */
+  apodo?: string;
+  /** Declaración para "Micrófono abierto". */
+  mensaje?: string;
+  /** Data URL (ya comprimida en el cliente) para "Foto trucha". */
+  imagen?: string;
+};
+
 /**
- * Juega una carta de la mano. Los ataques eligen víctima; si la víctima tiene un
- * Escudo activo, el ataque se anula y el escudo se consume.
+ * Juega una carta de la mano. Los ataques eligen víctima; un Anulo mufa de la
+ * víctima los bloquea, un Espejito rebotín los devuelve al que los tiró.
+ * El Caparazón azul apunta solo al líder; caparazón y Robo de identidad congelan
+ * su efecto como snapshot de puntos al momento de jugarse.
  */
 export async function playCardAction(
   slug: string,
   cardId: string,
   targetId: string | null,
+  extra?: PlayCardExtra,
 ): Promise<{
   ok: boolean;
   error?: string;
   card?: CardDef;
   blocked?: boolean;
-  effectMatchId?: string | null;
+  reflected?: boolean;
+  targetName?: string;
 }> {
   const gate = await funGate(slug);
   if ("error" in gate) return { ok: false, error: gate.error };
@@ -548,46 +580,130 @@ export async function playCardAction(
   const def = CARD_CATALOG[row.cardType as CardType];
   if (!def) return { ok: false, error: "Carta desconocida." };
 
-  const ctx = await getPlayContext(pool, id, targetId);
+  // Inputs sociales: validar acá (resolvePlay es puro, no ve payloads).
+  const payload: Record<string, unknown> = {};
+  if (def.input === "apodo") {
+    const apodo = extra?.apodo?.trim().slice(0, MAX_APODO_CHARS);
+    if (!apodo || apodo.length < 2) return { ok: false, error: "Poné un apodo (mín. 2 letras)." };
+    payload.apodo = apodo;
+  }
+  if (def.input === "mensaje") {
+    const mensaje = extra?.mensaje?.trim().slice(0, MAX_MENSAJE_CHARS);
+    if (!mensaje || mensaje.length < 2)
+      return { ok: false, error: "Poné una declaración (mín. 2 letras)." };
+    payload.mensaje = mensaje;
+  }
+  if (def.input === "imagen") {
+    const imagen = extra?.imagen;
+    if (!imagen?.startsWith("data:image/"))
+      return { ok: false, error: "Subí una foto para la víctima." };
+    if (imagen.length > MAX_FOTO_CHARS)
+      return { ok: false, error: "La foto es muy pesada. Probá con una más chica." };
+    payload.imagen = imagen;
+  }
+
+  // El caparazón apunta solo: va directo al líder actual del prode, así que el
+  // contexto (defensas de la víctima incluidas) se arma con el target final.
+  let ctx = await getPlayContext(pool, id, targetId);
+  let finalTargetId = targetId;
+  if (def.target === "leader") {
+    finalTargetId = ctx.rows[0]?.id ?? null;
+    if (finalTargetId && finalTargetId !== targetId) {
+      ctx = await getPlayContext(pool, id, finalTargetId);
+    }
+  }
+
   const outcome = resolvePlay({
     cardType: def.type,
     ownerId: id,
-    targetId,
+    targetId: finalTargetId,
     now: new Date(),
     memberIds: ctx.memberIds,
     occupiedEffects: ctx.occupiedEffects,
+    occupiedDuels: ctx.occupiedDuels,
     ownerActiveStandings: ctx.ownerActiveStandings,
     targetShieldCardId: ctx.targetShieldCardId,
+    targetMirrorCardId: ctx.targetMirrorCardId,
   });
   if (!outcome.ok) return { ok: false, error: outcome.error };
 
   const now = new Date();
+  const targetName = finalTargetId
+    ? (ctx.rows.find((r) => r.id === finalTargetId)?.name ?? undefined)
+    : undefined;
+
   if (outcome.blockedByShieldId) {
-    // El ataque rebota: queda registrado (para el feed) y el escudo se consume.
+    // El ataque rebota contra el Anulo mufa: queda en el feed y el escudo se consume.
     await db
       .update(funCards)
-      .set({ status: "blocked", playedAt: now, targetParticipantId: targetId })
+      .set({ status: "blocked", playedAt: now, targetParticipantId: finalTargetId })
       .where(eq(funCards.id, cardId));
     await db
       .update(funCards)
       .set({ status: "consumed" })
       .where(eq(funCards.id, outcome.blockedByShieldId));
     revalidatePath("/", "layout");
-    return { ok: true, card: def, blocked: true };
+    return { ok: true, card: def, blocked: true, targetName };
   }
 
+  // Snapshots de puntos: el efecto queda congelado al momento de jugarse.
+  if (def.type === "caparazon" && finalTargetId) {
+    // Si rebotó en un Espejito, el caparazón vuelve y te baja a VOS.
+    const hitId = outcome.reflectedByMirrorId ? id : finalTargetId;
+    const hit = ctx.rows.find((r) => r.id === hitId);
+    const last = ctx.rows[ctx.rows.length - 1];
+    if (hit && last) {
+      payload.deltas = { [hitId]: -(hit.total - (last.total - 1)) };
+    }
+  }
+  if (def.type === "swap" && finalTargetId) {
+    const me = ctx.rows.find((r) => r.id === id);
+    const victim = ctx.rows.find((r) => r.id === finalTargetId);
+    if (me && victim) {
+      const diff = victim.total - me.total;
+      payload.deltas = { [id]: diff, [finalTargetId]: -diff };
+    }
+  }
+
+  const reflected = !!outcome.reflectedByMirrorId;
   await db
     .update(funCards)
     .set({
       status: "played",
       playedAt: now,
-      targetParticipantId: targetId,
+      targetParticipantId: finalTargetId,
       effectMatchId: outcome.effectMatchId,
+      effectDate: outcome.effectDate,
+      payload: Object.keys(payload).length ? JSON.stringify(payload) : null,
+      reflected,
     })
     .where(eq(funCards.id, cardId));
 
+  if (outcome.reflectedByMirrorId) {
+    await db
+      .update(funCards)
+      .set({ status: "consumed" })
+      .where(eq(funCards.id, outcome.reflectedByMirrorId));
+  }
+
+  // Borrón y cuenta nueva: limpia todos los overlays sociales colgados sobre mí.
+  if (def.type === "borron") {
+    const socialTypes = ["apodo", "foto", "microfono"];
+    await db
+      .update(funCards)
+      .set({ status: "consumed" })
+      .where(
+        and(
+          eq(funCards.poolId, pool.id),
+          eq(funCards.targetParticipantId, id),
+          eq(funCards.status, "played"),
+          inArray(funCards.cardType, socialTypes),
+        ),
+      );
+  }
+
   revalidatePath("/", "layout");
-  return { ok: true, card: def, blocked: false, effectMatchId: outcome.effectMatchId };
+  return { ok: true, card: def, blocked: false, reflected, targetName };
 }
 
 /** Carga/actualiza el resultado final del torneo (campeón, subcampeón, goleador, figura). */

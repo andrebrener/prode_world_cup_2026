@@ -88,6 +88,33 @@ describe("computeStreak", () => {
     expect(r.best).toBe(3);
   });
 
+  it("override 'protect' (costillar/caído): un 0 no corta", () => {
+    const r = computeStreak({
+      points: { M1: 3, M2: 3, M3: 0, M4: 3, M5: 3, M6: 0 },
+      matchOrder: ORDER,
+      kickoffById: KICKOFFS,
+      overrides: { M3: "protect" },
+    });
+    // M3 protegido → la racha llega a 4 en M5; M6 en 0 sin protección corta.
+    expect(r.protectedMatchIds).toEqual(["M3"]);
+    expect(r.best).toBe(4);
+    expect(r.current).toBe(0);
+    expect(r.milestones).toEqual([3]);
+  });
+
+  it("override 'skip' (filtro): el partido no cuenta ni a favor ni en contra", () => {
+    const r = computeStreak({
+      points: { M1: 3, M2: 3, M3: 0, M4: 5, M5: 3, M6: 3 },
+      matchOrder: ORDER,
+      kickoffById: KICKOFFS,
+      overrides: { M3: "skip", M4: "skip" },
+    });
+    // M3 y M4 no existen para la racha: M1,M2,M5,M6 = 4 seguidos.
+    expect(r.current).toBe(4);
+    expect(r.milestones).toEqual([3]);
+    expect(r.protectedMatchIds).toEqual([]);
+  });
+
   it("la racha no suma en el partido protegido (protege, no regala)", () => {
     const r = streak(
       { M1: 3, M2: 3, M3: 0, M4: 3, M5: 5, M6: 5 },
