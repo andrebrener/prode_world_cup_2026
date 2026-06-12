@@ -7,7 +7,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import confetti from "canvas-confetti";
-import { claimDailyCardAction, devDrawCardAction, playCardAction } from "@/lib/actions";
+import { claimDailyCardAction, playCardAction } from "@/lib/actions";
 import {
   CARD_CATALOG,
   RARITY_LABEL,
@@ -111,7 +111,6 @@ export default function FunZone({
   members,
   meId,
   myInfo = null,
-  devTools = false,
 }: {
   slug: string;
   state: FunState;
@@ -119,8 +118,6 @@ export default function FunZone({
   meId: string;
   /** Info fun del visitante (efectos activos / pendientes sobre él). */
   myInfo?: FunLeaderboardInfo | null;
-  /** SOLO DEV: botón para sacar cartas extra y probar el mazo. */
-  devTools?: boolean;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -177,10 +174,10 @@ export default function FunZone({
     }, 1600);
   }
 
-  function draw(action: typeof claimDailyCardAction) {
+  function claim() {
     setError(null);
     start(async () => {
-      const res = await action(slug);
+      const res = await claimDailyCardAction(slug);
       if (!res.ok || !res.card) {
         setError(res.error ?? "No se pudo reclamar.");
         return;
@@ -271,26 +268,6 @@ export default function FunZone({
             className="pointer-events-none absolute -top-4 left-0 h-12 w-40"
           />
         </h2>
-        {devTools && (
-          <span className="flex items-center gap-2 text-xs">
-            <button
-              onClick={() => draw(devDrawCardAction)}
-              disabled={pending || !!state.pending}
-              title="SOLO PRUEBAS: saca una carta extra al azar (después lo sacamos)"
-              className="rounded-lg border border-dashed border-gold/60 px-2 py-1 font-bold text-gold transition hover:bg-gold/10 disabled:opacity-50"
-            >
-              🧪 +carta
-            </button>
-            <button
-              onClick={() => router.refresh()}
-              disabled={pending}
-              title="SOLO PRUEBAS: refrescar el estado"
-              className="rounded-lg border border-dashed border-gold/60 px-2 py-1 font-bold text-gold transition hover:bg-gold/10 disabled:opacity-50"
-            >
-              🔄
-            </button>
-          </span>
-        )}
       </header>
 
       {/* Carta del día */}
@@ -365,7 +342,7 @@ export default function FunZone({
                 maldición ☠️. Si no la reclamás hoy, a medianoche se pierde. ¿Te la jugás?
               </p>
               <button
-                onClick={() => draw(claimDailyCardAction)}
+                onClick={claim}
                 disabled={pending}
                 className="fun-gradient fun-wiggle mx-auto rounded-xl px-5 py-2.5 text-sm font-black text-white transition hover:brightness-110 disabled:opacity-60 sm:mx-0"
               >

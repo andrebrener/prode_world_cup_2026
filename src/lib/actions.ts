@@ -825,24 +825,6 @@ export async function claimDailyCardAction(slug: string): Promise<DrawResult> {
 }
 
 /**
- * SOLO DEV — para probar el mazo: saca una carta extra al azar (respetando las
- * rarezas, maldiciones incluidas), sin límite diario.
- * No existe en producción. Borrar cuando termine la etapa de pruebas.
- */
-export async function devDrawCardAction(slug: string): Promise<DrawResult> {
-  if (process.env.NODE_ENV === "production") {
-    return { ok: false, error: "Solo disponible en desarrollo." };
-  }
-  const gate = await funGate(slug);
-  if ("error" in gate) return { ok: false, error: gate.error };
-  const { id, pool } = gate;
-
-  // Sal aleatoria como "fecha" → carta al azar y sin chocar con el índice único.
-  const salt = `dev-${randomUUID().slice(0, 8)}`;
-  return drawAndPlay(pool, id, salt, dailyCard(pool.id, id, salt));
-}
-
-/**
  * Resuelve una carta pendiente (la que pidió víctima/apodo/foto al salir).
  * Un Anulo mufa de la víctima la bloquea; un Espejito rebotín la devuelve.
  */

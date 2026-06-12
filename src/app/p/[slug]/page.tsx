@@ -129,7 +129,6 @@ export default async function PoolTabla({
           members={leaderboard.map((r) => ({ id: r.id, name: r.name, avatar: r.avatar }))}
           meId={participant.id}
           myInfo={leaderboard.find((r) => r.id === participant.id)?.fun ?? null}
-          devTools={process.env.NODE_ENV !== "production"}
         />
       )}
 
