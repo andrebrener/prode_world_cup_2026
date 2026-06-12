@@ -7,7 +7,7 @@ import { ROUND_LABEL, type KoRound } from "@/lib/bracket";
 import { fetchParticipantDetailAction } from "@/lib/actions";
 import type { LeaderboardRow, ParticipantDetail } from "@/lib/db/queries";
 import { CARD_CATALOG } from "@/lib/cardCatalog";
-import Avatar from "./Avatar";
+import Avatar, { AvatarFill } from "./Avatar";
 
 const medal = ["🥇", "🥈", "🥉"];
 const KO_ROUND_ORDER: KoRound[] = ["R32", "R16", "QF", "SF", "3P", "F"];
@@ -93,7 +93,7 @@ export default function Leaderboard({ rows }: { rows: LeaderboardRow[] }) {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border text-left text-xs uppercase text-muted">
-              <th className="px-4 py-3">#</th>
+              <th className="w-12 px-0 py-3 sm:w-14" aria-label="Foto y posición"></th>
               <th className="px-2 py-3">Jugador</th>
               <th className="hidden px-2 py-3 text-center sm:table-cell" title="Resultados exactos">🎯</th>
               <th className="hidden px-2 py-3 text-right sm:table-cell">Grupos</th>
@@ -128,14 +128,30 @@ export default function Leaderboard({ rows }: { rows: LeaderboardRow[] }) {
                 onClick={() => open(row)}
                 className="cursor-pointer border-b border-border/60 transition last:border-0 hover:bg-background"
               >
-                <td className="px-4 py-3 font-bold text-muted">{medal[i] ?? i + 1}</td>
-                <td className="px-2 py-3 font-semibold text-foreground">
+                {/* Foto full-bleed con la posición superpuesta (sin columna #).
+                    El alto fijo del bloque dicta la altura de la fila: absolute
+                    inset-0 directo en el td no funciona en tablas. */}
+                <td className="w-14 p-1 align-middle sm:w-[68px]">
+                  <div className="relative h-12 w-12 overflow-hidden rounded-xl sm:h-14 sm:w-14">
+                  <AvatarFill
+                    name={row.name}
+                    avatar={row.fun?.overlay?.avatar?.dataUrl ?? row.avatar}
+                  />
+                  <span className="absolute bottom-0.5 left-0.5">
+                    {medal[i] ? (
+                      <span className="text-base drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">
+                        {medal[i]}
+                      </span>
+                    ) : (
+                      <span className="rounded-md bg-black/75 px-1 py-px text-[10px] font-black text-white">
+                        {i + 1}
+                      </span>
+                    )}
+                  </span>
+                  </div>
+                </td>
+                <td className="px-3 py-3 font-semibold text-foreground">
                   <span className="flex items-center gap-2">
-                    <Avatar
-                      name={row.name}
-                      avatar={row.fun?.overlay?.avatar?.dataUrl ?? row.avatar}
-                      size={32}
-                    />
                     <span>
                       {row.name}
                       {row.fun?.overlay?.nickname && (
@@ -247,10 +263,24 @@ function Drawer({
       <aside className="relative flex h-full w-full max-w-md flex-col border-l border-border bg-background shadow-2xl">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-border px-5 py-4">
-          <div className="flex items-center gap-3">
-            <Avatar name={row.name} avatar={row.avatar} size={44} />
+          <div className="flex items-center gap-4">
+            <span className="fun-gradient shrink-0 rounded-full p-[3px]">
+              <Avatar
+                name={row.name}
+                avatar={row.fun?.overlay?.avatar?.dataUrl ?? row.avatar}
+                size={96}
+                className="border-2 border-background"
+              />
+            </span>
             <div>
-              <h3 className="wordmark text-2xl">{row.name}</h3>
+              <h3 className="wordmark text-2xl">
+                {row.name}
+                {row.fun?.overlay?.nickname && (
+                  <span className="fun-text ml-1 font-black">
+                    «{row.fun.overlay.nickname.text}»
+                  </span>
+                )}
+              </h3>
               <p className="text-xs text-muted">
                 Grupos {row.matchPoints} · Llaves {row.koPoints} · Extras {row.extraPoints} ·{" "}
                 <span className="font-bold text-primary">Total {row.total}</span>
