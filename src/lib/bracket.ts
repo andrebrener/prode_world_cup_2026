@@ -134,6 +134,11 @@ const KO_SCHEDULE: Record<string, { kickoff: string; city: string }> = {
   "104": { kickoff: "2026-07-19T15:00:00-04:00", city: "Nueva York/NJ" },
 };
 
+/** Kickoff oficial de un cruce de knockout (ISO con offset de la sede), o null. */
+export function koKickoff(matchId: string): string | null {
+  return KO_SCHEDULE[matchId]?.kickoff ?? null;
+}
+
 export type KoResult = {
   homeGoals: number;
   awayGoals: number;

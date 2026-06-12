@@ -10,6 +10,7 @@ import {
   knockoutResults,
   pools,
   poolMembers,
+  funCards,
 } from "./schema";
 import { eq, inArray, sql } from "drizzle-orm";
 import {
@@ -20,8 +21,12 @@ import {
   type KoReal,
 } from "../scoring";
 import type { Score } from "../scoring";
-import { resolveBracket, type KoResult, type ResolvedKoMatch } from "../bracket";
+import { resolveBracket, koKickoff, type KoResult, type ResolvedKoMatch } from "../bracket";
 import { allGroupStandings } from "../standings";
+import { MATCHES } from "../fixtures";
+import { CARD_CATALOG, MAX_HELD_CARDS, type CardDef, type CardType, type PoolMode } from "../cardCatalog";
+import { applyCardEffects, funToday, type MatchPointsMap, type PlayedCardEffect } from "../cards";
+import { computeStreak } from "../streaks";
 
 // ---------- Prodes ----------
 
@@ -31,6 +36,7 @@ export type Pool = {
   slug: string;
   code: string;
   isPublic: boolean;
+  mode: PoolMode;
   createdBy: string | null;
 };
 
@@ -41,6 +47,7 @@ function toPool(row: typeof pools.$inferSelect): Pool {
     slug: row.slug,
     code: row.code,
     isPublic: row.isPublic,
+    mode: row.mode === "fun" ? "fun" : "normal",
     createdBy: row.createdBy,
   };
 }
@@ -159,6 +166,21 @@ export async function getParticipantExtras(id: string): Promise<ExtraPick> {
   };
 }
 
+/** Info extra de cada fila en prodes modo Diversión. */
+export type FunLeaderboardInfo = {
+  /** Delta total por cartas (modificadores de partido + afanos). */
+  cardDelta: number;
+  streakCurrent: number;
+  streakBest: number;
+  streakBonus: number;
+  /** Partidos en 0 salvados por un Aguante. */
+  protectedMatchIds: string[];
+  /** Standings activos del jugador (escudo / aguante / var sin consumir). */
+  activeStandings: CardType[];
+  /** Efectos atados a partidos que todavía no se jugaron. */
+  pendingEffects: { cardType: CardType; matchId: string; fromName: string | null }[];
+};
+
 export type LeaderboardRow = {
   id: string;
   name: string;
@@ -169,10 +191,13 @@ export type LeaderboardRow = {
   total: number;
   exactCount: number;
   predictionsCount: number;
+  /** Solo en prodes modo Diversión. */
+  fun?: FunLeaderboardInfo;
 };
 
 /** Tabla de un prode: calcula puntos de cada miembro contra los resultados reales. */
-export async function getLeaderboard(poolId: string): Promise<LeaderboardRow[]> {
+export async function getLeaderboard(pool: Pool): Promise<LeaderboardRow[]> {
+  const poolId = pool.id;
   const memberIds = await getPoolMemberIds(poolId);
   if (memberIds.length === 0) return [];
 
@@ -220,26 +245,44 @@ export async function getLeaderboard(poolId: string): Promise<LeaderboardRow[]> 
     };
   }
 
-  const rows: LeaderboardRow[] = people.map((person) => {
+  // Puntos por partido por miembro (todo partido CON resultado tiene entrada,
+  // aunque sea 0). Es la base sobre la que el modo Diversión aplica cartas.
+  const groupResultIds = new Set(Object.keys(results));
+  const ptsByMember: Record<string, MatchPointsMap> = {};
+  const exactByMember: Record<string, number> = {};
+  for (const person of people) {
     const preds = predsByPerson[person.id] ?? {};
-    let mp = 0;
+    const koPreds = koPredsByPerson[person.id] ?? {};
+    const m: MatchPointsMap = {};
     let exact = 0;
-    for (const [matchId, pred] of Object.entries(preds)) {
-      const real = results[matchId];
-      const pts = matchPoints(pred, real);
-      mp += pts;
+    for (const [matchId, real] of Object.entries(results)) {
+      const pts = matchPoints(preds[matchId], real);
+      m[matchId] = pts;
       if (pts === 5) exact++;
+    }
+    for (const km of bracket.matches) {
+      if (!km.result || !km.home || !km.away) continue;
+      m[km.id] = knockoutPoints(koPreds[km.id], km.result as KoReal, km.home, km.away);
+    }
+    ptsByMember[person.id] = m;
+    exactByMember[person.id] = exact;
+  }
+
+  const fun = pool.mode === "fun" ? await resolveFun(poolId, ptsByMember, bracket, people) : null;
+
+  const rows: LeaderboardRow[] = people.map((person) => {
+    const pts = (fun?.effects.points[person.id] ?? ptsByMember[person.id]) ?? {};
+    let mp = 0;
+    let kp = 0;
+    for (const [matchId, p] of Object.entries(pts)) {
+      if (groupResultIds.has(matchId)) mp += p;
+      else kp += p;
     }
     const ep = extraPoints(extrasByPerson[person.id] ?? {}, tourney);
 
-    // Puntos de knockout
-    let kp = 0;
-    const koPreds = koPredsByPerson[person.id] ?? {};
-    for (const [matchId, pred] of Object.entries(koPreds)) {
-      const m = koByMatch[matchId];
-      if (!m || !m.result || !m.home || !m.away) continue;
-      kp += knockoutPoints(pred, m.result as KoReal, m.home, m.away);
-    }
+    const funInfo = fun?.infoByMember[person.id];
+    const flat = fun?.effects.flat[person.id] ?? 0;
+    const streakBonus = funInfo?.streakBonus ?? 0;
 
     return {
       id: person.id,
@@ -248,13 +291,223 @@ export async function getLeaderboard(poolId: string): Promise<LeaderboardRow[]> 
       matchPoints: mp,
       koPoints: kp,
       extraPoints: ep,
-      total: mp + kp + ep,
-      exactCount: exact,
+      total: mp + kp + ep + flat + streakBonus,
+      exactCount: exactByMember[person.id] ?? 0,
       predictionsCount: countByPerson[person.id] ?? 0,
+      ...(funInfo ? { fun: funInfo } : {}),
     };
   });
 
   return rows.sort((a, b) => b.total - a.total || b.exactCount - a.exactCount || a.name.localeCompare(b.name));
+}
+
+// ---------- Modo Diversión ----------
+
+/** Kickoff de cualquier partido del torneo (grupos o llaves). */
+const KICKOFF_BY_ID: Record<string, string> = Object.fromEntries(
+  MATCHES.map((m) => [m.id, m.kickoff]),
+);
+
+function kickoffOf(matchId: string): string | null {
+  return KICKOFF_BY_ID[matchId] ?? koKickoff(matchId);
+}
+
+type FunResolution = {
+  effects: ReturnType<typeof applyCardEffects>;
+  infoByMember: Record<string, FunLeaderboardInfo>;
+  cards: (typeof funCards.$inferSelect)[];
+};
+
+/**
+ * Resuelve cartas + rachas de un prode Diversión sobre los puntos base.
+ * Sin estado: todo se deriva de las cartas jugadas y los resultados actuales.
+ */
+async function resolveFun(
+  poolId: string,
+  ptsByMember: Record<string, MatchPointsMap>,
+  bracket: BracketState,
+  people: { id: string; name: string }[],
+): Promise<FunResolution> {
+  const cards = await db.select().from(funCards).where(eq(funCards.poolId, poolId));
+  const played = cards.filter((c) => c.status === "played" && c.playedAt);
+  const nameById = Object.fromEntries(people.map((p) => [p.id, p.name]));
+
+  // Partidos con resultado, ordenados por kickoff (grupos + llaves).
+  const resolvedIds = [
+    ...Object.keys(ptsByMember[people[0]?.id] ?? {}),
+  ].filter((id) => kickoffOf(id));
+  resolvedIds.sort(
+    (a, b) => new Date(kickoffOf(a)!).getTime() - new Date(kickoffOf(b)!).getTime(),
+  );
+  const kickoffById = Object.fromEntries(resolvedIds.map((id) => [id, kickoffOf(id)!]));
+
+  const playedEffects: PlayedCardEffect[] = played.map((c) => ({
+    id: c.id,
+    cardType: c.cardType as CardType,
+    ownerId: c.participantId,
+    targetId: c.targetParticipantId,
+    effectMatchId: c.effectMatchId,
+    playedAt: c.playedAt!,
+  }));
+
+  const effects = applyCardEffects({
+    cards: playedEffects,
+    base: ptsByMember,
+    matchOrder: resolvedIds,
+    kickoffById,
+  });
+
+  // Partidos ya jugados (con resultado): un efecto atado a otro partido sigue pendiente.
+  const hasResult = new Set(resolvedIds);
+
+  const infoByMember: Record<string, FunLeaderboardInfo> = {};
+  for (const person of people) {
+    const mine = played.filter((c) => c.participantId === person.id);
+    const aguantes = mine.filter((c) => c.cardType === "aguante").map((c) => c.playedAt!);
+
+    const streak = computeStreak({
+      points: effects.points[person.id] ?? {},
+      matchOrder: resolvedIds,
+      kickoffById,
+      protections: aguantes,
+    });
+
+    const activeStandings: CardType[] = [];
+    if (mine.some((c) => c.cardType === "escudo")) activeStandings.push("escudo");
+    if (aguantes.length > streak.protectedMatchIds.length) activeStandings.push("aguante");
+    if (mine.some((c) => c.cardType === "var") && !effects.varAppliedTo[person.id])
+      activeStandings.push("var");
+
+    // Efectos atados a partidos futuros que afectan a esta persona.
+    const pendingEffects = played
+      .filter((c) => {
+        if (!c.effectMatchId || hasResult.has(c.effectMatchId)) return false;
+        const def = CARD_CATALOG[c.cardType as CardType];
+        const affected = def?.kind === "attack" ? c.targetParticipantId : c.participantId;
+        return affected === person.id;
+      })
+      .map((c) => ({
+        cardType: c.cardType as CardType,
+        matchId: c.effectMatchId!,
+        fromName:
+          CARD_CATALOG[c.cardType as CardType]?.kind === "attack"
+            ? (nameById[c.participantId] ?? null)
+            : null,
+      }));
+
+    infoByMember[person.id] = {
+      cardDelta: effects.delta[person.id] ?? 0,
+      streakCurrent: streak.current,
+      streakBest: streak.best,
+      streakBonus: streak.bonus,
+      protectedMatchIds: streak.protectedMatchIds,
+      activeStandings,
+      pendingEffects,
+    };
+  }
+
+  return { effects, infoByMember, cards };
+}
+
+export type HeldCard = { id: string; def: CardDef; drawDate: string };
+
+export type FunFeedItem = {
+  id: string;
+  at: Date;
+  ownerName: string;
+  targetName: string | null;
+  cardType: CardType;
+  /** true si el ataque rebotó contra un Escudo. */
+  blocked: boolean;
+};
+
+export type FunState = {
+  today: string;
+  /** Ya reclamó la carta de hoy en este prode. */
+  claimedToday: boolean;
+  handFull: boolean;
+  canClaim: boolean;
+  held: HeldCard[];
+  feed: FunFeedItem[];
+};
+
+/** Estado del modo Diversión para el visitante: mano, sorteo del día y actividad. */
+export async function getFunState(pool: Pool, viewerId: string): Promise<FunState> {
+  const [cards, memberIds] = await Promise.all([
+    db.select().from(funCards).where(eq(funCards.poolId, pool.id)),
+    getPoolMemberIds(pool.id),
+  ]);
+  const people = memberIds.length
+    ? await db.select().from(participants).where(inArray(participants.id, memberIds))
+    : [];
+  const nameById = Object.fromEntries(people.map((p) => [p.id, p.name]));
+
+  const today = funToday();
+  const mine = cards.filter((c) => c.participantId === viewerId);
+  const held: HeldCard[] = mine
+    .filter((c) => c.status === "held")
+    .sort((a, b) => a.drawnAt.getTime() - b.drawnAt.getTime())
+    .map((c) => ({ id: c.id, def: CARD_CATALOG[c.cardType as CardType], drawDate: c.drawDate }))
+    .filter((c) => c.def);
+
+  const claimedToday = mine.some((c) => c.drawDate === today);
+  const handFull = held.length >= MAX_HELD_CARDS;
+
+  const feed: FunFeedItem[] = cards
+    .filter((c) => (c.status === "played" || c.status === "blocked") && c.playedAt)
+    .sort((a, b) => b.playedAt!.getTime() - a.playedAt!.getTime())
+    .slice(0, 30)
+    .map((c) => ({
+      id: c.id,
+      at: c.playedAt!,
+      ownerName: nameById[c.participantId] ?? "—",
+      targetName: c.targetParticipantId ? (nameById[c.targetParticipantId] ?? "—") : null,
+      cardType: c.cardType as CardType,
+      blocked: c.status === "blocked",
+    }));
+
+  return { today, claimedToday, handFull, canClaim: !claimedToday && !handFull, held, feed };
+}
+
+export type PlayContext = {
+  memberIds: string[];
+  occupiedEffects: Set<string>;
+  ownerActiveStandings: Set<CardType>;
+  targetShieldCardId: string | null;
+};
+
+/** Contexto para validar una jugada (regla de 1 efecto, standings activos, escudo). */
+export async function getPlayContext(
+  pool: Pool,
+  ownerId: string,
+  targetId: string | null,
+): Promise<PlayContext> {
+  const [rows, cards, memberIds] = await Promise.all([
+    getLeaderboard(pool),
+    db.select().from(funCards).where(eq(funCards.poolId, pool.id)),
+    getPoolMemberIds(pool.id),
+  ]);
+
+  const occupiedEffects = new Set<string>();
+  for (const c of cards) {
+    if (c.status !== "played" || !c.effectMatchId) continue;
+    const def = CARD_CATALOG[c.cardType as CardType];
+    const affected = def?.kind === "attack" ? c.targetParticipantId : c.participantId;
+    if (affected) occupiedEffects.add(`${c.effectMatchId}:${affected}`);
+  }
+
+  const ownerActiveStandings = new Set<CardType>(
+    rows.find((r) => r.id === ownerId)?.fun?.activeStandings ?? [],
+  );
+
+  const targetShieldCardId = targetId
+    ? (cards.find(
+        (c) =>
+          c.participantId === targetId && c.cardType === "escudo" && c.status === "played",
+      )?.id ?? null)
+    : null;
+
+  return { memberIds, occupiedEffects, ownerActiveStandings, targetShieldCardId };
 }
 
 export type MatchPredictionRow = {

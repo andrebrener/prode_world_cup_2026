@@ -14,8 +14,9 @@ import {
   knockoutResults,
   pools,
   poolMembers,
+  funCards,
 } from "./db/schema";
-import { eq } from "drizzle-orm";
+import { eq, and, count } from "drizzle-orm";
 import { getParticipantId, setParticipantId } from "./session";
 import { MATCHES, predictionsLocked } from "./fixtures";
 import { allGroupStandings } from "./standings";
@@ -27,8 +28,11 @@ import {
   getPoolBySlug,
   getPoolByCode,
   isPoolMember,
+  getPlayContext,
   type ParticipantDetail,
 } from "./db/queries";
+import { CARD_CATALOG, MAX_HELD_CARDS, type CardDef, type CardType, type PoolMode } from "./cardCatalog";
+import { dailyCard, funToday, resolvePlay } from "./cards";
 
 const VALID_MATCH_IDS = new Set(MATCHES.map((m) => m.id));
 const VALID_KO_IDS = new Set(Object.keys(KO_MATCHES_BY_ID));
@@ -151,6 +155,7 @@ async function uniqueCode(): Promise<string> {
 export async function createPoolAction(
   name: string,
   isPublic: boolean,
+  mode: PoolMode = "normal",
 ): Promise<{ ok: boolean; error?: string; slug?: string }> {
   const id = await getParticipantId();
   if (!id) return { ok: false, error: "Primero ingresá tu nombre." };
@@ -171,6 +176,7 @@ export async function createPoolAction(
     slug,
     code,
     isPublic: !!isPublic,
+    mode: mode === "fun" ? "fun" : "normal",
     createdBy: id,
     createdAt: now,
   });
@@ -453,6 +459,135 @@ export async function saveKnockoutResultsAction(input: {
 
   revalidatePath("/", "layout");
   return { ok: true };
+}
+
+// ---------- Modo Diversión: cartas ----------
+
+/** Valida sesión + prode Diversión + membresía. */
+async function funGate(slug: string) {
+  const id = await getParticipantId();
+  if (!id) return { error: "Primero ingresá tu nombre." } as const;
+  const pool = await getPoolBySlug(slug);
+  if (!pool) return { error: "No encontramos ese prode." } as const;
+  if (pool.mode !== "fun") return { error: "Este prode no es modo Diversión." } as const;
+  if (!(await isPoolMember(pool.id, id)))
+    return { error: "No estás en este prode." } as const;
+  return { id, pool } as const;
+}
+
+/**
+ * Reclama la carta del día. El sorteo es determinístico por (prode, jugador, fecha):
+ * reclamar solo persiste el resultado. Si no la reclamás hoy, mañana ya no está.
+ */
+export async function claimDailyCardAction(
+  slug: string,
+): Promise<{ ok: boolean; error?: string; card?: CardDef }> {
+  const gate = await funGate(slug);
+  if ("error" in gate) return { ok: false, error: gate.error };
+  const { id, pool } = gate;
+
+  const today = funToday();
+  const [heldRow] = await db
+    .select({ n: count() })
+    .from(funCards)
+    .where(
+      and(
+        eq(funCards.poolId, pool.id),
+        eq(funCards.participantId, id),
+        eq(funCards.status, "held"),
+      ),
+    );
+  if ((heldRow?.n ?? 0) >= MAX_HELD_CARDS) {
+    return { ok: false, error: "Tenés la mano llena. Jugá una carta para reclamar la de hoy." };
+  }
+
+  const def = dailyCard(pool.id, id, today);
+  try {
+    await db.insert(funCards).values({
+      id: randomUUID(),
+      poolId: pool.id,
+      participantId: id,
+      drawDate: today,
+      cardType: def.type,
+      status: "held",
+      drawnAt: new Date(),
+    });
+  } catch {
+    // Índice único: ya reclamó hoy (doble click / doble pestaña).
+    return { ok: false, error: "Ya reclamaste la carta de hoy. Mañana hay otra." };
+  }
+
+  revalidatePath("/", "layout");
+  return { ok: true, card: def };
+}
+
+/**
+ * Juega una carta de la mano. Los ataques eligen víctima; si la víctima tiene un
+ * Escudo activo, el ataque se anula y el escudo se consume.
+ */
+export async function playCardAction(
+  slug: string,
+  cardId: string,
+  targetId: string | null,
+): Promise<{
+  ok: boolean;
+  error?: string;
+  card?: CardDef;
+  blocked?: boolean;
+  effectMatchId?: string | null;
+}> {
+  const gate = await funGate(slug);
+  if ("error" in gate) return { ok: false, error: gate.error };
+  const { id, pool } = gate;
+
+  const [row] = await db.select().from(funCards).where(eq(funCards.id, cardId));
+  if (!row || row.poolId !== pool.id || row.participantId !== id) {
+    return { ok: false, error: "Esa carta no es tuya." };
+  }
+  if (row.status !== "held") return { ok: false, error: "Esa carta ya se jugó." };
+  const def = CARD_CATALOG[row.cardType as CardType];
+  if (!def) return { ok: false, error: "Carta desconocida." };
+
+  const ctx = await getPlayContext(pool, id, targetId);
+  const outcome = resolvePlay({
+    cardType: def.type,
+    ownerId: id,
+    targetId,
+    now: new Date(),
+    memberIds: ctx.memberIds,
+    occupiedEffects: ctx.occupiedEffects,
+    ownerActiveStandings: ctx.ownerActiveStandings,
+    targetShieldCardId: ctx.targetShieldCardId,
+  });
+  if (!outcome.ok) return { ok: false, error: outcome.error };
+
+  const now = new Date();
+  if (outcome.blockedByShieldId) {
+    // El ataque rebota: queda registrado (para el feed) y el escudo se consume.
+    await db
+      .update(funCards)
+      .set({ status: "blocked", playedAt: now, targetParticipantId: targetId })
+      .where(eq(funCards.id, cardId));
+    await db
+      .update(funCards)
+      .set({ status: "consumed" })
+      .where(eq(funCards.id, outcome.blockedByShieldId));
+    revalidatePath("/", "layout");
+    return { ok: true, card: def, blocked: true };
+  }
+
+  await db
+    .update(funCards)
+    .set({
+      status: "played",
+      playedAt: now,
+      targetParticipantId: targetId,
+      effectMatchId: outcome.effectMatchId,
+    })
+    .where(eq(funCards.id, cardId));
+
+  revalidatePath("/", "layout");
+  return { ok: true, card: def, blocked: false, effectMatchId: outcome.effectMatchId };
 }
 
 /** Carga/actualiza el resultado final del torneo (campeón, subcampeón, goleador, figura). */
