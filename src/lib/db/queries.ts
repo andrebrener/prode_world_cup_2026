@@ -212,8 +212,6 @@ export async function getLeaderboard(pool: Pool): Promise<LeaderboardRow[]> {
       getBracketState(),
     ]);
 
-  // Cruces resueltos por id (para saber home/away y resultado de cada knockout).
-  const koByMatch = Object.fromEntries(bracket.matches.map((m) => [m.id, m]));
   const koPredsByPerson: Record<
     string,
     Record<string, { homeGoals: number; awayGoals: number; advance: string }>

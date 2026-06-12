@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Avatar from "./Avatar";
 
-type NavPool = { name: string; slug: string };
+type NavPool = { name: string; slug: string; mode?: "normal" | "fun" };
 type NavMe = { name: string; avatar: string | null };
 
 export default function SiteNav({
@@ -85,6 +85,7 @@ export default function SiteNav({
                 onClick={() => setSwitcherOpen((o) => !o)}
                 className="flex max-w-[40vw] items-center gap-1 rounded-lg border border-border px-3 py-1.5 text-sm font-semibold text-foreground transition hover:bg-surface"
               >
+                {currentPool?.mode === "fun" && <span aria-hidden>✨</span>}
                 <span className="truncate">{currentPool?.name ?? "Mis prodes"}</span>
                 <span className="text-muted">▾</span>
               </button>
@@ -106,6 +107,7 @@ export default function SiteNav({
                               : "text-foreground"
                           }`}
                         >
+                          {p.mode === "fun" && <span aria-hidden>✨ </span>}
                           {p.name}
                         </Link>
                       ))}

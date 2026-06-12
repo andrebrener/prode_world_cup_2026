@@ -8,7 +8,10 @@ import {
   getBracketState,
   getPoolBySlug,
   isPoolMember,
+  getFunState,
 } from "@/lib/db/queries";
+import FunBadge from "@/components/FunBadge";
+import FunZone from "@/components/FunZone";
 import { getParticipantId } from "@/lib/session";
 import { getParticipant } from "@/lib/db/queries";
 import { allGroupStandings } from "@/lib/standings";
@@ -67,39 +70,62 @@ export default async function PoolTabla({
     );
   }
 
-  const [leaderboard, results, tourney, predictionsByMatch, bracket] = await Promise.all([
-    getLeaderboard(pool),
-    getResultsMap(),
-    getTournamentResult(),
-    getPredictionsByMatch(pool.id),
-    getBracketState(),
-  ]);
+  const isFun = pool.mode === "fun";
+  const [leaderboard, results, tourney, predictionsByMatch, bracket, funState] =
+    await Promise.all([
+      getLeaderboard(pool),
+      getResultsMap(),
+      getTournamentResult(),
+      getPredictionsByMatch(pool.id),
+      getBracketState(),
+      isFun ? getFunState(pool, participant.id) : Promise.resolve(null),
+    ]);
   const standings = allGroupStandings(results);
   const hasResults = Object.keys(results).length > 0;
 
   return (
-    <div className="flex flex-col gap-8">
+    <div
+      className={`flex flex-col gap-8 ${isFun ? "fun-mode fun-bg -mx-2 rounded-3xl p-4 sm:-mx-4 sm:p-6" : ""}`}
+    >
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="wordmark text-4xl">
-            Tabla <span className="text-primary">{pool.name}</span>
+          <h1 className="wordmark flex flex-wrap items-center gap-3 text-4xl">
+            <span>
+              Tabla{" "}
+              <span className={isFun ? "fun-text" : "text-primary"}>{pool.name}</span>
+            </span>
+            <FunBadge mode={pool.mode} size="lg" />
           </h1>
           <p className="mt-1 text-sm text-muted">
             {leaderboard.length === 0
               ? "Todavía no hay jugadores. "
               : `${leaderboard.length} ${leaderboard.length === 1 ? "jugador" : "jugadores"}. `}
             {!hasResults && "Los puntos aparecen cuando se carguen resultados."}
+            {isFun &&
+              " Acá hay cartas y rachas: el total suma (o resta) lo que pase en la Zona de cartas."}
           </p>
         </div>
         <Link
           href={`/p/${pool.slug}/jugar`}
-          className="rounded-xl bg-primary px-4 py-2 text-sm font-bold text-primary-ink transition hover:brightness-110"
+          className={`rounded-xl px-4 py-2 text-sm font-bold transition hover:brightness-110 ${
+            isFun ? "fun-gradient text-white" : "bg-primary text-primary-ink"
+          }`}
         >
           Jugar →
         </Link>
       </header>
 
       <ShareCode code={pool.code} slug={pool.slug} />
+
+      {/* Zona de cartas (solo modo Diversión) */}
+      {isFun && funState && (
+        <FunZone
+          slug={pool.slug}
+          state={funState}
+          members={leaderboard.map((r) => ({ id: r.id, name: r.name, avatar: r.avatar }))}
+          meId={participant.id}
+        />
+      )}
 
       {/* Leaderboard (filas clickeables → drawer con todos los pronósticos) */}
       <Leaderboard rows={leaderboard} />
