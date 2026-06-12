@@ -14,6 +14,8 @@ export const participants = sqliteTable(
     name: text("name").notNull(),
     // Foto de perfil: data URL (image/jpeg) ya comprimida y recortada en el cliente.
     avatar: text("avatar"),
+    // Mail para el resumen diario del modo Diversión (opcional, se pide en el prode).
+    email: text("email"),
     createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
   },
   // El nombre es la identidad: único sin distinguir mayúsculas/minúsculas.
@@ -30,6 +32,8 @@ export const pools = sqliteTable("pools", {
   slug: text("slug").notNull().unique(), // para la URL: /p/[slug]
   code: text("code").notNull().unique(), // código corto para invitar
   isPublic: integer("is_public", { mode: "boolean" }).notNull().default(false),
+  // "normal" | "fun" — se elige al crear y no cambia. Fun = cartas + rachas.
+  mode: text("mode").notNull().default("normal"),
   createdBy: text("created_by").references(() => participants.id),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
 });
@@ -47,6 +51,50 @@ export const poolMembers = sqliteTable(
     joinedAt: integer("joined_at", { mode: "timestamp" }).notNull(),
   },
   (table) => [primaryKey({ columns: [table.poolId, table.participantId] })],
+);
+
+// ---------- Modo Diversión: cartas ----------
+
+// Una fila por carta sorteada. El sorteo diario es determinístico
+// (pool, participante, fecha) → carta; reclamar solo persiste la fila.
+// status: held (en mano) | played (jugada, efecto vigente/resuelto) |
+//         consumed (standing gastado, ej. escudo que bloqueó) |
+//         blocked (ataque anulado por un escudo).
+export const funCards = sqliteTable(
+  "fun_cards",
+  {
+    id: text("id").primaryKey(),
+    poolId: text("pool_id")
+      .notNull()
+      .references(() => pools.id, { onDelete: "cascade" }),
+    participantId: text("participant_id")
+      .notNull()
+      .references(() => participants.id, { onDelete: "cascade" }),
+    drawDate: text("draw_date").notNull(), // yyyy-mm-dd en huso America/Mexico_City
+    cardType: text("card_type").notNull(),
+    status: text("status").notNull().default("held"),
+    drawnAt: integer("drawn_at", { mode: "timestamp" }).notNull(),
+    playedAt: integer("played_at", { mode: "timestamp" }),
+    targetParticipantId: text("target_participant_id").references(() => participants.id, {
+      onDelete: "cascade",
+    }),
+    // Partido al que quedó atado el efecto (ventana "match"), fijado al jugarla.
+    effectMatchId: text("effect_match_id"),
+    // Día al que quedó atado el efecto (ventana "day"), yyyy-mm-dd huso MX.
+    effectDate: text("effect_date"),
+    // JSON con datos extra del efecto: { apodo | mensaje | imagen } para sociales.
+    payload: text("payload"),
+    // El ataque rebotó en un Espejito: el efecto vuelve al que la jugó.
+    reflected: integer("reflected", { mode: "boolean" }).notNull().default(false),
+  },
+  // Una sola carta por día por participante por prode.
+  (table) => [
+    uniqueIndex("fun_cards_one_draw_per_day").on(
+      table.poolId,
+      table.participantId,
+      table.drawDate,
+    ),
+  ],
 );
 
 export const matchPredictions = sqliteTable(

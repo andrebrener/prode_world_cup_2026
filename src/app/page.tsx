@@ -9,6 +9,7 @@ import JoinForm from "@/components/JoinForm";
 import JoinByCode from "@/components/JoinByCode";
 import JoinPoolButton from "@/components/JoinPoolButton";
 import Avatar from "@/components/Avatar";
+import FunBadge from "@/components/FunBadge";
 
 export const dynamic = "force-dynamic";
 
@@ -65,11 +66,16 @@ export default async function Home() {
               <Link
                 key={p.id}
                 href={`/p/${p.slug}`}
-                className="group flex items-center justify-between rounded-2xl border border-border bg-surface px-5 py-4 transition hover:border-primary"
+                className={`group flex items-center justify-between rounded-2xl bg-surface px-5 py-4 transition ${
+                  p.mode === "fun"
+                    ? "fun-mode fun-border"
+                    : "border border-border hover:border-primary"
+                }`}
               >
                 <div>
-                  <div className="font-bold text-foreground group-hover:text-primary">
+                  <div className="flex items-center gap-2 font-bold text-foreground group-hover:text-primary">
                     {p.name}
+                    {p.mode === "fun" && <FunBadge mode="fun" />}
                   </div>
                   <div className="text-xs text-muted">
                     {p.memberCount} {p.memberCount === 1 ? "jugador" : "jugadores"}
@@ -114,10 +120,15 @@ export default async function Home() {
             {otherPublic.map((p) => (
               <div
                 key={p.id}
-                className="flex items-center justify-between gap-3 rounded-2xl border border-border bg-surface px-5 py-4"
+                className={`flex items-center justify-between gap-3 rounded-2xl bg-surface px-5 py-4 ${
+                  p.mode === "fun" ? "fun-mode fun-border" : "border border-border"
+                }`}
               >
                 <div>
-                  <div className="font-bold text-foreground">{p.name}</div>
+                  <div className="flex items-center gap-2 font-bold text-foreground">
+                    {p.name}
+                    {p.mode === "fun" && <FunBadge mode="fun" />}
+                  </div>
                   <div className="text-xs text-muted">
                     {p.memberCount} {p.memberCount === 1 ? "jugador" : "jugadores"}
                   </div>

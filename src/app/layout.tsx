@@ -27,7 +27,7 @@ export default async function RootLayout({
     id ? getUserPools(id) : Promise.resolve([]),
     id ? getParticipant(id) : Promise.resolve(null),
   ]);
-  const navPools = myPools.map((p) => ({ name: p.name, slug: p.slug }));
+  const navPools = myPools.map((p) => ({ name: p.name, slug: p.slug, mode: p.mode }));
   const navMe = me ? { name: me.name, avatar: me.avatar ?? null } : null;
   return (
     <html lang="es" className={`${geistSans.variable} h-full antialiased`}>

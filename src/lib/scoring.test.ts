@@ -5,6 +5,7 @@ import {
   predictedAdvancer,
   knockoutPoints,
   extraPoints,
+  saiBambaBonus,
   type KoPred,
   type KoReal,
 } from "./scoring";
@@ -203,5 +204,23 @@ describe("extraPoints (extras del torneo)", () => {
         { champion: null, runnerUp: null, topScorer: null, figure: null },
       ),
     ).toBe(0);
+  });
+});
+
+describe("saiBambaBonus (carta del vidente)", () => {
+  it("campeón sin definir → cobra los 10 igual", () => {
+    expect(saiBambaBonus({ champion: "BRA" }, { champion: null })).toBe(SCORING.champion);
+  });
+
+  it("le erró al campeón real → la carta le da los 10", () => {
+    expect(saiBambaBonus({ champion: "BRA" }, { champion: "ARG" })).toBe(SCORING.champion);
+  });
+
+  it("ya le había pegado al campeón → 0 (no se duplica)", () => {
+    expect(saiBambaBonus({ champion: "ARG" }, { champion: "ARG" })).toBe(0);
+  });
+
+  it("sin pronóstico de campeón → cobra los 10", () => {
+    expect(saiBambaBonus({}, { champion: "ARG" })).toBe(SCORING.champion);
   });
 });

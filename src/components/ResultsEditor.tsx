@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
+import Link from "next/link";
 import {
   GROUPS,
   MATCHES,
@@ -111,9 +112,9 @@ export default function ResultsEditor({
       {!canEdit && (
         <div className="rounded-2xl border border-gold/40 bg-surface p-4 text-sm text-gold">
           Para cargar resultados primero{" "}
-          <a href="/" className="underline">
+          <Link href="/" className="underline">
             ingresá tu nombre
-          </a>
+          </Link>
           .
         </div>
       )}

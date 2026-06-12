@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/daily-fun-email",
+      "schedule": "0 13 * * *"
+    }
+  ]
+}

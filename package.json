@@ -15,14 +15,19 @@
   },
   "dependencies": {
     "@libsql/client": "^0.17.3",
+    "@lottiefiles/dotlottie-react": "^0.19.4",
+    "canvas-confetti": "^1.9.4",
     "drizzle-orm": "^0.45.2",
     "next": "16.2.7",
+    "nodemailer": "^8.0.11",
     "react": "19.2.4",
     "react-dom": "19.2.4"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@types/canvas-confetti": "^1.9.0",
     "@types/node": "^20",
+    "@types/nodemailer": "^8.0.1",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "drizzle-kit": "^0.31.10",

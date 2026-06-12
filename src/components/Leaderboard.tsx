@@ -1,10 +1,12 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { GROUPS, teamName, teamFlag } from "@/lib/fixtures";
 import { ROUND_LABEL, type KoRound } from "@/lib/bracket";
 import { fetchParticipantDetailAction } from "@/lib/actions";
 import type { LeaderboardRow, ParticipantDetail } from "@/lib/db/queries";
+import { CARD_CATALOG } from "@/lib/cardCatalog";
 import Avatar from "./Avatar";
 
 const medal = ["🥇", "🥈", "🥉"];
@@ -13,7 +15,54 @@ const KO_ROUND_ORDER: KoRound[] = ["R32", "R16", "QF", "SF", "3P", "F"];
 const fmtDate = (iso: string) =>
   new Date(iso + "T12:00:00").toLocaleDateString("es-AR", { day: "2-digit", month: "short" });
 
+/** Llama de racha: crece y titila según la racha en curso. */
+function StreakFlame({ current }: { current: number }) {
+  if (current <= 0) return <span className="text-muted">—</span>;
+  const flames = current >= 8 ? "🔥🔥🔥" : current >= 5 ? "🔥🔥" : "🔥";
+  return (
+    <span title={`Racha de ${current} partido${current === 1 ? "" : "s"} sumando`}>
+      <span className={current >= 3 ? "fun-flicker" : ""}>{flames}</span>
+      <span className="ml-1 font-bold text-foreground">{current}</span>
+    </span>
+  );
+}
+
+const STANDING_BADGE: Record<string, { emoji: string; title: string }> = {
+  escudo: { emoji: "🛡️", title: "Anulo mufa activo: bloquea el próximo ataque" },
+  espejito: { emoji: "🪞", title: "Espejito rebotín activo: el próximo ataque rebota" },
+  aguante: { emoji: "🥃", title: "Fernet de Fernemo activo: la racha sobrevive un 0" },
+  var: { emoji: "📺", title: "VAR a favor activo: +2 en su próximo partido con puntos" },
+};
+
+/** Badges de efectos activos / pendientes de un jugador (modo Diversión). */
+function FunBadges({ row }: { row: LeaderboardRow }) {
+  if (!row.fun) return null;
+  const pending = row.fun.pendingEffects.map((e, i) => {
+    const def = CARD_CATALOG[e.cardType];
+    const where = e.matchId ? `para el partido ${e.matchId}` : `para los partidos de hoy`;
+    const title = e.fromName
+      ? `${def?.name ?? e.cardType} de ${e.fromName} ${where}`
+      : `${def?.name ?? e.cardType} ${where}`;
+    return (
+      <span key={`p${i}`} title={title} className="fun-float inline-block cursor-help">
+        {def?.emoji ?? "🃏"}
+      </span>
+    );
+  });
+  const standings = row.fun.activeStandings.map((s) => (
+    <span key={s} title={STANDING_BADGE[s]?.title} className="cursor-help">
+      {STANDING_BADGE[s]?.emoji}
+    </span>
+  ));
+  if (pending.length === 0 && standings.length === 0) return null;
+  return <span className="ml-1 inline-flex gap-0.5 text-xs">{standings}{pending}</span>;
+}
+
+const fmtDelta = (n: number) =>
+  n > 0 ? `+${n}` : `${n}`;
+
 export default function Leaderboard({ rows }: { rows: LeaderboardRow[] }) {
+  const fun = rows.some((r) => r.fun);
   const [openRow, setOpenRow] = useState<LeaderboardRow | null>(null);
   const [detail, setDetail] = useState<ParticipantDetail | null>(null);
   const [pending, start] = useTransition();
@@ -31,9 +80,9 @@ export default function Leaderboard({ rows }: { rows: LeaderboardRow[] }) {
     return (
       <div className="overflow-hidden rounded-2xl border border-border bg-surface p-8 text-center text-muted">
         Nadie jugó todavía.{" "}
-        <a href="/" className="text-primary underline">
+        <Link href="/" className="text-primary underline">
           Sé el primero →
-        </a>
+        </Link>
       </div>
     );
   }
@@ -50,6 +99,25 @@ export default function Leaderboard({ rows }: { rows: LeaderboardRow[] }) {
               <th className="hidden px-2 py-3 text-right sm:table-cell">Grupos</th>
               <th className="hidden px-2 py-3 text-right sm:table-cell">Llaves</th>
               <th className="hidden px-2 py-3 text-right sm:table-cell">Extras</th>
+              {fun && (
+                <>
+                  <th className="px-2 py-3 text-center" title="Racha de partidos sumando">
+                    🔥
+                  </th>
+                  <th
+                    className="hidden px-2 py-3 text-right sm:table-cell"
+                    title="Puntos por cartas + hitos de racha"
+                  >
+                    🃏
+                  </th>
+                  <th
+                    className="hidden px-2 py-3 text-right sm:table-cell"
+                    title="Total solo con resultados reales: sin cartas, sin rachas"
+                  >
+                    Puro
+                  </th>
+                </>
+              )}
               <th className="px-4 py-3 text-right">Total</th>
             </tr>
           </thead>
@@ -63,14 +131,42 @@ export default function Leaderboard({ rows }: { rows: LeaderboardRow[] }) {
                 <td className="px-4 py-3 font-bold text-muted">{medal[i] ?? i + 1}</td>
                 <td className="px-2 py-3 font-semibold text-foreground">
                   <span className="flex items-center gap-2">
-                    <Avatar name={row.name} avatar={row.avatar} size={32} />
+                    <Avatar
+                      name={row.name}
+                      avatar={row.fun?.overlay?.avatar?.dataUrl ?? row.avatar}
+                      size={32}
+                    />
                     <span>
                       {row.name}
+                      {row.fun?.overlay?.nickname && (
+                        <span
+                          className="fun-text ml-1 font-black"
+                          title={`Bautizado por ${row.fun.overlay.nickname.byName}`}
+                        >
+                          «{row.fun.overlay.nickname.text}»
+                        </span>
+                      )}
+                      <FunBadges row={row} />
                       <span className="ml-1 text-xs text-muted">›</span>
+                      {row.fun?.overlay?.message && (
+                        <span
+                          className="mt-0.5 block text-[11px] font-normal italic text-gold"
+                          title={`Fijado por ${row.fun.overlay.message.byName}`}
+                        >
+                          🎤 “{row.fun.overlay.message.text}” — {row.fun.overlay.message.byName}
+                        </span>
+                      )}
                       {/* Desglose en móvil (las columnas se ocultan en pantallas chicas) */}
                       <span className="mt-0.5 block text-[11px] font-normal text-muted sm:hidden">
                         🎯 {row.exactCount} · G {row.matchPoints} · Ll {row.koPoints} · Ex{" "}
                         {row.extraPoints}
+                        {row.fun && (
+                          <>
+                            {" "}
+                            · 🃏 {fmtDelta(row.fun.cardDelta + row.fun.streakBonus)} · Puro{" "}
+                            {row.fun.pureTotal}
+                          </>
+                        )}
                       </span>
                     </span>
                   </span>
@@ -79,6 +175,33 @@ export default function Leaderboard({ rows }: { rows: LeaderboardRow[] }) {
                 <td className="hidden px-2 py-3 text-right text-muted sm:table-cell">{row.matchPoints}</td>
                 <td className="hidden px-2 py-3 text-right text-muted sm:table-cell">{row.koPoints}</td>
                 <td className="hidden px-2 py-3 text-right text-muted sm:table-cell">{row.extraPoints}</td>
+                {fun && (
+                  <>
+                    <td className="px-2 py-3 text-center text-sm">
+                      <StreakFlame current={row.fun?.streakCurrent ?? 0} />
+                    </td>
+                    <td
+                      className={`hidden px-2 py-3 text-right font-bold sm:table-cell ${
+                        (row.fun?.cardDelta ?? 0) + (row.fun?.streakBonus ?? 0) < 0
+                          ? "text-danger"
+                          : "text-muted"
+                      }`}
+                      title={
+                        row.fun
+                          ? `Cartas ${fmtDelta(row.fun.cardDelta)} · Hitos de racha +${row.fun.streakBonus}`
+                          : undefined
+                      }
+                    >
+                      {fmtDelta((row.fun?.cardDelta ?? 0) + (row.fun?.streakBonus ?? 0))}
+                    </td>
+                    <td
+                      className="hidden px-2 py-3 text-right text-muted sm:table-cell"
+                      title="Total solo con resultados reales: sin cartas, sin rachas"
+                    >
+                      {row.fun?.pureTotal ?? 0}
+                    </td>
+                  </>
+                )}
                 <td className="px-4 py-3 text-right text-lg font-black text-primary">
                   {row.total}
                 </td>

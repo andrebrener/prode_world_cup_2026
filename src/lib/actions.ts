@@ -2,6 +2,7 @@
 
 import { randomUUID } from "crypto";
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { db } from "./db";
 import {
   participants,
@@ -14,8 +15,9 @@ import {
   knockoutResults,
   pools,
   poolMembers,
+  funCards,
 } from "./db/schema";
-import { eq } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import { getParticipantId, setParticipantId } from "./session";
 import { MATCHES, predictionsLocked } from "./fixtures";
 import { allGroupStandings } from "./standings";
@@ -27,8 +29,21 @@ import {
   getPoolBySlug,
   getPoolByCode,
   isPoolMember,
+  getPlayContext,
   type ParticipantDetail,
 } from "./db/queries";
+import {
+  CARD_CATALOG,
+  MAX_APODO_CHARS,
+  MAX_MENSAJE_CHARS,
+  MAX_FOTO_CHARS,
+  type CardDef,
+  type CardType,
+  type PoolMode,
+} from "./cardCatalog";
+import { bindDay, dailyCard, funToday, resolvePlay } from "./cards";
+import { renderAttackEmail } from "./funDigest";
+import { sendEmail } from "./mailer";
 
 const VALID_MATCH_IDS = new Set(MATCHES.map((m) => m.id));
 const VALID_KO_IDS = new Set(Object.keys(KO_MATCHES_BY_ID));
@@ -118,6 +133,30 @@ export async function updateAvatarAction(
   return { ok: true };
 }
 
+/**
+ * Guarda (o borra con null) el mail del participante actual, para el resumen
+ * diario del modo Diversión.
+ */
+export async function saveEmailAction(
+  email: string | null,
+): Promise<{ ok: boolean; error?: string }> {
+  const id = await getParticipantId();
+  if (!id) return { ok: false, error: "Primero ingresá tu nombre." };
+
+  let value: string | null = null;
+  if (email !== null) {
+    const clean = email.trim().toLowerCase().slice(0, 120);
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(clean)) {
+      return { ok: false, error: "Ese mail no parece válido." };
+    }
+    value = clean;
+  }
+
+  await db.update(participants).set({ email: value }).where(eq(participants.id, id));
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
 // ---------- Prodes (grupos) ----------
 
 function slugify(name: string): string {
@@ -151,6 +190,7 @@ async function uniqueCode(): Promise<string> {
 export async function createPoolAction(
   name: string,
   isPublic: boolean,
+  mode: PoolMode = "normal",
 ): Promise<{ ok: boolean; error?: string; slug?: string }> {
   const id = await getParticipantId();
   if (!id) return { ok: false, error: "Primero ingresá tu nombre." };
@@ -171,6 +211,7 @@ export async function createPoolAction(
     slug,
     code,
     isPublic: !!isPublic,
+    mode: mode === "fun" ? "fun" : "normal",
     createdBy: id,
     createdAt: now,
   });
@@ -454,6 +495,335 @@ export async function saveKnockoutResultsAction(input: {
   revalidatePath("/", "layout");
   return { ok: true };
 }
+
+// ---------- Modo Diversión: cartas ----------
+
+/** Valida sesión + prode Diversión + membresía. */
+async function funGate(slug: string) {
+  const id = await getParticipantId();
+  if (!id) return { error: "Primero ingresá tu nombre." } as const;
+  const pool = await getPoolBySlug(slug);
+  if (!pool) return { error: "No encontramos ese prode." } as const;
+  if (pool.mode !== "fun") return { error: "Este prode no es modo Diversión." } as const;
+  if (!(await isPoolMember(pool.id, id)))
+    return { error: "No estás en este prode." } as const;
+  return { id, pool } as const;
+}
+export type PlayCardExtra = {
+  /** Apodo para "Los apodos del Droco". */
+  apodo?: string;
+  /** Declaración para "Micrófono abierto". */
+  mensaje?: string;
+  /** Data URL (ya comprimida en el cliente) para "Foto trucha". */
+  imagen?: string;
+};
+
+type PlayResult = {
+  ok: boolean;
+  error?: string;
+  blocked?: boolean;
+  reflected?: boolean;
+  targetName?: string;
+};
+
+/**
+ * Aviso instantáneo a la víctima (si dejó su mail): te jugaron una carta, tu
+ * escudo te salvó, o tu espejito la devolvió. Corre después de responder
+ * (next/server `after`) para no demorar la jugada del atacante.
+ */
+function notifyVictim(opts: {
+  pool: NonNullable<Awaited<ReturnType<typeof getPoolBySlug>>>;
+  attackerName: string;
+  victimId: string;
+  victimName: string;
+  cardType: CardType;
+  detail: string | null;
+  blocked: boolean;
+  reflected: boolean;
+}) {
+  after(async () => {
+    try {
+      const [victim] = await db
+        .select({ email: participants.email })
+        .from(participants)
+        .where(eq(participants.id, opts.victimId));
+      if (!victim?.email) return;
+      const mail = renderAttackEmail({
+        pool: opts.pool,
+        attackerName: opts.attackerName,
+        victimName: opts.victimName,
+        cardType: opts.cardType,
+        detail: opts.detail,
+        blocked: opts.blocked,
+        reflected: opts.reflected,
+      });
+      await sendEmail({ to: victim.email, subject: mail.subject, html: mail.html });
+    } catch (e) {
+      console.error("[notifyVictim]", e);
+    }
+  });
+}
+
+/**
+ * Núcleo de jugar una carta (la usan el claim con auto-jugada y la resolución
+ * de cartas pendientes). Asume fila propia en estado "held".
+ */
+async function executePlay(
+  pool: NonNullable<Awaited<ReturnType<typeof getPoolBySlug>>>,
+  ownerId: string,
+  cardId: string,
+  def: CardDef,
+  targetId: string | null,
+  extra?: PlayCardExtra,
+): Promise<PlayResult> {
+  // Inputs sociales: validar acá (resolvePlay es puro, no ve payloads).
+  const payload: Record<string, unknown> = {};
+  if (def.input === "apodo") {
+    const apodo = extra?.apodo?.trim().slice(0, MAX_APODO_CHARS);
+    if (!apodo || apodo.length < 2) return { ok: false, error: "Poné un apodo (mín. 2 letras)." };
+    payload.apodo = apodo;
+  }
+  if (def.input === "mensaje") {
+    const mensaje = extra?.mensaje?.trim().slice(0, MAX_MENSAJE_CHARS);
+    if (!mensaje || mensaje.length < 2)
+      return { ok: false, error: "Poné una declaración (mín. 2 letras)." };
+    payload.mensaje = mensaje;
+  }
+  if (def.input === "imagen") {
+    const imagen = extra?.imagen;
+    if (!imagen?.startsWith("data:image/"))
+      return { ok: false, error: "Subí una foto para la víctima." };
+    if (imagen.length > MAX_FOTO_CHARS)
+      return { ok: false, error: "La foto es muy pesada. Probá con una más chica." };
+    payload.imagen = imagen;
+  }
+
+  const ctx = await getPlayContext(pool, ownerId, targetId);
+  const finalTargetId = targetId;
+
+  // Sin rivales no hay a quién atacar: la carta sale jugada al vacío.
+  if (def.target === "other" && ctx.memberIds.length < 2) {
+    await db
+      .update(funCards)
+      .set({ status: "played", playedAt: new Date() })
+      .where(eq(funCards.id, cardId));
+    return { ok: true };
+  }
+
+  const outcome = resolvePlay({
+    cardType: def.type,
+    ownerId,
+    targetId: finalTargetId,
+    now: new Date(),
+    memberIds: ctx.memberIds,
+    targetShieldCardId: ctx.targetShieldCardId,
+    targetMirrorCardId: ctx.targetMirrorCardId,
+  });
+  if (!outcome.ok) return { ok: false, error: outcome.error };
+
+  const now = new Date();
+  const targetName = finalTargetId
+    ? (ctx.rows.find((r) => r.id === finalTargetId)?.name ?? undefined)
+    : undefined;
+
+  if (outcome.blockedByShieldId) {
+    // El ataque rebota contra el Anulo mufa: queda en el feed y el escudo se consume.
+    await db
+      .update(funCards)
+      .set({ status: "blocked", playedAt: now, targetParticipantId: finalTargetId })
+      .where(eq(funCards.id, cardId));
+    await db
+      .update(funCards)
+      .set({ status: "consumed" })
+      .where(eq(funCards.id, outcome.blockedByShieldId));
+    if (finalTargetId && finalTargetId !== ownerId) {
+      notifyVictim({
+        pool,
+        attackerName: ctx.rows.find((r) => r.id === ownerId)?.name ?? "Alguien",
+        victimId: finalTargetId,
+        victimName: targetName ?? "vos",
+        cardType: def.type,
+        detail: null,
+        blocked: true,
+        reflected: false,
+      });
+    }
+    return { ok: true, blocked: true, targetName };
+  }
+
+  const reflected = !!outcome.reflectedByMirrorId;
+  await db
+    .update(funCards)
+    .set({
+      status: "played",
+      playedAt: now,
+      targetParticipantId: finalTargetId,
+      effectMatchId: outcome.effectMatchId,
+      effectDate: outcome.effectDate,
+      payload: Object.keys(payload).length ? JSON.stringify(payload) : null,
+      reflected,
+    })
+    .where(eq(funCards.id, cardId));
+
+  if (outcome.reflectedByMirrorId) {
+    await db
+      .update(funCards)
+      .set({ status: "consumed" })
+      .where(eq(funCards.id, outcome.reflectedByMirrorId));
+  }
+
+  // Aviso a la víctima (ataques y sociales contra otro; el rebote también avisa
+  // al que se salvó con el espejito).
+  if (finalTargetId && finalTargetId !== ownerId) {
+    notifyVictim({
+      pool,
+      attackerName: ctx.rows.find((r) => r.id === ownerId)?.name ?? "Alguien",
+      victimId: finalTargetId,
+      victimName: targetName ?? "vos",
+      cardType: def.type,
+      detail:
+        typeof payload.apodo === "string"
+          ? payload.apodo
+          : typeof payload.mensaje === "string"
+            ? payload.mensaje
+            : null,
+      blocked: false,
+      reflected,
+    });
+  }
+
+  // Borrón y cuenta nueva: limpia todos los overlays sociales colgados sobre mí.
+  if (def.type === "borron") {
+    const socialTypes = ["apodo", "foto", "microfono"];
+    await db
+      .update(funCards)
+      .set({ status: "consumed" })
+      .where(
+        and(
+          eq(funCards.poolId, pool.id),
+          eq(funCards.targetParticipantId, ownerId),
+          eq(funCards.status, "played"),
+          inArray(funCards.cardType, socialTypes),
+        ),
+      );
+  }
+
+  return { ok: true, blocked: false, reflected, targetName };
+}
+
+type DrawResult = {
+  ok: boolean;
+  error?: string;
+  card?: CardDef;
+  cardId?: string;
+  curse?: boolean;
+  /** La carta necesita que elijas víctima (y/o apodo/foto): quedó pendiente. */
+  needsTarget?: boolean;
+};
+
+/** Saca una carta y la juega en el acto (jugada obligada). */
+async function drawAndPlay(
+  pool: NonNullable<Awaited<ReturnType<typeof getPoolBySlug>>>,
+  participantId: string,
+  drawDate: string,
+  def: CardDef,
+): Promise<DrawResult> {
+  const isCurse = def.kind === "curse";
+  const now = new Date();
+  const cardId = randomUUID();
+
+  try {
+    await db.insert(funCards).values({
+      id: cardId,
+      poolId: pool.id,
+      participantId,
+      drawDate,
+      cardType: def.type,
+      // Maldición: se juega sola al reclamar, atada al día (o próximo día con partidos).
+      status: isCurse ? "played" : "held",
+      drawnAt: now,
+      playedAt: isCurse ? now : null,
+      effectDate: isCurse && def.window === "day" ? (bindDay(now) ?? funToday(now)) : null,
+    });
+  } catch {
+    // Índice único: ya reclamó hoy (doble click / doble pestaña).
+    return { ok: false, error: "Ya reclamaste la carta de hoy. Mañana hay otra." };
+  }
+
+  if (isCurse) {
+    revalidatePath("/", "layout");
+    return { ok: true, card: def, cardId, curse: true };
+  }
+
+  // Jugada obligada: las que no piden elección salen jugadas en el acto.
+  // Las que piden víctima/apodo/foto quedan pendientes hasta que las resuelvas.
+  const needsChoice = def.target === "other" || !!def.input;
+  if (!needsChoice) {
+    await executePlay(pool, participantId, cardId, def, null);
+  }
+
+  revalidatePath("/", "layout");
+  return { ok: true, card: def, cardId, needsTarget: needsChoice };
+}
+
+/**
+ * Reclama la carta del día. El sorteo es determinístico por (prode, jugador, fecha):
+ * reclamar solo persiste el resultado. Si no la reclamás hoy, mañana ya no está.
+ * La carta se JUEGA al salir (no hay mano): las maldiciones se aplican solas, los
+ * buffs se activan al toque y los ataques te piden la víctima en el momento.
+ */
+export async function claimDailyCardAction(slug: string): Promise<DrawResult> {
+  const gate = await funGate(slug);
+  if ("error" in gate) return { ok: false, error: gate.error };
+  const { id, pool } = gate;
+
+  // Una carta pendiente de resolver bloquea el sorteo (jugada obligada).
+  const [pendingRow] = await db
+    .select({ id: funCards.id })
+    .from(funCards)
+    .where(
+      and(
+        eq(funCards.poolId, pool.id),
+        eq(funCards.participantId, id),
+        eq(funCards.status, "held"),
+      ),
+    )
+    .limit(1);
+  if (pendingRow) {
+    return { ok: false, error: "Tenés una carta sin resolver. Elegí la víctima primero." };
+  }
+
+  const today = funToday();
+  return drawAndPlay(pool, id, today, dailyCard(pool.id, id, today));
+}
+
+/**
+ * Resuelve una carta pendiente (la que pidió víctima/apodo/foto al salir).
+ * Un Anulo mufa de la víctima la bloquea; un Espejito rebotín la devuelve.
+ */
+export async function playCardAction(
+  slug: string,
+  cardId: string,
+  targetId: string | null,
+  extra?: PlayCardExtra,
+): Promise<PlayResult & { card?: CardDef }> {
+  const gate = await funGate(slug);
+  if ("error" in gate) return { ok: false, error: gate.error };
+  const { id, pool } = gate;
+
+  const [row] = await db.select().from(funCards).where(eq(funCards.id, cardId));
+  if (!row || row.poolId !== pool.id || row.participantId !== id) {
+    return { ok: false, error: "Esa carta no es tuya." };
+  }
+  if (row.status !== "held") return { ok: false, error: "Esa carta ya se jugó." };
+  const def = CARD_CATALOG[row.cardType as CardType];
+  if (!def) return { ok: false, error: "Carta desconocida." };
+
+  const result = await executePlay(pool, id, cardId, def, targetId, extra);
+  if (result.ok) revalidatePath("/", "layout");
+  return { ...result, card: def };
+}
+
 
 /** Carga/actualiza el resultado final del torneo (campeón, subcampeón, goleador, figura). */
 export async function updateTournamentResultAction(extras: {

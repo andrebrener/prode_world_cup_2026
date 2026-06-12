@@ -35,6 +35,36 @@ and styled with **Tailwind CSS 4**.
 
 > Values are defined in [`src/lib/fixtures.ts`](src/lib/fixtures.ts) (`SCORING`) and the logic lives in [`src/lib/scoring.ts`](src/lib/scoring.ts).
 
+## Fun mode 🃏✨
+
+When creating a pool you can pick **Fun mode**: everything from a normal pool, plus cards and streaks (scoped to that pool — predictions stay global).
+
+- **Daily card draw, forced play**: every player gets one surprise card per day (common 50% / rare 26% / legendary 9% / **curse 15%**, per-card weights tunable in the catalog). The card **plays itself on draw**: buffs activate instantly, attacks/socials immediately ask you to pick the victim (no stash, no take-backs), curses just hit you. Effects stack in play order (zeros always win). Unclaimed cards expire at midnight (America/Mexico_City). The draw is deterministic per (pool, player, date) — no cron needed.
+- **Two effect windows**: surgical *next-match* cards (Doblete ×2, El Diego ×3, La Yapa, Mufa, VAR a favor) and *whole-day* cards (Cábala del Echugo ×2, Pelambreada, Filtro 5mm, Se me cayó el Fernet, Costillar 7 AM…). Day effects only cover matches that haven't kicked off yet — no retroactive plays.
+- **Chaos**: Caldeador de las tinieblas replaces a rival's predictions for the day with seeded-random scores; Caparazón azul auto-targets the pool leader and drops them to last−1; Robo de identidad swaps total points (both snapshot at play time).
+- **Duels**: Duelo de matambres — most day points doubles, loser zeroes (one duel per person per day).
+- **Defenses**: Anulo mufa blocks the next attack; Espejito rebotín bounces it back to the attacker.
+- **Social cards** (no points, pure ego): Los apodos del Droco (sticky nickname rendered as Name «Apodo»), Foto trucha (pool-scoped avatar swap), Micrófono abierto (pinned message) — all until the victim plays Borrón y cuenta nueva. Pool-scoped: real name/avatar untouched elsewhere.
+- **Fairness**: max one active effect per player per match; effects resolve at pool-scoring time and never touch predictions.
+- **Streaks**: consecutive matches scoring >0 points pay milestone bonuses (3→+3, 5→+6, 8→+12, 12→+20). A 0-point match resets (unless protected by Fernet de Fernemo / Costillar).
+- Catalog (data-only, easy to tune) in [`src/lib/cardCatalog.ts`](src/lib/cardCatalog.ts); engine in [`src/lib/cards.ts`](src/lib/cards.ts) + [`src/lib/streaks.ts`](src/lib/streaks.ts) (pure + unit-tested); resolution happens inside `getLeaderboard`.
+
+### Daily email digest (fun pools)
+
+Fun-pool members who leave their email (banner in the pool, or `/perfil`) get a morning digest: reminder to claim today's card, standings (total + pure), yesterday's results and yesterday's plays. Powered by **Vercel Cron** (`vercel.json`, 13:00 UTC = 07:00 CDMX) hitting `/api/cron/daily-fun-email`.
+
+Env vars:
+
+| Var | Purpose |
+|---|---|
+| `CRON_SECRET` | Required in prod — Vercel sends it as `Authorization: Bearer …` |
+| `RESEND_API_KEY` | Option A: send via Resend (needs the domain verified in Resend) |
+| `GMAIL_USER` + `GMAIL_APP_PASSWORD` | Option B: send via Gmail SMTP ([app password](https://myaccount.google.com/apppasswords), not the real password) |
+| `MAIL_FROM` | From address, e.g. `Prode Mundial <prode@prodemundial2026.xyz>` |
+| `APP_BASE_URL` | Links in the email (default `https://prodemundial2026.xyz`) |
+
+Besides the daily digest, victims get an **instant email** when a card is played on them (attack landed / shield blocked it / mirror bounced it back) — sent via `next/server` `after()` so plays are never delayed. With neither provider configured everything logs to console instead (dev). Local preview: `GET /api/cron/daily-fun-email?debug=1` returns the first rendered email as HTML (non-production only).
+
 ---
 
 ## Structure
