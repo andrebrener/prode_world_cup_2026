@@ -83,6 +83,21 @@ function feedText(f: FunFeedItem): string {
   });
 }
 
+// Misma frase, pero con el nombre del que jugó la carta en negrita.
+function feedNodes(f: FunFeedItem) {
+  const text = feedText(f);
+  const name = f.ownerName;
+  const i = name ? text.indexOf(name) : -1;
+  if (i === -1) return text;
+  return (
+    <>
+      {text.slice(0, i)}
+      <strong className="font-bold">{name}</strong>
+      {text.slice(i + name.length)}
+    </>
+  );
+}
+
 const fmtDay = (iso: string, today: string): string => {
   if (iso === today) return "Hoy";
   return new Date(iso + "T12:00:00").toLocaleDateString("es-AR", {
@@ -543,7 +558,7 @@ export default function FunZone({
                   {g.items.map((f) => (
                     <li key={f.id} className="flex items-baseline gap-2 text-sm">
                       <span className={f.curse ? "text-[#7dff96]" : "text-foreground"}>
-                        {feedText(f)}
+                        {feedNodes(f)}
                         {f.blocked && (
                           <span className="font-bold text-gold">
                             {" "}
@@ -557,8 +572,11 @@ export default function FunZone({
                           </span>
                         )}
                       </span>
-                      <span className="ml-auto shrink-0 text-[10px] text-muted">
-                        {fmtTime(f.at)}
+                      <span className="ml-auto flex shrink-0 items-baseline gap-1.5">
+                        <span className="rounded-full bg-foreground/5 px-1.5 py-0.5 text-[10px] font-medium text-muted">
+                          {f.ownerName}
+                        </span>
+                        <span className="text-[10px] text-muted">{fmtTime(f.at)}</span>
                       </span>
                     </li>
                   ))}
