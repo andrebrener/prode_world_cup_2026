@@ -17,6 +17,7 @@ import {
   matchPoints,
   extraPoints,
   knockoutPoints,
+  saiBambaBonus,
   type ExtraPick,
   type KoReal,
 } from "../scoring";
@@ -344,6 +345,13 @@ export async function getLeaderboard(pool: Pool): Promise<LeaderboardRow[]> {
   const fun =
     pool.mode === "fun" ? resolveFun(funCardRows, ptsByMember, bracket, people) : null;
 
+  // Sai Bamba: el vidente le garantiza al que la jugó los puntos del campeón.
+  const saibambaIds = new Set(
+    funCardRows
+      .filter((c) => c.cardType === "saibamba" && c.status === "played")
+      .map((c) => c.participantId),
+  );
+
   const rows: LeaderboardRow[] = people.map((person) => {
     const pts = (fun?.effects.points[person.id] ?? ptsByMember[person.id]) ?? {};
     let mp = 0;
@@ -352,7 +360,9 @@ export async function getLeaderboard(pool: Pool): Promise<LeaderboardRow[]> {
       if (groupResultIds.has(matchId)) mp += p;
       else kp += p;
     }
-    const ep = extraPoints(extrasByPerson[person.id] ?? {}, tourney);
+    const extras = extrasByPerson[person.id] ?? {};
+    const ep = extraPoints(extras, tourney);
+    const saibamba = saibambaIds.has(person.id) ? saiBambaBonus(extras, tourney) : 0;
 
     const funInfo = fun?.infoByMember[person.id];
     const flat = fun?.effects.flat[person.id] ?? 0;
@@ -365,11 +375,17 @@ export async function getLeaderboard(pool: Pool): Promise<LeaderboardRow[]> {
       matchPoints: mp,
       koPoints: kp,
       extraPoints: ep,
-      total: mp + kp + ep + flat + streakBonus,
+      total: mp + kp + ep + flat + streakBonus + saibamba,
       exactCount: exactByMember[person.id] ?? 0,
       predictionsCount: countByPerson[person.id] ?? 0,
       ...(funInfo
-        ? { fun: { ...funInfo, pureTotal: (pureByMember[person.id] ?? 0) + ep } }
+        ? {
+            fun: {
+              ...funInfo,
+              cardDelta: funInfo.cardDelta + saibamba,
+              pureTotal: (pureByMember[person.id] ?? 0) + ep,
+            },
+          }
         : {}),
     };
   });
@@ -396,7 +412,8 @@ type FunResolution = {
   infoByMember: Record<string, Omit<FunLeaderboardInfo, "pureTotal">>;
 };
 
-function parsePayload(raw: string | null): PlayedCardEffect["payload"] {
+/** Payload JSON de las cartas sociales (apodo/mensaje/imagen). */
+function parsePayload(raw: string | null): Record<string, string> | null {
   if (!raw) return null;
   try {
     return JSON.parse(raw);
@@ -413,7 +430,6 @@ function toEffect(c: FunCardRow): PlayedCardEffect {
     targetId: c.targetParticipantId,
     effectMatchId: c.effectMatchId,
     effectDate: c.effectDate,
-    payload: parsePayload(c.payload),
     reflected: c.reflected,
     playedAt: c.playedAt!,
   };
@@ -468,7 +484,7 @@ function resolveFun(
     if (!kind || !c.targetParticipantId) continue;
     // Si rebotó en un Espejito, el apodo/foto/mensaje se lo come el que lo tiró.
     const victim = c.reflected ? c.participantId : c.targetParticipantId;
-    const payload = parsePayload(c.payload) as Record<string, string> | null;
+    const payload = parsePayload(c.payload);
     const byName = c.reflected
       ? `${nameById[c.targetParticipantId] ?? "—"} (espejito)`
       : (nameById[c.participantId] ?? "—");
@@ -604,7 +620,7 @@ export async function getFunState(pool: Pool, viewerId: string): Promise<FunStat
     .slice(0, FEED_LIMIT)
     .map((c) => {
       const def = CARD_CATALOG[c.cardType as CardType];
-      const payload = parsePayload(c.payload) as Record<string, string> | null;
+      const payload = parsePayload(c.payload);
       const detail =
         c.cardType === "apodo"
           ? (payload?.apodo ?? null)
@@ -630,7 +646,7 @@ export async function getFunState(pool: Pool, viewerId: string): Promise<FunStat
 
 export type PlayContext = {
   memberIds: string[];
-  /** Tabla actual (para snapshots de caparazón/swap y elegir al líder). */
+  /** Tabla actual (para resolver target y mostrar nombres). */
   rows: LeaderboardRow[];
   targetShieldCardId: string | null;
   targetMirrorCardId: string | null;

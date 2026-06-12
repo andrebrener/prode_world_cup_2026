@@ -88,7 +88,7 @@ describe("computeStreak", () => {
     expect(r.best).toBe(3);
   });
 
-  it("override 'protect' (costillar/caído): un 0 no corta", () => {
+  it("override 'protect' (caído): un 0 no corta", () => {
     const r = computeStreak({
       points: { M1: 3, M2: 3, M3: 0, M4: 3, M5: 3, M6: 0 },
       matchOrder: ORDER,

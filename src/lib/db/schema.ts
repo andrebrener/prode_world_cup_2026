@@ -82,8 +82,7 @@ export const funCards = sqliteTable(
     effectMatchId: text("effect_match_id"),
     // Día al que quedó atado el efecto (ventana "day"), yyyy-mm-dd huso MX.
     effectDate: text("effect_date"),
-    // JSON con datos extra del efecto: { deltas } para snapshots (caparazón/swap),
-    // { apodo | mensaje | imagen } para sociales.
+    // JSON con datos extra del efecto: { apodo | mensaje | imagen } para sociales.
     payload: text("payload"),
     // El ataque rebotó en un Espejito: el efecto vuelve al que la jugó.
     reflected: integer("reflected", { mode: "boolean" }).notNull().default(false),

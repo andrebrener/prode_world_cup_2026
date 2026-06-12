@@ -15,7 +15,6 @@ import {
   MAX_MENSAJE_CHARS,
   type CardDef,
   type CardRarity,
-  type CardType,
 } from "@/lib/cardCatalog";
 import { playText } from "@/lib/funText";
 import { fileToSquareDataUrl } from "@/lib/imageFile";
@@ -98,11 +97,12 @@ const fmtDay = (iso: string, today: string): string => {
 const fmtTime = (d: Date): string =>
   d.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false });
 
-const STANDING_LABEL: Record<string, string> = {
-  escudo: "🛡️ Anulo mufa listo",
-  espejito: "🪞 Espejito colgado",
-  aguante: "🥃 Fernet de Fernemo a mano",
-  var: "📺 VAR al acecho",
+// Qué hace cada carta "guardada" mientras espera gatillarse (para la colección).
+const STANDING_NOTE: Record<string, string> = {
+  escudo: "Bloquea el próximo ataque que te tiren.",
+  espejito: "Rebota el próximo ataque a quien lo mandó.",
+  aguante: "Te salva un próximo partido en 0 (racha).",
+  var: "+2 al próximo partido donde sumes.",
 };
 
 export default function FunZone({
@@ -237,12 +237,13 @@ export default function FunZone({
       (playing.def.input === "imagen" && !!imagen)) &&
     (playing?.def.target !== "other" || !!targetId || rivals.length === 0);
 
-  // Efectos activos del visitante (standings + lo que tiene encima/en juego).
+  // Tu colección: las cartas "que se guardan" (standing) que tenés activas
+  // esperando gatillarse — escudo, espejito, Fernet de Fernemo, VAR.
+  const collection = myInfo?.activeStandings ?? [];
+
+  // Efectos pendientes en juego: buffs/ataques atados a un partido o al día.
   const activeChips: { key: string; text: string; hostile: boolean }[] = [];
   if (myInfo) {
-    for (const s of myInfo.activeStandings) {
-      activeChips.push({ key: `s-${s}`, text: STANDING_LABEL[s] ?? s, hostile: false });
-    }
     myInfo.pendingEffects.forEach((e, i) => {
       const def = CARD_CATALOG[e.cardType];
       const where = e.matchId
@@ -364,6 +365,44 @@ export default function FunZone({
           )}
         </div>
       </div>
+
+      {/* Tu colección: cartas guardadas (standing) esperando gatillarse */}
+      {collection.length > 0 && (
+        <div className="mt-5">
+          <h3 className="mb-2 text-xs font-bold uppercase tracking-widest text-muted">
+            Tu colección 🎴{" "}
+            <span className="font-medium normal-case tracking-normal text-muted/70">
+              — cartas guardadas, listas para gatillarse
+            </span>
+          </h3>
+          <div className="flex flex-wrap gap-2">
+            {collection.map((t) => {
+              const def = CARD_CATALOG[t];
+              if (!def) return null;
+              const st = RARITY_STYLE[def.rarity];
+              return (
+                <div
+                  key={`col-${t}`}
+                  className={`flex w-28 flex-col items-center rounded-2xl border-2 bg-background p-2 text-center ${st.ring} ${st.glow}`}
+                >
+                  <span className="text-3xl">{def.emoji}</span>
+                  <span className="mt-1 text-xs font-black leading-tight text-foreground">
+                    {def.name}
+                  </span>
+                  <span
+                    className={`mt-0.5 text-[9px] font-bold uppercase tracking-wider ${st.text}`}
+                  >
+                    {RARITY_LABEL[def.rarity]}
+                  </span>
+                  <span className="mt-1 text-[10px] leading-snug text-muted">
+                    {STANDING_NOTE[t] ?? def.description}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Tus efectos en juego */}
       {activeChips.length > 0 && (

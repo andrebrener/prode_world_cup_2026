@@ -598,16 +598,8 @@ async function executePlay(
     payload.imagen = imagen;
   }
 
-  // El caparazón apunta solo: va directo al líder actual del prode, así que el
-  // contexto (defensas de la víctima incluidas) se arma con el target final.
-  let ctx = await getPlayContext(pool, ownerId, targetId);
-  let finalTargetId = targetId;
-  if (def.target === "leader") {
-    finalTargetId = ctx.rows[0]?.id ?? null;
-    if (finalTargetId && finalTargetId !== targetId) {
-      ctx = await getPlayContext(pool, ownerId, finalTargetId);
-    }
-  }
+  const ctx = await getPlayContext(pool, ownerId, targetId);
+  const finalTargetId = targetId;
 
   // Sin rivales no hay a quién atacar: la carta sale jugada al vacío.
   if (def.target === "other" && ctx.memberIds.length < 2) {
@@ -657,25 +649,6 @@ async function executePlay(
       });
     }
     return { ok: true, blocked: true, targetName };
-  }
-
-  // Snapshots de puntos: el efecto queda congelado al momento de jugarse.
-  if (def.type === "caparazon" && finalTargetId) {
-    // Si rebotó en un Espejito, el caparazón vuelve y te baja a VOS.
-    const hitId = outcome.reflectedByMirrorId ? ownerId : finalTargetId;
-    const hit = ctx.rows.find((r) => r.id === hitId);
-    const last = ctx.rows[ctx.rows.length - 1];
-    if (hit && last) {
-      payload.deltas = { [hitId]: -(hit.total - (last.total - 1)) };
-    }
-  }
-  if (def.type === "swap" && finalTargetId) {
-    const me = ctx.rows.find((r) => r.id === ownerId);
-    const victim = ctx.rows.find((r) => r.id === finalTargetId);
-    if (me && victim) {
-      const diff = victim.total - me.total;
-      payload.deltas = { [ownerId]: diff, [finalTargetId]: -diff };
-    }
   }
 
   const reflected = !!outcome.reflectedByMirrorId;

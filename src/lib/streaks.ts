@@ -37,7 +37,7 @@ export function computeStreak(opts: {
   protections?: Date[];
   /**
    * Overrides por partido (de cartas de día):
-   * "protect" = un 0 no corta la racha (Costillar / Se me cayó el Fernet) ·
+   * "protect" = un 0 no corta la racha (Se me cayó el Fernet) ·
    * "skip" = el partido no cuenta ni a favor ni en contra (Filtro 5mm).
    */
   overrides?: Record<string, StreakOverride>;

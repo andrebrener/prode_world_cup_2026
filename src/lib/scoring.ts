@@ -71,6 +71,16 @@ export function knockoutPoints(
   return pts;
 }
 
+/**
+ * Bonus de la carta Sai Bamba: garantiza los puntos del campeón. No se duplica
+ * si el jugador ya le había pegado al campeón con su pronóstico real (cuando aún
+ * no se definió el campeón, `real.champion` es null → cobra igual los 10).
+ */
+export function saiBambaBonus(pred: ExtraPick, real: ExtraPick): number {
+  const earned = real.champion && pred.champion === real.champion ? SCORING.champion : 0;
+  return SCORING.champion - earned;
+}
+
 export type ExtraPick = {
   champion?: string | null;
   runnerUp?: string | null;

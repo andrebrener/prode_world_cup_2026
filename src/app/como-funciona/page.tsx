@@ -134,8 +134,8 @@ export default async function ComoFunciona() {
           </div>
           <div className="rounded-2xl border border-border bg-surface p-4 text-sm text-muted">
             <h3 className="mb-2 font-bold text-foreground">😈 Buffs, mufas y traiciones</h3>
-            Dobles y triples, días enteros mufados, duelos de matambres, el Caparazón azul
-            directo al líder, robos de puntos e identidad. Escudos que bloquean y espejitos
+            Dobles y triples, días enteros mufados, matambres de cerdo robados, robos de
+            puntos y el vidente Sai Bamba. Escudos que bloquean y espejitos
             que devuelven — los efectos se acumulan en orden de jugada. Y las sociales:
             apodos, fotos truchas y declaraciones fijadas, hasta que la víctima juegue
             Borrón y cuenta nueva 🧽.
