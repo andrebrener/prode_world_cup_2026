@@ -132,21 +132,18 @@ export default function Leaderboard({ rows }: { rows: LeaderboardRow[] }) {
                     El alto fijo del bloque dicta la altura de la fila: absolute
                     inset-0 directo en el td no funciona en tablas. */}
                 <td className="w-14 p-1 align-middle sm:w-[68px]">
-                  <div className="relative h-12 w-12 overflow-hidden rounded-xl sm:h-14 sm:w-14">
-                  <AvatarFill
-                    name={row.name}
-                    avatar={row.fun?.overlay?.avatar?.dataUrl ?? row.avatar}
-                  />
-                  <span className="absolute bottom-0.5 left-0.5">
-                    {medal[i] ? (
-                      <span className="text-base drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">
-                        {medal[i]}
-                      </span>
-                    ) : (
-                      <span className="rounded-md bg-black/75 px-1 py-px text-[10px] font-black text-white">
-                        {i + 1}
-                      </span>
-                    )}
+                  <div className="relative h-12 w-12 sm:h-14 sm:w-14">
+                  <div className="absolute inset-0 overflow-hidden rounded-xl">
+                    <AvatarFill
+                      name={row.name}
+                      avatar={row.fun?.overlay?.avatar?.dataUrl ?? row.avatar}
+                    />
+                  </div>
+                  {/* Medalla/posición fuera del clip para que no se recorte */}
+                  <span className="absolute bottom-0 left-0">
+                    <span className="grid place-items-center rounded-md bg-black/75 px-1 py-px text-[10px] font-black leading-tight text-white">
+                      {medal[i] ?? i + 1}
+                    </span>
                   </span>
                   </div>
                 </td>

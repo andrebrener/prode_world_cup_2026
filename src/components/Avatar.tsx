@@ -31,10 +31,13 @@ export function AvatarFill({ name, avatar }: { name: string; avatar?: string | n
       <img src={avatar} alt={name} className="absolute inset-0 h-full w-full object-cover" />
     );
   }
+  // Sin foto: iniciales en el color del nombre sobre fondo oscuro tintado —
+  // un bloque sólido saturado de 56px grita demasiado en la tabla.
+  const color = colorFor(name);
   return (
     <span
-      style={{ backgroundColor: colorFor(name) }}
-      className="absolute inset-0 grid place-items-center text-lg font-black leading-none text-white"
+      style={{ backgroundColor: `${color}26`, color }}
+      className="absolute inset-0 grid place-items-center text-base font-black leading-none"
       aria-hidden
     >
       {initials(name)}
