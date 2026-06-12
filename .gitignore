@@ -52,3 +52,9 @@ local.db-*
 backups/
 *.db.bak
 *.bak
+
+# Scripts utilitarios de un solo uso (no van al repo)
+scripts/
+
+# Playwright MCP (snapshots/artefactos de prueba)
+.playwright-mcp/
