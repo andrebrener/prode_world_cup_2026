@@ -31,13 +31,11 @@ export default function SiteNav({
         { href: `/p/${currentSlug}/jugar`, label: "Jugar" },
         { href: "/resultados", label: "Resultados oficiales" },
         { href: "/como-funciona", label: "Cómo funciona" },
-        { href: "/perfil", label: "Mi perfil" },
       ]
     : [
         { href: "/", label: "Mis prodes" },
         { href: "/resultados", label: "Resultados oficiales" },
         { href: "/como-funciona", label: "Cómo funciona" },
-        { href: "/perfil", label: "Mi perfil" },
       ];
 
   // Cerrar menús al navegar.
