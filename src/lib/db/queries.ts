@@ -567,7 +567,9 @@ export type FunState = {
   feed: FunFeedItem[];
 };
 
-const FEED_LIMIT = 400; // ~15 personas x ~1 jugada/día x 39 días entra cómodo
+// 15 personas × ~1 jugada/día × 39 días ≈ 600, más maldiciones y bloqueos:
+// margen amplio para no truncar el historial a mitad de torneo.
+const FEED_LIMIT = 1500;
 
 /** Estado del modo Diversión para el visitante: mano, sorteo del día y actividad. */
 export async function getFunState(pool: Pool, viewerId: string): Promise<FunState> {

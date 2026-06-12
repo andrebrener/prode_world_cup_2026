@@ -3,7 +3,7 @@
 // Modo Diversión — pedirle el mail al que todavía no lo dejó, para el resumen
 // diario (carta + tabla + libro de pases). "Después" lo esconde por la sesión.
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { saveEmailAction } from "@/lib/actions";
 
@@ -11,10 +11,15 @@ export default function EmailCapture() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [dismissed, setDismissed] = useState(
-    () => typeof window !== "undefined" && sessionStorage.getItem("fun-email-later") === "1",
-  );
+  // sessionStorage solo existe en el cliente: leerlo en el render inicial
+  // rompe la hidratación. Server y primer render coinciden (visible) y el
+  // efecto lo esconde recién después si corresponde.
+  const [dismissed, setDismissed] = useState(false);
   const [pending, start] = useTransition();
+
+  useEffect(() => {
+    if (sessionStorage.getItem("fun-email-later") === "1") setDismissed(true);
+  }, []);
 
   if (dismissed) return null;
 
