@@ -143,7 +143,6 @@ export type PoolAdminData = {
     emoji: string;
     description: string;
     rarity: string;
-    weight: number;
     enabled: boolean;
     sortOrder: number;
     effect: string;
@@ -174,7 +173,6 @@ export async function getPoolAdmin(poolId: string): Promise<PoolAdminData> {
       emoji: d.emoji,
       description: d.description,
       rarity: d.rarity,
-      weight: d.weight,
       enabled: d.enabled,
       sortOrder: d.sortOrder,
       effect: CARD_CATALOG[d.mechanic as CardType] ? outcomeLabel(CARD_CATALOG[d.mechanic as CardType].spec) : "—",

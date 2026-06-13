@@ -714,7 +714,6 @@ export async function addCardDefAction(
     emoji,
     description,
     rarity,
-    weight: 1, // peso uniforme dentro de la rareza
     enabled: true,
     sortOrder: nextOrder,
     createdAt: new Date(),

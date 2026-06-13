@@ -64,23 +64,16 @@ const NO_EFFECT_SET = new Set(NO_EFFECT_CARDS);
 const NO_EFFECT_OPTIONS = ALL_CARDS.filter((c) => NO_EFFECT_SET.has(c.type));
 const EFFECT_OPTIONS = ALL_CARDS.filter((c) => !NO_EFFECT_SET.has(c.type));
 
-/** Sorteo ponderado por `weight` (default 1) sobre un balde, con un roll ya hecho. */
-function weightedPick<T extends { weight?: number }>(options: T[], n: number): T {
-  for (const c of options) {
-    n -= c.weight ?? 1;
-    if (n < 0) return c;
-  }
-  return options[options.length - 1];
+/** Elige un elemento de un balde de forma uniforme (todas las cartas, misma chance). */
+function pickFromBucket<T>(options: T[], parts: string[]): T {
+  return options[roll([...parts, "carta"], options.length)];
 }
-
-const weightSum = (options: { weight?: number }[]): number =>
-  options.reduce((acc, c) => acc + (c.weight ?? 1), 0);
 
 // ---------- Mazo de un prode: carta sorteable ----------
 
 /**
  * Carta resuelta del mazo de un prode: la MECÁNICA (spec/kind/target/window/…)
- * viene del registro en código, lo cosmético (nombre/emoji/descripción/rareza/peso)
+ * viene del registro en código, lo cosmético (nombre/emoji/descripción/rareza)
  * de la fila del mazo, y `defId` apunta a esa fila (para guardarla en fun_cards).
  */
 export type DrawnCard = CardDef & { defId: string };
@@ -93,7 +86,6 @@ export type DeckRow = {
   emoji: string;
   description: string;
   rarity: string;
-  weight: number;
 };
 
 /** Resuelve filas del mazo con su mecánica del registro. Ignora mecánicas desconocidas. */
@@ -108,7 +100,6 @@ export function resolveDeck(rows: DeckRow[]): DrawnCard[] {
       emoji: r.emoji,
       description: r.description,
       rarity: r.rarity as CardRarity,
-      weight: r.weight,
       defId: r.id,
     });
   }
@@ -133,8 +124,7 @@ export function pickDailyCard(
   const parts = [seed.poolId, seed.participantId, seed.date];
   const noEffect = deck.filter((c) => isNoEffect(c));
   const effect = deck.filter((c) => !isNoEffect(c));
-  const pickFrom = (opts: DrawnCard[]) =>
-    weightedPick(opts, roll([...parts, "carta"], weightSum(opts)));
+  const pickFrom = (opts: DrawnCard[]) => pickFromBucket(opts, parts);
 
   // Nivel 1: tramo sin efecto (solo si hay cartas sin efecto habilitadas).
   if (noEffect.length > 0 && roll([...parts, "sinEfecto"], 100) < config.noEffectShare) {
@@ -177,23 +167,21 @@ export function dailyCard(poolId: string, participantId: string, date: string): 
   return pickDailyCard({ poolId, participantId, date }, DEFAULT_DECK_RESOLVED, DEFAULT_FUN_CONFIG)!;
 }
 
-/** Probabilidad efectiva de cada carta en el sorteo diario (sobre 100). */
+/** Probabilidad efectiva de cada carta en el sorteo diario (sobre 100), con el mazo oficial. */
 export function cardOdds(): Record<CardType, number> {
   const odds = {} as Record<CardType, number>;
 
-  // Tramo sin efecto: NO_EFFECT_SHARE repartido por weight entre las sociales.
-  const noEffectTotal = weightSum(NO_EFFECT_OPTIONS);
+  // Tramo sin efecto: NO_EFFECT_SHARE repartido en partes iguales entre las sociales.
   for (const c of NO_EFFECT_OPTIONS) {
-    odds[c.type] = (NO_EFFECT_SHARE * (c.weight ?? 1)) / noEffectTotal;
+    odds[c.type] = NO_EFFECT_SHARE / NO_EFFECT_OPTIONS.length;
   }
 
-  // Tramo con efecto: el resto (100 - NO_EFFECT_SHARE) por rareza y luego weight.
+  // Tramo con efecto: el resto (100 - NO_EFFECT_SHARE) por rareza, uniforme dentro de cada una.
   const effectShare = 100 - NO_EFFECT_SHARE;
   for (const rarity of Object.keys(RARITY_WEIGHTS) as CardRarity[]) {
     const options = EFFECT_OPTIONS.filter((c) => c.rarity === rarity);
-    const total = weightSum(options);
     for (const c of options) {
-      odds[c.type] = (effectShare * RARITY_WEIGHTS[rarity] * (c.weight ?? 1)) / (100 * total);
+      odds[c.type] = (effectShare * RARITY_WEIGHTS[rarity]) / (100 * options.length);
     }
   }
   return odds;

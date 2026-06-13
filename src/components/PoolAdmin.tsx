@@ -469,30 +469,60 @@ function Members({
       </p>
       <div className="mt-4 flex flex-col divide-y divide-border/60">
         {members.map((m) => (
-          <div key={m.id} className="flex items-center justify-between gap-2 py-2">
-            <span className="text-sm font-semibold text-foreground">
-              {m.name}
-              {m.id === meId && <span className="ml-1 text-xs font-normal text-muted">(vos)</span>}
-            </span>
-            {canEditRoles ? (
-              <select
-                value={m.role}
-                disabled={busy}
-                onChange={(e) => run(() => setMemberRoleAction(slug, m.id, e.target.value), "Rol actualizado.")}
-                className="rounded-lg border border-border bg-background px-2 py-1 text-sm"
-              >
-                <option value="owner">Owner</option>
-                <option value="admin">Admin</option>
-                <option value="player">Jugador</option>
-              </select>
-            ) : (
-              <span className="rounded-lg border border-border px-2 py-1 text-xs font-semibold capitalize text-muted">
-                {m.role}
-              </span>
-            )}
-          </div>
+          <MemberRow key={m.id} slug={slug} member={m} canEdit={canEditRoles} isMe={m.id === meId} busy={busy} run={run} />
         ))}
       </div>
     </section>
+  );
+}
+
+function MemberRow({
+  slug,
+  member,
+  canEdit,
+  isMe,
+  busy,
+  run,
+}: {
+  slug: string;
+  member: PoolAdminData["members"][number];
+  canEdit: boolean;
+  isMe: boolean;
+  busy: boolean;
+  run: (fn: () => Promise<{ ok: boolean; error?: string }>, okText: string) => void;
+}) {
+  const [role, setRole] = useState<PoolRole>(member.role);
+  const dirty = role !== member.role;
+  return (
+    <div className="flex items-center justify-between gap-2 py-2">
+      <span className="text-sm font-semibold text-foreground">
+        {member.name}
+        {isMe && <span className="ml-1 text-xs font-normal text-muted">(vos)</span>}
+      </span>
+      {canEdit ? (
+        <div className="flex items-center gap-2">
+          <select
+            value={role}
+            onChange={(e) => setRole(e.target.value as PoolRole)}
+            className="rounded-lg border border-border bg-background px-2 py-1 text-sm"
+          >
+            <option value="owner">Owner</option>
+            <option value="admin">Admin</option>
+            <option value="player">Jugador</option>
+          </select>
+          <button
+            disabled={busy || !dirty}
+            onClick={() => run(() => setMemberRoleAction(slug, member.id, role), "Rol actualizado.")}
+            className="rounded-lg bg-primary px-3 py-1 text-xs font-bold text-primary-ink transition hover:brightness-110 disabled:opacity-40"
+          >
+            Guardar
+          </button>
+        </div>
+      ) : (
+        <span className="rounded-lg border border-border px-2 py-1 text-xs font-semibold capitalize text-muted">
+          {member.role}
+        </span>
+      )}
+    </div>
   );
 }

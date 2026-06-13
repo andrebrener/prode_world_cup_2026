@@ -117,12 +117,6 @@ export type CardDef = {
   blockable: boolean;
   /** input extra que pide la UI al jugarla ("partido": elegís a qué partido se ata) */
   input?: "apodo" | "mensaje" | "imagen" | "partido";
-  /**
-   * Peso dentro de su balde de rareza (default 1). La probabilidad efectiva de
-   * una carta = peso_rareza × (weight / suma de weights del balde).
-   * Para balancear: subí/bajá este número (2 = sale el doble que una de peso 1).
-   */
-  weight?: number;
   description: string;
 };
 
@@ -633,7 +627,6 @@ export type DeckEntry = {
   emoji: string;
   description: string;
   rarity: CardRarity;
-  weight: number;
   enabled: boolean;
   sortOrder: number;
 };
@@ -648,8 +641,6 @@ export const DEFAULT_DECK: DeckEntry[] = ALL_CARDS.map((c, i) => ({
   emoji: c.emoji,
   description: c.description,
   rarity: c.rarity,
-  // Peso uniforme: dentro de una rareza, todas las cartas salen con la misma chance.
-  weight: 1,
   enabled: true,
   sortOrder: i,
 }));

@@ -533,7 +533,6 @@ describe("resolveDeck / pickDailyCard (sorteo por prode)", () => {
     emoji: d.emoji,
     description: d.description,
     rarity: d.rarity,
-    weight: d.weight,
   }));
 
   it("resolveDeck superpone lo cosmético del mazo sobre la mecánica del registro", () => {
@@ -548,7 +547,7 @@ describe("resolveDeck / pickDailyCard (sorteo por prode)", () => {
   it("resolveDeck ignora mecánicas desconocidas", () => {
     const deck = resolveDeck([
       { ...allRows[0] },
-      { id: "x", mechanic: "no-existe", name: "?", emoji: "?", description: "?", rarity: "comun", weight: 1 },
+      { id: "x", mechanic: "no-existe", name: "?", emoji: "?", description: "?", rarity: "comun" },
     ]);
     expect(deck).toHaveLength(1);
   });

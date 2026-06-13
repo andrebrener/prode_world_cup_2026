@@ -48,7 +48,6 @@ export async function ensurePoolDeck(poolId: string, db: Db = defaultDb): Promis
       emoji: d.emoji,
       description: d.description,
       rarity: d.rarity,
-      weight: d.weight,
       enabled: d.enabled,
       sortOrder: d.sortOrder,
       createdAt: now,
