@@ -443,7 +443,7 @@ export const CARD_CATALOG: Record<CardType, CardDef> = {
     window: "day",
     standing: false,
     blockable: false,
-    description: "Te dijeron matambrito de vaca delante de todos: te vas humillado y hoy no sumás.",
+    description: "Te hiciste el canchero haciendo el matambrito de vaca delante de todos: te fue para el orto y hoy no sumás.",
   }),
   ramirez: c({
     type: "ramirez",
