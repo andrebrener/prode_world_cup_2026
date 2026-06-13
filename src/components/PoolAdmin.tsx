@@ -15,7 +15,7 @@ import {
   setMemberRolesAction,
   type CardDefPatch,
 } from "@/lib/actions";
-import { RARITY_LABEL, type CardRarity, type MechanicOption } from "@/lib/cardCatalog";
+import { RARITY_LABEL, NO_EFFECT_CARDS, type CardRarity, type MechanicOption } from "@/lib/cardCatalog";
 import type { PoolAdminData, PoolRole } from "@/lib/db/queries";
 
 type DeckCard = PoolAdminData["deck"][number];
@@ -80,7 +80,7 @@ export default function PoolAdmin({
 
       {isFun ? (
         <>
-          <SorteoConfig slug={slug} config={data.config} busy={busy} run={run} />
+          <SorteoConfig slug={slug} config={data.config} deck={data.deck} busy={busy} run={run} />
           <Deck slug={slug} deck={data.deck} mechanics={mechanics} busy={busy} run={run} />
         </>
       ) : (
@@ -97,18 +97,25 @@ export default function PoolAdmin({
 
 // ---------- Config de sorteo ----------
 
+const NO_EFFECT_MECHANICS = new Set<string>(NO_EFFECT_CARDS);
+
 function SorteoConfig({
   slug,
   config,
+  deck,
   busy,
   run,
 }: {
   slug: string;
   config: PoolAdminData["config"];
+  deck: DeckCard[];
   busy: boolean;
   run: (fn: () => Promise<{ ok: boolean; error?: string }>, okText: string) => void;
 }) {
   const [noEffect, setNoEffect] = useState(config.noEffectShare);
+  // El % sin efecto solo aplica si el mazo tiene al menos una de esas cartas habilitada;
+  // si no, el sorteo lo saltea y reparte todo por rareza (ver pickDailyCard).
+  const hasNoEffectCards = deck.some((c) => c.enabled && NO_EFFECT_MECHANICS.has(c.mechanic));
   const [w, setW] = useState({
     comun: config.weightComun,
     rara: config.weightRara,
@@ -125,7 +132,7 @@ function SorteoConfig({
       <h2 className="wordmark text-2xl">Sorteo</h2>
       <p className="mt-1 text-sm text-muted">
         Cómo se reparten las cartas del día. Primero se decide si toca una carta{" "}
-        <strong>sin efecto</strong> (puro ego); el resto se reparte por rareza.
+        <strong>sin efecto</strong>; el resto se reparte por rareza.
       </p>
 
       {/* Nivel 1 */}
@@ -133,17 +140,34 @@ function SorteoConfig({
         <label className="text-sm font-semibold text-foreground">
           Cartas sin efecto: <span className="text-primary">{noEffect}%</span>
         </label>
+        <p className="mt-1 text-xs text-muted">
+          Cartas de <strong>puro ego</strong> (apodo, foto, mensaje) y la de limpieza (borrón):
+          cambian lo cosmético pero <strong>no tocan el puntaje</strong>. Con este {noEffect}% sale
+          una de esas; con el resto, una carta con efecto.
+        </p>
         <input
           type="range"
           min={0}
           max={100}
           value={noEffect}
           onChange={(e) => setNoEffect(Number(e.target.value))}
-          className="mt-1 w-full accent-[var(--color-primary,#8b3cff)]"
+          className="mt-2 w-full accent-[var(--color-primary,#8b3cff)]"
         />
         <p className="text-xs text-muted">
           El otro <strong>{effectShare}%</strong> son cartas con efecto, repartidas así:
         </p>
+        {!hasNoEffectCards && (
+          <p className="mt-2 rounded-lg border border-danger/40 bg-danger/10 px-3 py-2 text-xs text-danger">
+            ⚠️ El mazo no tiene ninguna carta sin efecto habilitada (apodo, foto, mensaje o borrón),
+            así que este {noEffect}% no aplica: el sorteo lo saltea y siempre reparte por rareza.
+            Agregá una de esas cartas en el mazo para que el porcentaje tenga efecto.
+          </p>
+        )}
+        {hasNoEffectCards && noEffect === 0 && (
+          <p className="mt-2 rounded-lg border border-border bg-background px-3 py-2 text-xs text-muted">
+            Con 0% nunca sale una carta sin efecto: todos los días cae una carta con efecto.
+          </p>
+        )}
       </div>
 
       {/* Nivel 2 */}

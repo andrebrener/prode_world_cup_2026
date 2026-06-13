@@ -550,9 +550,11 @@ export function outcomeLabel(spec: OutcomeSpec): string {
     case "champion_points":
       return `Cobra los puntos del campeón (${spec.amount})`;
     case "shield":
-      return spec.mode === "reflect" ? "Rebota el próximo ataque" : "Bloquea el próximo ataque";
+      return spec.mode === "reflect"
+        ? "Rebota todos los ataques del día"
+        : "Bloquea todos los ataques del día";
     case "streak_shield":
-      return "Tu racha aguanta un partido en cero";
+      return "Tu racha aguanta el día entero en cero";
     case "upstream_forecast":
       return spec.mode === "invert"
         ? "Da vuelta los pronósticos del día de la víctima"
