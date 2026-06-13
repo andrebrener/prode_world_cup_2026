@@ -108,6 +108,22 @@ export const cardDefs = sqliteTable("card_defs", {
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
 });
 
+// Mecánicas del mazo default que un prode borró a propósito. ensurePoolDeck
+// re-siembra (top-up) las cartas del catálogo que falten por `mechanic`; sin esto,
+// borrar una carta oficial no "pega": la próxima carga del admin la repone. Una
+// fila acá le dice a ensurePoolDeck "no la repongas". Se limpia si el admin vuelve
+// a agregar esa mecánica (addCardDefAction).
+export const deckTombstones = sqliteTable(
+  "deck_tombstones",
+  {
+    poolId: text("pool_id")
+      .notNull()
+      .references(() => pools.id, { onDelete: "cascade" }),
+    mechanic: text("mechanic").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.poolId, t.mechanic] })],
+);
+
 // Config del SORTEO diario por prode (editable por los admins). El sorteo tiene
 // dos niveles:
 //   1) noEffectShare% de las tiradas → carta "sin efecto" (puro ego: apodo/foto/…).

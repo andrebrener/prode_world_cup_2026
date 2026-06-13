@@ -17,6 +17,7 @@ import {
   poolMembers,
   funCards,
   cardDefs,
+  deckTombstones,
   poolFunConfig,
 } from "./db/schema";
 import { eq, and, inArray } from "drizzle-orm";
@@ -718,6 +719,10 @@ export async function addCardDefAction(
     sortOrder: nextOrder,
     createdAt: new Date(),
   });
+  // El admin re-agrega esta mecánica: levantá el tombstone si lo había borrado.
+  await db
+    .delete(deckTombstones)
+    .where(and(eq(deckTombstones.poolId, gate.pool.id), eq(deckTombstones.mechanic, base.type)));
   revalidatePath(`/p/${gate.pool.slug}`, "layout");
   return { ok: true, id };
 }
@@ -732,6 +737,13 @@ export async function deleteCardDefAction(
   const [row] = await db.select().from(cardDefs).where(eq(cardDefs.id, defId));
   if (!row || row.poolId !== gate.pool.id) return { ok: false, error: "Carta no encontrada." };
   await db.delete(cardDefs).where(eq(cardDefs.id, defId));
+  // Tombstone: que ensurePoolDeck no reponga esta mecánica en la próxima carga
+  // si era una carta del mazo default (si no, "borrar" no pega). Si quedan otras
+  // cartas con la misma mecánica, igual no la repone (have la tiene) — inofensivo.
+  await db
+    .insert(deckTombstones)
+    .values({ poolId: gate.pool.id, mechanic: row.mechanic })
+    .onConflictDoNothing();
   revalidatePath(`/p/${gate.pool.slug}`, "layout");
   return { ok: true };
 }

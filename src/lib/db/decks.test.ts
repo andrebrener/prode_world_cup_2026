@@ -5,7 +5,7 @@ import { createClient } from "@libsql/client";
 import { drizzle } from "drizzle-orm/libsql";
 import { eq } from "drizzle-orm";
 import * as schema from "./schema";
-import { cardDefs, poolFunConfig, poolMembers, pools, participants } from "./schema";
+import { cardDefs, deckTombstones, poolFunConfig, poolMembers, pools, participants } from "./schema";
 import { ensureFunPool, ensurePoolDeck } from "./decks";
 import { ALL_CARDS, CARD_CATALOG, DEFAULT_DECK, DEFAULT_FUN_CONFIG } from "../cardCatalog";
 
@@ -114,5 +114,18 @@ describe("ensureFunPool", () => {
     const after = await db.select().from(cardDefs).where(eq(cardDefs.poolId, "pool1"));
     expect(after.length).toBe(before.length);
     expect(after.some((d) => d.mechanic === "papas")).toBe(true);
+  });
+
+  it("no repone una mecánica con tombstone (borrar pega y no vuelve)", async () => {
+    await seedPool(db, { mode: "fun" });
+    await ensurePoolDeck("pool1", db);
+
+    // Simulo el borrado del admin: saco la carta + dejo el tombstone de su mecánica.
+    await db.delete(cardDefs).where(eq(cardDefs.mechanic, "papas"));
+    await db.insert(deckTombstones).values({ poolId: "pool1", mechanic: "papas" });
+    await ensurePoolDeck("pool1", db); // no debe reponer "papas"
+
+    const after = await db.select().from(cardDefs).where(eq(cardDefs.poolId, "pool1"));
+    expect(after.some((d) => d.mechanic === "papas")).toBe(false);
   });
 });

@@ -11,7 +11,7 @@
 import { randomUUID } from "crypto";
 import { and, eq } from "drizzle-orm";
 import { db as defaultDb } from "./index";
-import { cardDefs, poolFunConfig, poolMembers, pools } from "./schema";
+import { cardDefs, deckTombstones, poolFunConfig, poolMembers, pools } from "./schema";
 import { DEFAULT_DECK, DEFAULT_FUN_CONFIG, type FunConfig } from "../cardCatalog";
 
 type Db = typeof defaultDb;
@@ -28,15 +28,21 @@ const DEFAULT_CONFIG_ROW = {
 /**
  * Garantiza que el prode tenga su mazo: inserta las cartas del mazo default que
  * todavía no tenga (por `mechanic`). Idempotente: no pisa ni duplica lo existente,
- * así que no le borra al admin sus ediciones ni sus cartas nuevas.
+ * así que no le borra al admin sus ediciones ni sus cartas nuevas. Tampoco repone
+ * las mecánicas que el admin borró a propósito (deckTombstones).
  */
 export async function ensurePoolDeck(poolId: string, db: Db = defaultDb): Promise<void> {
   const existing = await db
     .select({ mechanic: cardDefs.mechanic })
     .from(cardDefs)
     .where(eq(cardDefs.poolId, poolId));
+  const tombstoned = await db
+    .select({ mechanic: deckTombstones.mechanic })
+    .from(deckTombstones)
+    .where(eq(deckTombstones.poolId, poolId));
   const have = new Set(existing.map((r) => r.mechanic));
-  const missing = DEFAULT_DECK.filter((d) => !have.has(d.mechanic));
+  const buried = new Set(tombstoned.map((r) => r.mechanic));
+  const missing = DEFAULT_DECK.filter((d) => !have.has(d.mechanic) && !buried.has(d.mechanic));
   if (missing.length === 0) return;
   const now = new Date();
   await db.insert(cardDefs).values(

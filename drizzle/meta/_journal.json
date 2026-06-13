@@ -15,6 +15,13 @@
       "when": 1781364926126,
       "tag": "0001_violet_major_mapleleaf",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1781380019322,
+      "tag": "0002_simple_blob",
+      "breakpoints": true
     }
   ]
 }
