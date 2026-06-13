@@ -22,9 +22,13 @@ import {
   ALL_CARDS,
   NO_EFFECT_CARDS,
   NO_EFFECT_SHARE,
+  DEFAULT_DECK,
+  DEFAULT_FUN_CONFIG,
+  isNoEffect,
   type CardDef,
   type CardRarity,
   type CardType,
+  type FunConfig,
   type FunMatchOption,
 } from "./cardCatalog";
 
@@ -55,23 +59,13 @@ function roll(parts: string[], max: number): number {
   return h.readUInt32BE(0) % max;
 }
 
-function rarityFor(n: number): CardRarity {
-  // n ∈ [0, 100)
-  if (n < RARITY_WEIGHTS.comun) return "comun";
-  if (n < RARITY_WEIGHTS.comun + RARITY_WEIGHTS.rara) return "rara";
-  if (n < RARITY_WEIGHTS.comun + RARITY_WEIGHTS.rara + RARITY_WEIGHTS.legendaria)
-    return "legendaria";
-  return "maldicion";
-}
-
-// Partición del mazo: las "sin efecto" (puro ego) salen NO_EFFECT_SHARE% de las
-// veces; el resto, con su sorteo por rareza, ocupa el otro tramo.
+// Partición del mazo (catálogo) para cardOdds: las "sin efecto" (puro ego) y el resto.
 const NO_EFFECT_SET = new Set(NO_EFFECT_CARDS);
 const NO_EFFECT_OPTIONS = ALL_CARDS.filter((c) => NO_EFFECT_SET.has(c.type));
 const EFFECT_OPTIONS = ALL_CARDS.filter((c) => !NO_EFFECT_SET.has(c.type));
 
 /** Sorteo ponderado por `weight` (default 1) sobre un balde, con un roll ya hecho. */
-function weightedPick(options: CardDef[], n: number): CardDef {
+function weightedPick<T extends { weight?: number }>(options: T[], n: number): T {
   for (const c of options) {
     n -= c.weight ?? 1;
     if (n < 0) return c;
@@ -79,22 +73,108 @@ function weightedPick(options: CardDef[], n: number): CardDef {
   return options[options.length - 1];
 }
 
-const weightSum = (options: CardDef[]): number =>
+const weightSum = (options: { weight?: number }[]): number =>
   options.reduce((acc, c) => acc + (c.weight ?? 1), 0);
 
-/** Carta del día para un participante en un prode. Determinística. */
-export function dailyCard(poolId: string, participantId: string, date: string): CardDef {
-  // Primer nivel: el 40% de las veces, una carta sin efecto (puro ego).
-  if (roll([poolId, participantId, date, "sinEfecto"], 100) < NO_EFFECT_SHARE) {
-    return weightedPick(
-      NO_EFFECT_OPTIONS,
-      roll([poolId, participantId, date, "carta"], weightSum(NO_EFFECT_OPTIONS)),
-    );
+// ---------- Mazo de un prode: carta sorteable ----------
+
+/**
+ * Carta resuelta del mazo de un prode: la MECÁNICA (spec/kind/target/window/…)
+ * viene del registro en código, lo cosmético (nombre/emoji/descripción/rareza/peso)
+ * de la fila del mazo, y `defId` apunta a esa fila (para guardarla en fun_cards).
+ */
+export type DrawnCard = CardDef & { defId: string };
+
+/** Fila del mazo tal como vive en la DB (lo que necesita resolveDeck). */
+export type DeckRow = {
+  id: string;
+  mechanic: string;
+  name: string;
+  emoji: string;
+  description: string;
+  rarity: string;
+  weight: number;
+};
+
+/** Resuelve filas del mazo con su mecánica del registro. Ignora mecánicas desconocidas. */
+export function resolveDeck(rows: DeckRow[]): DrawnCard[] {
+  const out: DrawnCard[] = [];
+  for (const r of rows) {
+    const base = CARD_CATALOG[r.mechanic as CardType];
+    if (!base) continue;
+    out.push({
+      ...base,
+      name: r.name,
+      emoji: r.emoji,
+      description: r.description,
+      rarity: r.rarity as CardRarity,
+      weight: r.weight,
+      defId: r.id,
+    });
   }
-  // Segundo nivel: sorteo por rareza sobre las cartas con efecto.
-  const rarity = rarityFor(roll([poolId, participantId, date, "rareza"], 100));
-  const options = EFFECT_OPTIONS.filter((c) => c.rarity === rarity);
-  return weightedPick(options, roll([poolId, participantId, date, "carta"], weightSum(options)));
+  return out;
+}
+
+const RARITY_ORDER: CardRarity[] = ["comun", "rara", "legendaria", "maldicion"];
+
+/**
+ * Sorteo diario sobre el mazo de un prode. Determinístico por (pool, jugador, fecha).
+ * Respeta el enable/disable (el deck ya viene filtrado), los pesos por carta y la
+ * config (noEffectShare + pesos de rareza). Tolera baldes vacíos (un prode puede
+ * deshabilitar todas las sin-efecto, o toda una rareza). Devuelve null si el mazo
+ * quedó vacío. Con el mazo y la config default, reproduce el sorteo histórico.
+ */
+export function pickDailyCard(
+  seed: { poolId: string; participantId: string; date: string },
+  deck: DrawnCard[],
+  config: FunConfig,
+): DrawnCard | null {
+  if (deck.length === 0) return null;
+  const parts = [seed.poolId, seed.participantId, seed.date];
+  const noEffect = deck.filter((c) => isNoEffect(c));
+  const effect = deck.filter((c) => !isNoEffect(c));
+  const pickFrom = (opts: DrawnCard[]) =>
+    weightedPick(opts, roll([...parts, "carta"], weightSum(opts)));
+
+  // Nivel 1: tramo sin efecto (solo si hay cartas sin efecto habilitadas).
+  if (noEffect.length > 0 && roll([...parts, "sinEfecto"], 100) < config.noEffectShare) {
+    return pickFrom(noEffect);
+  }
+  // Nivel 2: tramo con efecto. Si no quedó ninguna con efecto, cae a las sin efecto.
+  if (effect.length === 0) return noEffect.length ? pickFrom(noEffect) : null;
+
+  // Sorteo por rareza, solo entre las rarezas presentes y con sus pesos de config.
+  const present = RARITY_ORDER.filter((r) => effect.some((c) => c.rarity === r));
+  const total = present.reduce((a, r) => a + (config.weights[r] ?? 0), 0);
+  let rarity: CardRarity;
+  if (total > 0) {
+    let acc = roll([...parts, "rareza"], total);
+    rarity = present[present.length - 1];
+    for (const r of present) {
+      acc -= config.weights[r] ?? 0;
+      if (acc < 0) {
+        rarity = r;
+        break;
+      }
+    }
+  } else {
+    // Todos los pesos presentes en 0: repartí parejo entre las rarezas presentes.
+    rarity = present[roll([...parts, "rareza"], present.length)];
+  }
+  return pickFrom(effect.filter((c) => c.rarity === rarity));
+}
+
+/** Mazo oficial ya resuelto (para el wrapper de back-compat y los tests). */
+const DEFAULT_DECK_RESOLVED: DrawnCard[] = resolveDeck(
+  DEFAULT_DECK.map((d) => ({ id: d.mechanic, ...d })),
+);
+
+/**
+ * Carta del día con el mazo y la config OFICIALES (kbarulo). Determinística.
+ * Para el sorteo real por prode, usá pickDailyCard con el mazo y la config del prode.
+ */
+export function dailyCard(poolId: string, participantId: string, date: string): DrawnCard {
+  return pickDailyCard({ poolId, participantId, date }, DEFAULT_DECK_RESOLVED, DEFAULT_FUN_CONFIG)!;
 }
 
 /** Probabilidad efectiva de cada carta en el sorteo diario (sobre 100). */
@@ -444,80 +524,68 @@ export function applyCardEffects(opts: {
   const zeroings: { member: string; matchId: string }[] = [];
 
   for (const card of cards) {
+    const def = CARD_CATALOG[card.cardType];
+    if (!def) continue; // tipo desconocido (catálogo viejo): se ignora.
     const affected = affectedIdOf(card);
-    switch (card.cardType) {
-      case "honguito": {
-        // Quirúrgica: doblás el partido que elegiste (effectMatchId), el que sea.
-        const m = map(card.ownerId);
-        if (card.effectMatchId && card.effectMatchId in m) {
-          m[card.effectMatchId] = m[card.effectMatchId] * 2;
-        }
+    const spec = def.spec;
+    switch (spec.outcome) {
+      case "multiply_match": {
+        // Multiplica los puntos (floor) del/los partido(s) del scope. Cubre
+        // honguito (chosen ×2), doblete (first ×2), diego (first ×3),
+        // cábala (all ×2) y mufa (first ×0.5 → la mitad para abajo).
+        // affected ya resuelve self vs víctima (y los rebotes).
+        const m = map(affected);
+        const ids =
+          spec.scope === "all_of_day"
+            ? dayIds(card)
+            : spec.scope === "chosen"
+              ? card.effectMatchId
+                ? [card.effectMatchId]
+                : []
+              : (() => {
+                  const id = firstOfDay(card);
+                  return id ? [id] : [];
+                })();
+        for (const id of ids) if (id in m) m[id] = Math.floor(m[id] * spec.factor);
         break;
       }
-      case "doblete":
-      case "diego": {
-        // Primer partido del día: ×2 (doblete) / ×3 (El Diego).
-        const mult = card.cardType === "diego" ? 3 : 2;
-        const m = map(card.ownerId);
-        const id = firstOfDay(card);
-        if (id && id in m) m[id] = m[id] * mult;
-        break;
-      }
-      case "yapa": {
-        const m = map(card.ownerId);
-        const id = firstOfDay(card);
-        if (id && (m[id] ?? 0) > 0) m[id] += 1;
-        break;
-      }
-      case "mufa": {
+      case "bonus_if_scored": {
+        // +amount al primer partido del día solo si ahí sumaste (>0). La Yapa.
         const m = map(affected);
         const id = firstOfDay(card);
-        if (id && id in m) m[id] = Math.floor(m[id] / 2);
+        if (id && (m[id] ?? 0) > 0) m[id] += spec.amount;
         break;
       }
-      case "cabala": {
-        const m = map(card.ownerId);
-        for (const id of dayIds(card)) if (id in m) m[id] = m[id] * 2;
-        break;
-      }
-      case "costillar": {
+      case "floor_match_points": {
         // Piso de puntos: en cada partido del día sumás al menos lo de acertar
         // el resultado (3 grupos / 4 eliminatoria), pegues o falles. Si ya tenías
         // más, te lo quedás. Como todos quedan ≥ piso (> 0), la racha del día
-        // queda protegida sola (sin override).
-        const m = map(card.ownerId);
+        // queda protegida sola (sin override). Costillar.
+        const m = map(affected);
         for (const id of dayIds(card)) m[id] = Math.max(m[id] ?? 0, matchFloor(id));
         break;
       }
-      case "caido": {
-        // 0 puntos, pero los partidos que IGUAL hubiese acertado mantienen la racha.
+      case "zero_day": {
+        // 0 puntos en el día. `streak` decide el destino de la racha:
+        //  - protect_on_hit: los partidos que IGUAL hubiese acertado la mantienen (caído).
+        //  - skip: el día no cuenta ni a favor ni en contra (filtro).
+        //  - none: solo el cero, la racha se corta sola (maldiciones nemo/heladera/matambrito).
         const m = map(affected);
         for (const id of dayIds(card)) {
-          if ((m[id] ?? 0) > 0) override(affected, id, "protect");
+          if (spec.streak === "protect_on_hit") {
+            if ((m[id] ?? 0) > 0) override(affected, id, "protect");
+          } else if (spec.streak === "skip") {
+            override(affected, id, "skip");
+          }
           zeroings.push({ member: affected, matchId: id });
         }
         break;
       }
-      case "filtro": {
-        // 0 puntos y el día no cuenta para la racha (ni a favor ni en contra).
-        for (const id of dayIds(card)) {
-          override(affected, id, "skip");
-          zeroings.push({ member: affected, matchId: id });
-        }
-        break;
-      }
-      case "nemo":
-      case "heladera":
-      case "matambrito": {
-        // Maldición: 0 en todos los partidos del día.
-        for (const id of dayIds(card)) zeroings.push({ member: card.ownerId, matchId: id });
-        break;
-      }
-      // ramirez/papas/speed/pedo → pase de planos.
-      // escudo/espejito → se resuelven al jugarse el ataque.
-      // duelo → pase 3. var → pase 2. caldeador/piedrambre → upstream (dan vuelta el
-      // pronóstico al armar la base). sociales/borron → no tocan puntos.
-      // saibamba → en queries (bonus del campeón, vive en los extras).
+      // var_bonus → pase 2. steal_day_points → pase 3. flat_points → pase 4.
+      // shield/streak_shield → se resuelven al jugarse el ataque.
+      // upstream_forecast (caldeador/piedrambre) → dan vuelta el pronóstico al
+      // armar la base (getLeaderboard). champion_points (saibamba) → en queries,
+      // vive en los extras. social_overlay/clear_social → no tocan puntos.
       default:
         break;
     }
@@ -532,7 +600,8 @@ export function applyCardEffects(opts: {
   // ---- Pase 2: VAR (primer partido con puntos posterior a jugarlo; cada VAR
   //      agarra un partido distinto si hay varios) ----
   for (const card of cards) {
-    if (card.cardType !== "var") continue;
+    const spec = CARD_CATALOG[card.cardType]?.spec;
+    if (spec?.outcome !== "var_bonus") continue;
     const m = map(card.ownerId);
     const used = (varAppliedTo[card.ownerId] ??= []);
     const playedAt = card.playedAt.getTime();
@@ -543,14 +612,15 @@ export function applyCardEffects(opts: {
       );
     });
     if (hit) {
-      m[hit] += 2;
+      m[hit] += spec.amount;
       used.push(hit);
     }
   }
 
   // ---- Pase 3: Matambre de cerdo — robo de los puntos del día (ya modificados) ----
   for (const card of cards) {
-    if (card.cardType !== "duelo" || !card.targetId) continue;
+    const spec = CARD_CATALOG[card.cardType]?.spec;
+    if (spec?.outcome !== "steal_day_points" || !card.targetId) continue;
     const ids = dayIds(card);
     if (ids.length === 0) continue;
     // Si rebotó en un espejito, el robo se invierte: la víctima le afana al dueño.
@@ -565,28 +635,20 @@ export function applyCardEffects(opts: {
     add(flat, stealer, loot);
   }
 
-  // ---- Pase 4: planos (robos directos, maldición de plata) ----
+  // ---- Pase 4: planos (puntos directos, robo plano, maldición de plata) ----
+  // flat_points: selfAmount al dueño; si hay victimAmount + víctima, también a
+  // ella (con rebote invertido). Cubre papas (+5), speed (+2), ramirez (−5) y
+  // pedo (+5 dueño / −5 víctima).
   for (const card of cards) {
-    switch (card.cardType) {
-      case "papas":
-        add(flat, card.ownerId, 5);
-        break;
-      case "speed":
-        add(flat, card.ownerId, 2);
-        break;
-      case "ramirez":
-        add(flat, card.ownerId, -5);
-        break;
-      case "pedo": {
-        if (!card.targetId) break;
-        const to = card.reflected ? card.targetId : card.ownerId;
-        const from = card.reflected ? card.ownerId : card.targetId;
-        add(flat, to, 5);
-        add(flat, from, -5);
-        break;
-      }
-      default:
-        break;
+    const spec = CARD_CATALOG[card.cardType]?.spec;
+    if (spec?.outcome !== "flat_points") continue;
+    if (spec.victimAmount != null && card.targetId) {
+      const to = card.reflected ? card.targetId : card.ownerId;
+      const from = card.reflected ? card.ownerId : card.targetId;
+      add(flat, to, spec.selfAmount);
+      add(flat, from, spec.victimAmount);
+    } else {
+      add(flat, card.ownerId, spec.selfAmount);
     }
   }
 

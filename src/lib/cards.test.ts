@@ -12,6 +12,8 @@ import {
   caldeadorKoPred,
   resolvePlay,
   applyCardEffects,
+  resolveDeck,
+  pickDailyCard,
   type PlayedCardEffect,
   type PlayInput,
 } from "./cards";
@@ -19,6 +21,9 @@ import {
   CARD_CATALOG,
   RARITY_WEIGHTS,
   NO_EFFECT_CARDS,
+  DEFAULT_DECK,
+  DEFAULT_FUN_CONFIG,
+  isNoEffect,
   type CardType,
 } from "./cardCatalog";
 import { MATCHES } from "./fixtures";
@@ -503,5 +508,81 @@ describe("applyCardEffects", () => {
     });
     expect(r.points).toEqual(base);
     expect(r.delta).toEqual({ ana: 0, beto: 0 });
+  });
+});
+
+describe("resolveDeck / pickDailyCard (sorteo por prode)", () => {
+  // Mazo oficial como filas de DB (id = mechanic para los tests).
+  const allRows = DEFAULT_DECK.map((d) => ({
+    id: d.mechanic,
+    mechanic: d.mechanic,
+    name: d.name,
+    emoji: d.emoji,
+    description: d.description,
+    rarity: d.rarity,
+    weight: d.weight,
+  }));
+
+  it("resolveDeck superpone lo cosmético del mazo sobre la mecánica del registro", () => {
+    const deck = resolveDeck([{ ...allRows.find((r) => r.mechanic === "doblete")!, name: "La Tractora", emoji: "🚜" }]);
+    expect(deck).toHaveLength(1);
+    expect(deck[0].name).toBe("La Tractora"); // del mazo
+    expect(deck[0].emoji).toBe("🚜"); // del mazo
+    expect(deck[0].spec).toEqual(CARD_CATALOG.doblete.spec); // del registro
+    expect(deck[0].defId).toBe("doblete");
+  });
+
+  it("resolveDeck ignora mecánicas desconocidas", () => {
+    const deck = resolveDeck([
+      { ...allRows[0] },
+      { id: "x", mechanic: "no-existe", name: "?", emoji: "?", description: "?", rarity: "comun", weight: 1 },
+    ]);
+    expect(deck).toHaveLength(1);
+  });
+
+  it("paridad: con el mazo y la config default coincide con dailyCard", () => {
+    const deck = resolveDeck(allRows);
+    for (let i = 0; i < 200; i++) {
+      const a = dailyCard("pool", `p${i}`, "2026-06-20");
+      const b = pickDailyCard(
+        { poolId: "pool", participantId: `p${i}`, date: "2026-06-20" },
+        deck,
+        DEFAULT_FUN_CONFIG,
+      );
+      expect(b?.type).toBe(a.type);
+    }
+  });
+
+  it("si el prode deshabilita las sin-efecto, el sorteo nunca devuelve una", () => {
+    const deck = resolveDeck(allRows.filter((r) => !isNoEffect(CARD_CATALOG[r.mechanic as CardType])));
+    for (let i = 0; i < 500; i++) {
+      const d = pickDailyCard({ poolId: "pool", participantId: `p${i}`, date: "d" }, deck, DEFAULT_FUN_CONFIG);
+      expect(d && isNoEffect(d)).toBe(false);
+    }
+  });
+
+  it("si el prode deshabilita una rareza, esa rareza no sale", () => {
+    const deck = resolveDeck(allRows.filter((r) => r.rarity !== "legendaria"));
+    for (let i = 0; i < 500; i++) {
+      const d = pickDailyCard({ poolId: "pool", participantId: `p${i}`, date: "d" }, deck, DEFAULT_FUN_CONFIG);
+      expect(d?.rarity).not.toBe("legendaria");
+    }
+  });
+
+  it("re-skin: la carta sorteada lleva el nombre del mazo, no el del catálogo", () => {
+    const deck = resolveDeck(
+      allRows.filter((r) => r.mechanic === "doblete").map((r) => ({ ...r, name: "La Tractora" })),
+    );
+    const d = pickDailyCard({ poolId: "p", participantId: "x", date: "d" }, deck, {
+      noEffectShare: 0,
+      weights: DEFAULT_FUN_CONFIG.weights,
+    });
+    expect(d?.type).toBe("doblete");
+    expect(d?.name).toBe("La Tractora");
+    expect(d?.defId).toBe("doblete");
+  });
+
+  it("mazo vacío → null (todo deshabilitado)", () => {
+    expect(pickDailyCard({ poolId: "p", participantId: "x", date: "d" }, [], DEFAULT_FUN_CONFIG)).toBeNull();
   });
 });

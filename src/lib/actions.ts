@@ -41,7 +41,8 @@ import {
   type CardType,
   type PoolMode,
 } from "./cardCatalog";
-import { bindDay, dailyCard, funToday, resolvePlay } from "./cards";
+import { bindDay, funToday, resolveDeck, pickDailyCard, resolvePlay, type DrawnCard } from "./cards";
+import { ensureFunPool, getPoolDeckRows, getPoolFunConfig } from "./db/decks";
 import { renderAttackEmail } from "./funDigest";
 import { sendEmail } from "./mailer";
 import { matchPoints } from "./scoring";
@@ -857,7 +858,7 @@ async function drawAndPlay(
   pool: NonNullable<Awaited<ReturnType<typeof getPoolBySlug>>>,
   participantId: string,
   drawDate: string,
-  def: CardDef,
+  def: DrawnCard,
 ): Promise<DrawResult> {
   const isCurse = def.kind === "curse";
   const now = new Date();
@@ -870,6 +871,7 @@ async function drawAndPlay(
       participantId,
       drawDate,
       cardType: def.type,
+      cardDefId: def.defId,
       // Maldición: se juega sola al reclamar, atada al día (o próximo día con partidos).
       status: isCurse ? "played" : "held",
       drawnAt: now,
@@ -924,8 +926,20 @@ export async function claimDailyCardAction(slug: string): Promise<DrawResult> {
     return { ok: false, error: "Tenés una carta sin resolver. Elegí la víctima primero." };
   }
 
+  // El mazo del prode (re-skin) y su config de sorteo mandan acá: qué cartas
+  // salen, con qué probabilidad y cómo se llaman. La mecánica sigue en código.
+  await ensureFunPool(pool.id); // idempotente: clona el mazo oficial si falta
+  const [deckRows, config] = await Promise.all([
+    getPoolDeckRows(pool.id),
+    getPoolFunConfig(pool.id),
+  ]);
+  const deck = resolveDeck(deckRows);
   const today = funToday();
-  return drawAndPlay(pool, id, today, dailyCard(pool.id, id, today));
+  const drawn = pickDailyCard({ poolId: pool.id, participantId: id, date: today }, deck, config);
+  if (!drawn) {
+    return { ok: false, error: "Este prode no tiene cartas habilitadas." };
+  }
+  return drawAndPlay(pool, id, today, drawn);
 }
 
 /**

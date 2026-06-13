@@ -435,6 +435,7 @@ export const CARD_CATALOG: Record<CardType, CardDef> = {
   }),
   matambrito: c({
     type: "matambrito",
+    spec: { outcome: "zero_day", streak: "none" },
     name: "Matambrito de vaca",
     emoji: "🐄",
     rarity: "maldicion",
@@ -447,6 +448,7 @@ export const CARD_CATALOG: Record<CardType, CardDef> = {
   }),
   ramirez: c({
     type: "ramirez",
+    spec: { outcome: "flat_points", selfAmount: -5 },
     name: "Le prestaste plata a un Ramirez",
     emoji: "💸",
     rarity: "maldicion",
@@ -461,6 +463,7 @@ export const CARD_CATALOG: Record<CardType, CardDef> = {
   // ---------- Sociales (no tocan puntos: tocan el ego) ----------
   apodo: c({
     type: "apodo",
+    spec: { outcome: "social_overlay", kind: "apodo" },
     name: "Los apodos del Droco",
     emoji: "🏷️",
     rarity: "comun",
@@ -474,6 +477,7 @@ export const CARD_CATALOG: Record<CardType, CardDef> = {
   }),
   foto: c({
     type: "foto",
+    spec: { outcome: "social_overlay", kind: "foto" },
     name: "Foto trucha",
     emoji: "📸",
     rarity: "rara",
@@ -487,6 +491,7 @@ export const CARD_CATALOG: Record<CardType, CardDef> = {
   }),
   microfono: c({
     type: "microfono",
+    spec: { outcome: "social_overlay", kind: "mensaje" },
     name: "Micrófono abierto",
     emoji: "🎤",
     rarity: "comun",
@@ -500,6 +505,7 @@ export const CARD_CATALOG: Record<CardType, CardDef> = {
   }),
   borron: c({
     type: "borron",
+    spec: { outcome: "clear_social" },
     name: "Borrón y cuenta nueva",
     emoji: "🧽",
     rarity: "comun",
@@ -537,6 +543,81 @@ export const RARITY_LABEL: Record<CardRarity, string> = {
   rara: "Rara",
   legendaria: "Legendaria",
   maldicion: "Maldición",
+};
+
+/** ¿La carta es "sin efecto" (puro ego)? Se decide por su mecánica, no por su nombre. */
+export function isNoEffect(def: Pick<CardDef, "spec">): boolean {
+  return def.spec.outcome === "social_overlay" || def.spec.outcome === "clear_social";
+}
+
+/** Campos cosméticos editables por prode (re-skin). */
+export type CardCosmetic = {
+  name: string;
+  emoji: string;
+  description: string;
+  rarity: CardRarity;
+};
+
+/**
+ * CardDef "de display" = la MECÁNICA del registro (por `mechanic`) con lo cosmético
+ * del mazo del prode superpuesto. Si no hay override (carta vieja sin def del mazo),
+ * cae al catálogo oficial. Devuelve null si la mecánica no existe.
+ */
+export function cardView(
+  mechanic: string,
+  override?: Partial<CardCosmetic> | null,
+): CardDef | null {
+  const base = CARD_CATALOG[mechanic as CardType];
+  if (!base) return null;
+  if (!override) return base;
+  return {
+    ...base,
+    name: override.name ?? base.name,
+    emoji: override.emoji ?? base.emoji,
+    description: override.description ?? base.description,
+    rarity: override.rarity ?? base.rarity,
+  };
+}
+
+// ---------- Mazo default por prode (re-skin) ----------
+
+/** Una carta del mazo de un prode: mecánica de origen + lo cosmético/sorteo editable. */
+export type DeckEntry = {
+  mechanic: CardType;
+  name: string;
+  emoji: string;
+  description: string;
+  rarity: CardRarity;
+  weight: number;
+  enabled: boolean;
+  sortOrder: number;
+};
+
+/**
+ * Mazo oficial (las cartas de kbarulo), derivado del catálogo en su orden de
+ * declaración. Es el punto de partida que se clona a cada prode fun.
+ */
+export const DEFAULT_DECK: DeckEntry[] = ALL_CARDS.map((c, i) => ({
+  mechanic: c.type,
+  name: c.name,
+  emoji: c.emoji,
+  description: c.description,
+  rarity: c.rarity,
+  weight: c.weight ?? 1,
+  enabled: true,
+  sortOrder: i,
+}));
+
+/** Config de sorteo por prode (el 40% sin efecto + los pesos de rareza). */
+export type FunConfig = {
+  noEffectShare: number;
+  weights: Record<CardRarity, number>;
+};
+
+/** Config de sorteo default (los valores oficiales). */
+export const DEFAULT_FUN_CONFIG: FunConfig = {
+  noEffectShare: NO_EFFECT_SHARE,
+  weights: { ...RARITY_WEIGHTS },
 };
 
 /** Máximo de cartas en mano por prode: con la mano llena no se puede reclamar la del día. */

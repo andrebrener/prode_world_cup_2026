@@ -8,6 +8,13 @@
       "when": 1781361339786,
       "tag": "0000_fresh_salo",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1781364926126,
+      "tag": "0001_violet_major_mapleleaf",
+      "breakpoints": true
     }
   ]
 }

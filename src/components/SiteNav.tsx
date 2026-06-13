@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import Avatar from "./Avatar";
 
 type NavPool = { name: string; slug: string; mode?: "normal" | "fun" };
@@ -16,6 +16,8 @@ export default function SiteNav({
   me?: NavMe | null;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const [refreshing, startRefresh] = useTransition();
   const [open, setOpen] = useState(false);
   const [switcherOpen, setSwitcherOpen] = useState(false);
 
@@ -77,6 +79,29 @@ export default function SiteNav({
         </Link>
 
         <div className="flex items-center gap-2">
+          {/* Botón de refresh (respaldo del pull-to-refresh) */}
+          <button
+            type="button"
+            onClick={() => startRefresh(() => router.refresh())}
+            disabled={refreshing}
+            aria-label="Actualizar"
+            title="Actualizar"
+            className="grid h-10 w-10 place-items-center rounded-lg border border-border text-foreground transition hover:bg-surface disabled:opacity-60"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              className={`h-5 w-5 ${refreshing ? "animate-spin text-primary" : ""}`}
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+              <path d="M21 3v6h-6" />
+            </svg>
+          </button>
+
           {/* Switcher de prode (cuando hay prodes) */}
           {pools.length > 0 && (
             <div className="relative">

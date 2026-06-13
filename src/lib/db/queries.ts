@@ -11,6 +11,7 @@ import {
   pools,
   poolMembers,
   funCards,
+  cardDefs,
 } from "./schema";
 import { eq, inArray, sql } from "drizzle-orm";
 import {
@@ -25,7 +26,14 @@ import type { Score } from "../scoring";
 import { resolveBracket, koKickoff, type KoResult, type ResolvedKoMatch } from "../bracket";
 import { allGroupStandings } from "../standings";
 import { MATCHES } from "../fixtures";
-import { CARD_CATALOG, type CardDef, type CardType, type PoolMode } from "../cardCatalog";
+import {
+  CARD_CATALOG,
+  cardView,
+  type CardCosmetic,
+  type CardDef,
+  type CardType,
+  type PoolMode,
+} from "../cardCatalog";
 import {
   applyCardEffects,
   affectedIdOf,
@@ -192,11 +200,16 @@ export type FunLeaderboardInfo = {
   streakBonus: number;
   /** Partidos en 0 salvados (Fernet de Fernemo o cartas de día). */
   protectedMatchIds: string[];
-  /** Standings activos del jugador (escudo / espejito / aguante / var sin consumir). */
-  activeStandings: CardType[];
+  /**
+   * Standings activos del jugador (escudo / espejito / aguante / var sin consumir).
+   * Llevan el nombre/emoji del mazo del prode (re-skin), no los del catálogo.
+   */
+  activeStandings: { cardType: CardType; name: string; emoji: string; rarity: CardCosmetic["rarity"] }[];
   /** Efectos pendientes: atados a un partido sin jugar o al día en curso. */
   pendingEffects: {
     cardType: CardType;
+    name: string;
+    emoji: string;
     matchId: string | null;
     day: string | null;
     fromName: string | null;
@@ -364,7 +377,9 @@ export async function getLeaderboard(pool: Pool): Promise<LeaderboardRow[]> {
   }
 
   const fun =
-    pool.mode === "fun" ? resolveFun(funCardRows, ptsByMember, bracket, people) : null;
+    pool.mode === "fun"
+      ? resolveFun(funCardRows, ptsByMember, bracket, people, await loadDefsById(poolId))
+      : null;
 
   // Sai Bamba: el vidente le garantiza al que la jugó los puntos del campeón.
   const saibambaIds = new Set(
@@ -427,6 +442,35 @@ function kickoffOf(matchId: string): string | null {
 
 type FunCardRow = typeof funCards.$inferSelect;
 
+/** defId → cosmético del mazo del prode (re-skin). */
+export type DefsById = Map<string, CardCosmetic>;
+
+/** Carga las defs del mazo de un prode indexadas por id (para resolver el display). */
+async function loadDefsById(poolId: string): Promise<DefsById> {
+  const rows = await db
+    .select({
+      id: cardDefs.id,
+      name: cardDefs.name,
+      emoji: cardDefs.emoji,
+      description: cardDefs.description,
+      rarity: cardDefs.rarity,
+    })
+    .from(cardDefs)
+    .where(eq(cardDefs.poolId, poolId));
+  return new Map(rows.map((r) => [r.id, { ...r, rarity: r.rarity as CardCosmetic["rarity"] }]));
+}
+
+/**
+ * Resuelve el CardDef de DISPLAY de una carta jugada: mecánica del registro +
+ * cosmético del mazo del prode (si la carta apunta a una def). Fallback al catálogo.
+ */
+function viewOf(
+  c: { cardType: string; cardDefId: string | null },
+  defsById: DefsById,
+): CardDef | null {
+  return cardView(c.cardType, c.cardDefId ? (defsById.get(c.cardDefId) ?? null) : null);
+}
+
 type FunResolution = {
   effects: ReturnType<typeof applyCardEffects>;
   // pureTotal se completa en getLeaderboard (acá no hay extras ni puntos puros).
@@ -480,8 +524,11 @@ function resolveFun(
   ptsByMember: Record<string, MatchPointsMap>,
   bracket: BracketState,
   people: { id: string; name: string }[],
+  defsById: DefsById,
 ): FunResolution {
   const played = cards.filter((c) => c.status === "played" && c.playedAt);
+  // Carta jugada por id, para resolver su nombre/emoji del mazo del prode.
+  const rowById = new Map(played.map((c) => [c.id, c]));
   const nameById = Object.fromEntries(people.map((p) => [p.id, p.name]));
   const today = funToday();
 
@@ -545,13 +592,18 @@ function resolveFun(
       overrides: effects.streakOverrides[person.id],
     });
 
-    const activeStandings: CardType[] = [];
-    if (mine.some((c) => c.cardType === "escudo")) activeStandings.push("escudo");
-    if (mine.some((c) => c.cardType === "espejito")) activeStandings.push("espejito");
-    if (aguantes.length > streak.protectionsUsed) activeStandings.push("aguante");
+    const activeStandings: FunLeaderboardInfo["activeStandings"] = [];
+    const standingView = (type: CardType) => {
+      const card = mine.find((c) => c.cardType === type);
+      const v = (card ? viewOf(card, defsById) : CARD_CATALOG[type]) ?? CARD_CATALOG[type];
+      return { cardType: type, name: v?.name ?? type, emoji: v?.emoji ?? "🃏", rarity: v?.rarity ?? "comun" };
+    };
+    if (mine.some((c) => c.cardType === "escudo")) activeStandings.push(standingView("escudo"));
+    if (mine.some((c) => c.cardType === "espejito")) activeStandings.push(standingView("espejito"));
+    if (aguantes.length > streak.protectionsUsed) activeStandings.push(standingView("aguante"));
     const varsPlayed = mine.filter((c) => c.cardType === "var").length;
     if (varsPlayed > (effects.varAppliedTo[person.id]?.length ?? 0))
-      activeStandings.push("var");
+      activeStandings.push(standingView("var"));
 
     // Efectos pendientes que afectan a esta persona: atados a un partido sin
     // resultado, o al día en curso.
@@ -562,15 +614,21 @@ function resolveFun(
         if (c.effectDate) return c.effectDate >= today;
         return false;
       })
-      .map((c) => ({
-        cardType: c.cardType,
-        matchId: c.effectMatchId,
-        day: c.effectDate,
-        fromName:
-          CARD_CATALOG[c.cardType]?.kind === "attack" && c.ownerId !== person.id
-            ? (nameById[c.ownerId] ?? null)
-            : null,
-      }));
+      .map((c) => {
+        const row = rowById.get(c.id);
+        const v = row ? viewOf(row, defsById) : CARD_CATALOG[c.cardType];
+        return {
+          cardType: c.cardType,
+          name: v?.name ?? c.cardType,
+          emoji: v?.emoji ?? "🃏",
+          matchId: c.effectMatchId,
+          day: c.effectDate,
+          fromName:
+            CARD_CATALOG[c.cardType]?.kind === "attack" && c.ownerId !== person.id
+              ? (nameById[c.ownerId] ?? null)
+              : null,
+        };
+      });
 
     infoByMember[person.id] = {
       cardDelta: effects.delta[person.id] ?? 0,
@@ -597,6 +655,9 @@ export type FunFeedItem = {
   ownerName: string;
   targetName: string | null;
   cardType: CardType;
+  /** Nombre/emoji del mazo del prode (re-skin), no los del catálogo. */
+  name: string;
+  emoji: string;
   /** true si el ataque rebotó contra un Anulo mufa. */
   blocked: boolean;
   /** true si rebotó en un Espejito y volvió al que la tiró. */
@@ -624,9 +685,10 @@ const FEED_LIMIT = 1500;
 
 /** Estado del modo Diversión para el visitante: mano, sorteo del día y actividad. */
 export async function getFunState(pool: Pool, viewerId: string): Promise<FunState> {
-  const [cards, memberIds] = await Promise.all([
+  const [cards, memberIds, defsById] = await Promise.all([
     db.select().from(funCards).where(eq(funCards.poolId, pool.id)),
     getPoolMemberIds(pool.id),
+    loadDefsById(pool.id),
   ]);
   const people = memberIds.length
     ? await db.select().from(participants).where(inArray(participants.id, memberIds))
@@ -643,7 +705,7 @@ export async function getFunState(pool: Pool, viewerId: string): Promise<FunStat
       .sort((a, b) => a.drawnAt.getTime() - b.drawnAt.getTime())
       .map((c) => ({
         id: c.id,
-        def: CARD_CATALOG[c.cardType as CardType],
+        def: viewOf(c, defsById) ?? CARD_CATALOG[c.cardType as CardType],
         drawDate: c.drawDate,
       }))[0] ?? null;
 
@@ -654,7 +716,7 @@ export async function getFunState(pool: Pool, viewerId: string): Promise<FunStat
     .sort((a, b) => b.playedAt!.getTime() - a.playedAt!.getTime())
     .slice(0, FEED_LIMIT)
     .map((c) => {
-      const def = CARD_CATALOG[c.cardType as CardType];
+      const def = viewOf(c, defsById) ?? CARD_CATALOG[c.cardType as CardType];
       const payload = parsePayload(c.payload);
       const detail =
         c.cardType === "apodo"
@@ -669,6 +731,8 @@ export async function getFunState(pool: Pool, viewerId: string): Promise<FunStat
         ownerName: nameById[c.participantId] ?? "—",
         targetName: c.targetParticipantId ? (nameById[c.targetParticipantId] ?? "—") : null,
         cardType: c.cardType as CardType,
+        name: def?.name ?? c.cardType,
+        emoji: def?.emoji ?? "🃏",
         blocked: c.status === "blocked",
         reflected: c.reflected,
         curse: def?.kind === "curse",

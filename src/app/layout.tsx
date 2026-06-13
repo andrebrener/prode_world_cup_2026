@@ -3,6 +3,7 @@ import { Geist } from "next/font/google";
 import SiteNav from "@/components/SiteNav";
 import WorldCupMark from "@/components/WorldCupMark";
 import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
+import PullToRefresh from "@/components/PullToRefresh";
 import { getParticipantId } from "@/lib/session";
 import { getParticipant, getUserPools } from "@/lib/db/queries";
 import "./globals.css";
@@ -59,7 +60,9 @@ export default async function RootLayout({
           </div>
         </div>
         <SiteNav pools={navPools} me={navMe} />
-        <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-6">{children}</main>
+        <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-6">
+          <PullToRefresh>{children}</PullToRefresh>
+        </main>
         <footer className="flex flex-col items-center gap-3 border-t border-border py-8 text-center text-xs text-muted">
           <WorldCupMark size="sm" />
           <span>Prode Mundial 2026 · hecho entre amigos</span>

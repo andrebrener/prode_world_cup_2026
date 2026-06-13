@@ -57,6 +57,9 @@ export const pools = sqliteTable("pools", {
 });
 
 // Quién está en qué prode.
+// role: owner (creador, único, gestiona todo) | admin (gestiona cartas/resultados/
+//       bracket) | player (juega y nada más). Sobre honor-system: la auth es el
+//       nombre en una cookie, así que el rol da estructura, no seguridad fuerte.
 export const poolMembers = sqliteTable(
   "pool_members",
   {
@@ -66,10 +69,63 @@ export const poolMembers = sqliteTable(
     participantId: text("participant_id")
       .notNull()
       .references(() => participants.id, { onDelete: "cascade" }),
+    role: text("role").notNull().default("player"),
     joinedAt: integer("joined_at", { mode: "timestamp" }).notNull(),
   },
   (table) => [primaryKey({ columns: [table.poolId, table.participantId] })],
 );
+
+// ---------- Modo Diversión: mazo de cartas por prode (re-skin) ----------
+
+// El mazo configurable de un prode. Cada fila es una carta del prode: toma su
+// MECÁNICA (puntos, ventana, target, etc.) del registro en código (cardCatalog),
+// indexada por `mechanic`, y le superpone lo editable por los admins: nombre,
+// emoji, descripción, rareza, peso en el sorteo y si está habilitada.
+//
+// El motor de puntos NUNCA lee esta tabla (la mecánica vive en código): re-skinear
+// una carta no puede romper el cálculo. Esta tabla manda solo en el SORTEO (qué
+// cartas salen y con qué probabilidad) y en cómo se MUESTRA la carta.
+//
+// Al crear un prode en modo fun se clona el mazo oficial (las cartas de kbarulo)
+// como punto de partida; después cada prode lo edita por su cuenta.
+export const cardDefs = sqliteTable("card_defs", {
+  id: text("id").primaryKey(),
+  poolId: text("pool_id")
+    .notNull()
+    .references(() => pools.id, { onDelete: "cascade" }),
+  // Slug de la mecánica de origen (un CardType del catálogo): de acá salen
+  // spec/kind/target/window/blockable/standing/input. Varias cartas del prode
+  // pueden compartir mechanic (mismo comportamiento, distinto nombre).
+  mechanic: text("mechanic").notNull(),
+  // Editables por los admins (re-skin cosmético + sorteo):
+  name: text("name").notNull(),
+  emoji: text("emoji").notNull(),
+  description: text("description").notNull(),
+  rarity: text("rarity").notNull(),
+  weight: integer("weight").notNull().default(1),
+  enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+});
+
+// Config del SORTEO diario por prode (editable por los admins). El sorteo tiene
+// dos niveles:
+//   1) noEffectShare% de las tiradas → carta "sin efecto" (puro ego: apodo/foto/…).
+//   2) el resto (100 − noEffectShare)% → carta con efecto, repartida por rareza
+//      según los pesos (weightComun + weightRara + weightLegendaria + weightMaldicion).
+// La UI de admin muestra los dos niveles por separado para que quede claro qué
+// porción es "sin efecto" y, dentro del resto, cuánto pesa cada rareza.
+// Una fila por prode; si falta, se usan los defaults oficiales (40 / 50·26·9·15).
+export const poolFunConfig = sqliteTable("pool_fun_config", {
+  poolId: text("pool_id")
+    .primaryKey()
+    .references(() => pools.id, { onDelete: "cascade" }),
+  noEffectShare: integer("no_effect_share").notNull().default(40),
+  weightComun: integer("weight_comun").notNull().default(50),
+  weightRara: integer("weight_rara").notNull().default(26),
+  weightLegendaria: integer("weight_legendaria").notNull().default(9),
+  weightMaldicion: integer("weight_maldicion").notNull().default(15),
+});
 
 // ---------- Modo Diversión: cartas ----------
 
@@ -89,7 +145,12 @@ export const funCards = sqliteTable(
       .notNull()
       .references(() => participants.id, { onDelete: "cascade" }),
     drawDate: text("draw_date").notNull(), // yyyy-mm-dd en huso America/Mexico_City
+    // cardType = la MECÁNICA jugada (slug del catálogo): manda en el cálculo de
+    // puntos (applyCardEffects la usa, intacta). Se conserva siempre.
     cardType: text("card_type").notNull(),
+    // Carta del mazo del prode que se sorteó (re-skin: nombre/emoji/rareza). Para
+    // mostrarla; null en filas viejas o si se borró la def. La mecánica vive en cardType.
+    cardDefId: text("card_def_id").references(() => cardDefs.id, { onDelete: "set null" }),
     status: text("status").notNull().default("held"),
     drawnAt: integer("drawn_at", { mode: "timestamp" }).notNull(),
     playedAt: integer("played_at", { mode: "timestamp" }),

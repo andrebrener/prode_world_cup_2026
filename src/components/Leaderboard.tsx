@@ -6,7 +6,6 @@ import { GROUPS, teamName, teamFlag } from "@/lib/fixtures";
 import { ROUND_LABEL, type KoRound } from "@/lib/bracket";
 import { fetchParticipantDetailAction } from "@/lib/actions";
 import type { LeaderboardRow, ParticipantDetail } from "@/lib/db/queries";
-import { CARD_CATALOG } from "@/lib/cardCatalog";
 import Avatar, { AvatarFill } from "./Avatar";
 
 const medal = ["🥇", "🥈", "🥉"];
@@ -27,31 +26,33 @@ function StreakFlame({ current }: { current: number }) {
   );
 }
 
-const STANDING_BADGE: Record<string, { emoji: string; title: string }> = {
-  escudo: { emoji: "🛡️", title: "Anulo mufa activo: bloquea el próximo ataque" },
-  espejito: { emoji: "🪞", title: "Espejito rebotín activo: el próximo ataque rebota" },
-  aguante: { emoji: "🥃", title: "Fernet de Fernemo activo: la racha sobrevive un 0" },
-  var: { emoji: "📺", title: "VAR a favor activo: +2 en su próximo partido con puntos" },
+// Descripción del efecto de cada standing (el nombre lo pone el mazo del prode).
+const STANDING_DESC: Record<string, string> = {
+  escudo: "bloquea el próximo ataque",
+  espejito: "el próximo ataque rebota",
+  aguante: "la racha sobrevive un 0",
+  var: "+2 en su próximo partido con puntos",
 };
 
 /** Badges de efectos activos / pendientes de un jugador (modo Diversión). */
 function FunBadges({ row }: { row: LeaderboardRow }) {
   if (!row.fun) return null;
   const pending = row.fun.pendingEffects.map((e, i) => {
-    const def = CARD_CATALOG[e.cardType];
     const where = e.matchId ? `para el partido ${e.matchId}` : `para los partidos de hoy`;
-    const title = e.fromName
-      ? `${def?.name ?? e.cardType} de ${e.fromName} ${where}`
-      : `${def?.name ?? e.cardType} ${where}`;
+    const title = e.fromName ? `${e.name} de ${e.fromName} ${where}` : `${e.name} ${where}`;
     return (
       <span key={`p${i}`} title={title} className="fun-float inline-block cursor-help">
-        {def?.emoji ?? "🃏"}
+        {e.emoji}
       </span>
     );
   });
   const standings = row.fun.activeStandings.map((s) => (
-    <span key={s} title={STANDING_BADGE[s]?.title} className="cursor-help">
-      {STANDING_BADGE[s]?.emoji}
+    <span
+      key={s.cardType}
+      title={`${s.name} activo: ${STANDING_DESC[s.cardType] ?? ""}`}
+      className="cursor-help"
+    >
+      {s.emoji}
     </span>
   ));
   if (pending.length === 0 && standings.length === 0) return null;

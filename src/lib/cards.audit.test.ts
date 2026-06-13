@@ -298,7 +298,10 @@ describe("auditoría: escenarios cruzados", () => {
     for (let i = 0; i < 1000; i++) {
       const def = dailyCard("audit-pool", `p${i}`, "2026-06-20");
       expect(def).toBeDefined();
-      expect(CARD_CATALOG[def.type]).toBe(def);
+      // Devuelve una DrawnCard con mecánica válida del catálogo (ya no es el
+      // mismo objeto: lleva defId y lo cosmético del mazo).
+      expect(CARD_CATALOG[def.type]).toBeDefined();
+      expect(def.spec).toEqual(CARD_CATALOG[def.type].spec);
     }
   });
 
