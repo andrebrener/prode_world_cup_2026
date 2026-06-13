@@ -399,8 +399,19 @@ function resultsBody(base: number, net: number, nullified: boolean): string {
  */
 function notifyResults(changed: { matchId: string; home: number; away: number }[]) {
   if (changed.length === 0) return;
-  after(async () => {
-    try {
+  after(() => sendResultNotifications(changed));
+}
+
+/**
+ * El trabajo de notifyResults, sin el wrapper de after(): arma y manda los push
+ * de resultados (puntos ya resueltos por cartas en prodes fun). Exportado para
+ * poder reenviar a mano la notificación de un partido (scripts/resend-result-notif.ts).
+ */
+export async function sendResultNotifications(
+  changed: { matchId: string; home: number; away: number }[],
+): Promise<void> {
+  if (changed.length === 0) return;
+  try {
       const ids = changed.map((c) => c.matchId);
       const preds = await db
         .select()
@@ -559,10 +570,9 @@ function notifyResults(changed: { matchId: string; home: number; away: number }[
       }
 
       await Promise.all(pushes);
-    } catch (e) {
-      console.error("[notifyResults]", e);
-    }
-  });
+  } catch (e) {
+    console.error("[sendResultNotifications]", e);
+  }
 }
 
 export async function updateResultAction(
