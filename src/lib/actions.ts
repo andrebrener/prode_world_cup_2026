@@ -40,6 +40,7 @@ import {
 import {
   CARD_CATALOG,
   cardView,
+  DEFAULT_DECK,
   MAX_APODO_CHARS,
   MAX_MENSAJE_CHARS,
   MAX_FOTO_CHARS,
@@ -233,6 +234,17 @@ export async function createPoolAction(
     .insert(poolMembers)
     .values({ poolId, participantId: id, joinedAt: now })
     .onConflictDoNothing();
+
+  // Un prode fun nuevo arranca con el mazo VACÍO: el admin lo arma desde el
+  // catálogo. Tombstoneamos toda mecánica del mazo default para que el top-up
+  // (ensurePoolDeck, que corre al abrir admin / reclamar carta) no clone nada.
+  // Agregar una carta (addCardDefAction) levanta su tombstone.
+  if (mode === "fun") {
+    await db
+      .insert(deckTombstones)
+      .values(DEFAULT_DECK.map((d) => ({ poolId, mechanic: d.mechanic })))
+      .onConflictDoNothing();
+  }
 
   revalidatePath("/", "layout");
   return { ok: true, slug };
