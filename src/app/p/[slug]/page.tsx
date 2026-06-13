@@ -22,6 +22,8 @@ import { ROUND_LABEL, type KoRound } from "@/lib/bracket";
 import { pickableMatches } from "@/lib/cards";
 import MatchdayPanel from "@/components/MatchdayPanel";
 import Leaderboard from "@/components/Leaderboard";
+import PushNudge from "@/components/PushNudge";
+import InstallAppBanner from "@/components/InstallAppBanner";
 import JoinForm from "@/components/JoinForm";
 import JoinPoolButton from "@/components/JoinPoolButton";
 import LeavePoolButton from "@/components/LeavePoolButton";
@@ -133,6 +135,10 @@ export default async function PoolTabla({
       </header>
 
       <ShareCode code={pool.code} slug={pool.slug} />
+
+      {/* En el navegador: ofrecer instalar la app. Ya en la PWA: empujar las notis. */}
+      <InstallAppBanner />
+      <PushNudge />
 
       {/* Pedir el mail para el resumen diario (solo modo Diversión, una vez) */}
       {isFun && !participant.email && <EmailCapture />}
