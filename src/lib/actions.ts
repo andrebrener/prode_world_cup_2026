@@ -28,6 +28,7 @@ import { computeR32, KO_MATCHES_BY_ID } from "./bracket";
 import {
   getResultsMap,
   getBracketState,
+  getResolvedMatchPoints,
   getParticipantDetail,
   getPoolBySlug,
   getPoolByCode,
@@ -48,7 +49,17 @@ import {
   type CardType,
   type PoolMode,
 } from "./cardCatalog";
-import { bindDay, funToday, resolveDeck, pickDailyCard, resolvePlay, type DrawnCard } from "./cards";
+import {
+  bindDay,
+  funToday,
+  matchDay,
+  resolveDeck,
+  pickDailyCard,
+  resolvePlay,
+  BLOCKABLE_ATTACKS,
+  retroDefenseTargets,
+  type DrawnCard,
+} from "./cards";
 import { ensureFunPool, getPoolDeckRows, getPoolFunConfig } from "./db/decks";
 import { renderAttackEmail } from "./funDigest";
 import { sendEmail } from "./mailer";
@@ -355,11 +366,36 @@ export async function savePredictionsAction(
   return { ok: true };
 }
 
-/** Carga/actualiza el resultado real de un partido (cualquier participante puede). */
 /**
- * Push "sumaste X pts" a cada jugador que pronosticó alguno de los partidos
- * recién cargados (o que cambiaron). Corre en after() para no demorar al admin.
- * Agrupa por puntaje: una sola push por valor distinto (0, 3, 5…).
+ * Texto (medio troll) de la push según los puntos base (`base`) y los que
+ * realmente quedaron después de las cartas (`net`). `nullified` = el jugador
+ * tenía una carta "hoy no suma" activa (para chicanearlo aunque no hubiese sumado).
+ */
+function resultsBody(base: number, net: number, nullified: boolean): string {
+  const plural = (n: number) => (n === 1 ? "punto" : "puntos");
+
+  // No sumaste nada… y encima estabas bloqueado: doble consuelo.
+  if (nullified && base === 0)
+    return `No sumaste nada… pero igual hoy no sumabas, así que no te preocupes 😌`;
+  // Habías sumado pero una carta te dejó en cero (te bloquearon / robaron / mufaron).
+  if (net === 0 && base > 0)
+    return `¡Sumaste ${base} ${plural(base)}! … ah, no. Hoy no sumabas, es verdad 🤡 Te quedaste en cero. Mirá la tabla.`;
+  // Las cartas te potenciaron.
+  if (net > base)
+    return `¡Sumaste ${net} ${plural(net)}! 🔥 Tus cartas la rompieron (+${net - base}). Mirá la tabla.`;
+  // Una carta te recortó, pero algo quedó.
+  if (net < base)
+    return `¡Sumaste ${net} ${plural(net)}! …bueno, te clavaron una carta y perdiste ${base - net} 😈 Mirá la tabla.`;
+  // Sin cartas de por medio.
+  if (net > 0) return `¡Sumaste ${net} ${plural(net)}! Mirá la tabla.`;
+  return `Esta vez no sumaste. ¡A remontar! 💪`;
+}
+
+/**
+ * Push a cada jugador que pronosticó alguno de los partidos recién cargados.
+ * En prodes modo Diversión avisa los puntos YA resueltos por cartas (no los
+ * crudos) y nombra el prode; manda un push por prode fun (tag propio) más uno
+ * crudo para quien no juega en ninguno. Corre en after() para no demorar al admin.
  */
 function notifyResults(changed: { matchId: string; home: number; away: number }[]) {
   if (changed.length === 0) return;
@@ -375,42 +411,154 @@ function notifyResults(changed: { matchId: string; home: number; away: number }[
       const realById = new Map(
         changed.map((c) => [c.matchId, { homeGoals: c.home, awayGoals: c.away }]),
       );
-      const ptsByPart = new Map<string, number>();
+      const predParts = [...new Set(preds.map((p) => p.participantId))];
+
+      // Encabezado: si fue un solo partido lo nombramos; si varios, resumen.
+      const single = changed.length === 1 ? changed[0] : null;
+      const mm = single ? MATCHES.find((x) => x.id === single.matchId) : null;
+      const head = mm
+        ? `⚽ ${teamName(mm.homeCode)} ${single!.home}–${single!.away} ${teamName(mm.awayCode)}`
+        : `⚽ Se cargaron ${changed.length} resultados`;
+
+      // Días (huso MX) cubiertos por los partidos cargados.
+      const dayByMatch = new Map<string, string | null>();
+      for (const id of ids) {
+        const m = MATCHES.find((x) => x.id === id);
+        dayByMatch.set(id, m ? matchDay(m.kickoff) : null);
+      }
+      const changedDays = [...new Set([...dayByMatch.values()])].filter(
+        (d): d is string => d != null,
+      );
+
+      // Cartas "hoy no suma" (zero_day) jugadas en esos días, por prode → a quién
+      // dejan bloqueado. Cubre ataques (caído/filtro, que rebotan con un espejito)
+      // y maldiciones self (nemo/heladera/matambrito). Solo para chicanear.
+      const blockedByPool = new Map<string, Set<string>>();
+      if (changedDays.length > 0) {
+        const zcards = await db
+          .select()
+          .from(funCards)
+          .where(and(eq(funCards.status, "played"), inArray(funCards.effectDate, changedDays)));
+        for (const card of zcards) {
+          const def = CARD_CATALOG[card.cardType as CardType];
+          if (def?.spec.outcome !== "zero_day" || !card.playedAt || !card.effectDate) continue;
+          const affected =
+            def.kind === "attack"
+              ? card.reflected
+                ? card.participantId
+                : card.targetParticipantId
+              : card.participantId;
+          if (!affected) continue;
+          const set = blockedByPool.get(card.poolId) ?? new Set<string>();
+          set.add(affected);
+          blockedByPool.set(card.poolId, set);
+        }
+      }
+
+      // Prodes modo Diversión que tienen a alguno de estos jugadores: el push de
+      // un prode fun muestra los puntos YA resueltos por cartas y lleva su nombre.
+      const funRows = await db
+        .select({
+          poolId: pools.id,
+          name: pools.name,
+          slug: pools.slug,
+          code: pools.code,
+          isPublic: pools.isPublic,
+          mode: pools.mode,
+          createdBy: pools.createdBy,
+          participantId: poolMembers.participantId,
+        })
+        .from(poolMembers)
+        .innerJoin(pools, eq(poolMembers.poolId, pools.id))
+        .where(and(eq(pools.mode, "fun"), inArray(poolMembers.participantId, predParts)));
+
+      type FunPool = { pool: Parameters<typeof getResolvedMatchPoints>[0]; parts: Set<string> };
+      const funPools = new Map<string, FunPool>();
+      for (const r of funRows) {
+        let entry = funPools.get(r.poolId);
+        if (!entry) {
+          entry = {
+            pool: {
+              id: r.poolId,
+              name: r.name,
+              slug: r.slug,
+              code: r.code,
+              isPublic: r.isPublic,
+              mode: r.mode as PoolMode,
+              createdBy: r.createdBy,
+            },
+            parts: new Set<string>(),
+          };
+          funPools.set(r.poolId, entry);
+        }
+        entry.parts.add(r.participantId);
+      }
+
+      const pushes: Promise<unknown>[] = [];
+      const coveredByFun = new Set<string>();
+
+      // Un push por prode fun (con su nombre), agrupando por (base, net, bloqueado).
+      for (const [poolId, { pool, parts }] of funPools) {
+        const { base, resolved } = await getResolvedMatchPoints(pool);
+        const blocked = blockedByPool.get(poolId) ?? new Set<string>();
+        const byKey = new Map<
+          string,
+          { base: number; net: number; nullified: boolean; pids: string[] }
+        >();
+        for (const pid of parts) {
+          coveredByFun.add(pid);
+          let b = 0;
+          let n = 0;
+          for (const id of ids) {
+            b += base[pid]?.[id] ?? 0;
+            n += resolved[pid]?.[id] ?? 0;
+          }
+          const nullified = blocked.has(pid);
+          const key = `${b}|${n}|${nullified ? 1 : 0}`;
+          const g = byKey.get(key) ?? { base: b, net: n, nullified, pids: [] };
+          g.pids.push(pid);
+          byKey.set(key, g);
+        }
+        for (const g of byKey.values()) {
+          pushes.push(
+            sendPushToParticipants(g.pids, {
+              title: head,
+              body: `${pool.name} · ${resultsBody(g.base, g.net, g.nullified)}`,
+              url: "/",
+              tag: `resultados-${poolId}`,
+            }),
+          );
+        }
+      }
+
+      // Jugadores que no están en ningún prode fun: puntos crudos, sin cartas.
+      const rawByPart = new Map<string, number>();
       for (const p of preds) {
+        if (coveredByFun.has(p.participantId)) continue;
         const pts = matchPoints(
           { homeGoals: p.homeGoals, awayGoals: p.awayGoals },
           realById.get(p.matchId),
         );
-        ptsByPart.set(p.participantId, (ptsByPart.get(p.participantId) ?? 0) + pts);
+        rawByPart.set(p.participantId, (rawByPart.get(p.participantId) ?? 0) + pts);
       }
-
-      // Encabezado: si fue un solo partido lo nombramos; si varios, resumen.
-      const single = changed.length === 1 ? changed[0] : null;
-      const m = single ? MATCHES.find((x) => x.id === single.matchId) : null;
-      const head = m
-        ? `⚽ ${teamName(m.homeCode)} ${single!.home}–${single!.away} ${teamName(m.awayCode)}`
-        : `⚽ Se cargaron ${changed.length} resultados`;
-
-      // Agrupar participantes por puntaje para mandar una push por grupo.
       const byPts = new Map<number, string[]>();
-      for (const [pid, pts] of ptsByPart) {
+      for (const [pid, pts] of rawByPart) {
         const arr = byPts.get(pts) ?? [];
         arr.push(pid);
         byPts.set(pts, arr);
       }
-      await Promise.all(
-        [...byPts].map(([pts, pids]) =>
+      for (const [pts, pids] of byPts) {
+        pushes.push(
           sendPushToParticipants(pids, {
             title: head,
-            body:
-              pts > 0
-                ? `¡Sumaste ${pts} ${pts === 1 ? "punto" : "puntos"}! Mirá la tabla.`
-                : `Esta vez no sumaste. ¡A remontar! 💪`,
+            body: resultsBody(pts, pts, false),
             url: "/",
             tag: "resultados",
           }),
-        ),
-      );
+        );
+      }
+
+      await Promise.all(pushes);
     } catch (e) {
       console.error("[notifyResults]", e);
     }
@@ -849,7 +997,58 @@ type PlayResult = {
   blocked?: boolean;
   reflected?: boolean;
   targetName?: string;
+  /** Ataques de hoy que la defensa recién jugada anuló/rebotó retroactivamente. */
+  retro?: number;
+  /** El ataque se jugó al vacío porque todos los rivales estaban defendidos hoy. */
+  allDefended?: boolean;
 };
+
+/**
+ * Defensa retroactiva: al jugar un escudo/espejito, agarra los ataques
+ * bloqueables que YA te tiraron esa jornada y los anula (escudo → "blocked") o
+ * los rebota al que los mandó (espejito → reflected). Cubre TODOS los del día.
+ * La jornada de un ataque es su effectDate; los instantáneos sin día (pedo) se
+ * atan por la jornada en que se jugaron (bindDay del playedAt). Devuelve cuántos
+ * tocó. Idempotente: solo mira ataques en estado "played".
+ */
+async function applyRetroDefense(
+  poolId: string,
+  defenderId: string,
+  jornada: string,
+  reflect: boolean,
+): Promise<number> {
+  const incoming = await db
+    .select()
+    .from(funCards)
+    .where(
+      and(
+        eq(funCards.poolId, poolId),
+        eq(funCards.targetParticipantId, defenderId),
+        eq(funCards.status, "played"),
+        inArray(funCards.cardType, BLOCKABLE_ATTACKS),
+      ),
+    );
+  const hits = retroDefenseTargets(
+    incoming.map((c) => ({
+      id: c.id,
+      cardType: c.cardType as CardType,
+      status: c.status,
+      reflected: c.reflected,
+      effectDate: c.effectDate,
+      playedAt: c.playedAt,
+      targetParticipantId: c.targetParticipantId,
+    })),
+    defenderId,
+    jornada,
+  );
+  for (const id of hits) {
+    await db
+      .update(funCards)
+      .set(reflect ? { reflected: true } : { status: "blocked" })
+      .where(eq(funCards.id, id));
+  }
+  return hits.length;
+}
 
 /**
  * Aviso instantáneo a la víctima (si dejó su mail): te jugaron una carta, tu
@@ -964,6 +1163,22 @@ async function executePlay(
     return { ok: true };
   }
 
+  // Ataque bloqueable con TODOS los rivales defendidos hoy: no hay a quién
+  // tirarle (a un defendido no le entra nada), así que con la jugada obligada la
+  // carta se va al vacío en vez de dejar el modal trabado.
+  if (def.kind === "attack" && def.blockable && def.target === "other") {
+    const attackables = ctx.memberIds.filter(
+      (id) => id !== ownerId && !ctx.defendedIds.includes(id),
+    );
+    if (attackables.length === 0) {
+      await db
+        .update(funCards)
+        .set({ status: "played", playedAt: new Date(), targetParticipantId: null })
+        .where(eq(funCards.id, cardId));
+      return { ok: true, allDefended: true };
+    }
+  }
+
   const outcome = resolvePlay({
     cardType: def.type,
     ownerId,
@@ -981,32 +1196,6 @@ async function executePlay(
     ? (ctx.rows.find((r) => r.id === finalTargetId)?.name ?? undefined)
     : undefined;
 
-  if (outcome.blockedByShieldId) {
-    // El ataque choca contra el Anulo mufa: queda "blocked" en el feed. El escudo
-    // es del día y NO se consume: sigue frenando el resto de los ataques de hoy.
-    await db
-      .update(funCards)
-      .set({ status: "blocked", playedAt: now, targetParticipantId: finalTargetId })
-      .where(eq(funCards.id, cardId));
-    if (finalTargetId && finalTargetId !== ownerId) {
-      notifyVictim({
-        pool,
-        attackerName: ctx.rows.find((r) => r.id === ownerId)?.name ?? "Alguien",
-        victimId: finalTargetId,
-        victimName: targetName ?? "vos",
-        cardType: def.type,
-        cardName: def.name,
-        cardEmoji: def.emoji,
-        cardDescription: def.description,
-        detail: null,
-        blocked: true,
-        reflected: false,
-      });
-    }
-    return { ok: true, blocked: true, targetName };
-  }
-
-  const reflected = !!outcome.reflectedByMirrorId;
   await db
     .update(funCards)
     .set({
@@ -1016,15 +1205,21 @@ async function executePlay(
       effectMatchId: outcome.effectMatchId,
       effectDate: outcome.effectDate,
       payload: Object.keys(payload).length ? JSON.stringify(payload) : null,
-      reflected,
+      reflected: false,
     })
     .where(eq(funCards.id, cardId));
 
-  // El Espejito rebotín también es del día: no se consume, rebota todos los
-  // ataques de su jornada (outcome.reflectedByMirrorId solo marca el rebote).
+  // Defensa retroactiva: al poner el escudo/espejito frena los ataques que YA te
+  // tiraron esa misma jornada. El escudo los anula (status "blocked"); el
+  // espejito los rebota al que los mandó (reflected). Cubre TODOS los del día y
+  // no se consume — de paso te vuelve intocable para lo que venga, porque
+  // resolvePlay no deja atacar a alguien defendido.
+  let retro = 0;
+  if (def.kind === "shield" && outcome.effectDate) {
+    retro = await applyRetroDefense(pool.id, ownerId, outcome.effectDate, def.type === "espejito");
+  }
 
-  // Aviso a la víctima (ataques y sociales contra otro; el rebote también avisa
-  // al que se salvó con el espejito).
+  // Aviso a la víctima (ataques y sociales contra otro).
   if (finalTargetId && finalTargetId !== ownerId) {
     notifyVictim({
       pool,
@@ -1042,7 +1237,7 @@ async function executePlay(
             ? payload.mensaje
             : null,
       blocked: false,
-      reflected,
+      reflected: false,
     });
   }
 
@@ -1062,7 +1257,7 @@ async function executePlay(
       );
   }
 
-  return { ok: true, blocked: false, reflected, targetName };
+  return { ok: true, blocked: false, reflected: false, targetName, retro };
 }
 
 type DrawResult = {

@@ -338,8 +338,6 @@ export type PlayOutcome =
       ok: true;
       effectMatchId: string | null;
       effectDate: string | null;
-      blockedByShieldId: string | null;
-      reflectedByMirrorId: string | null;
     }
   | { ok: false; error: string };
 
@@ -362,31 +360,65 @@ export function resolvePlay(input: PlayInput): PlayOutcome {
     return { ok: false, error: "Esta carta no lleva víctima." };
   }
 
-  // Defensas de la víctima: el escudo come el ataque; el espejito lo devuelve.
-  // Solo saltan contra ataques que te tocan puntos (kind "attack"). Las cartas
-  // sociales (apodo/foto/micrófono) cambian tu ego, no tu puntaje: el escudo no
-  // se gasta defendiéndote de que te cambien el nombre. Para sacarte esos
-  // overlays está el borrón.
-  if (def.kind === "attack" && def.blockable && input.targetId && input.targetId !== input.ownerId) {
-    if (input.targetShieldCardId) {
-      return {
-        ok: true,
-        effectMatchId: null,
-        effectDate: null,
-        blockedByShieldId: input.targetShieldCardId,
-        reflectedByMirrorId: null,
-      };
-    }
-    if (input.targetMirrorCardId) {
-      const r = bindWindow(def, input);
-      if (!r.ok) return r;
-      return { ...r, blockedByShieldId: null, reflectedByMirrorId: input.targetMirrorCardId };
-    }
+  // No le podés tirar nada a alguien que ya tiene la defensa puesta hoy: si tiene
+  // un escudo/espejito activo de esta jornada, queda intocable y el ataque ni
+  // sale. (Las sociales —apodo/foto/micrófono— no son ataques: la defensa no las
+  // frena, así que igual se pueden jugar contra un defendido.) La defensa que te
+  // salva de un ataque YA recibido es retroactiva y se resuelve al jugar la
+  // defensa (executePlay), no acá.
+  if (
+    def.kind === "attack" &&
+    def.blockable &&
+    input.targetId &&
+    input.targetId !== input.ownerId &&
+    (input.targetShieldCardId || input.targetMirrorCardId)
+  ) {
+    return { ok: false, error: "Está defendido hoy: no le podés tirar nada." };
   }
 
-  const r = bindWindow(def, input);
-  if (!r.ok) return r;
-  return { ...r, blockedByShieldId: null, reflectedByMirrorId: null };
+  return bindWindow(def, input);
+}
+
+/** Tipos de ataque bloqueables: contra estos saltan escudo y espejito. */
+export const BLOCKABLE_ATTACKS: CardType[] = ALL_CARDS.filter(
+  (d) => d.kind === "attack" && d.blockable,
+).map((d) => d.type);
+
+/** Fila mínima de un ataque recibido, para el matching de la defensa retroactiva. */
+export type RetroAttackRow = {
+  id: string;
+  cardType: CardType;
+  status: string;
+  reflected: boolean;
+  effectDate: string | null;
+  playedAt: Date | null;
+  targetParticipantId: string | null;
+};
+
+/**
+ * Ataques que una defensa (escudo/espejito) de `jornada` jugada por `defenderId`
+ * anula/rebota retroactivamente: bloqueables, dirigidos a él, en estado "played",
+ * todavía no rebotados, de esa misma jornada. La jornada de un ataque es su
+ * effectDate; los instantáneos sin día (pedo) se atan por la jornada en que se
+ * jugaron (bindDay del playedAt). Pura y determinística (sin tocar DB).
+ */
+export function retroDefenseTargets(
+  rows: RetroAttackRow[],
+  defenderId: string,
+  jornada: string,
+  schedule: ScheduledMatch[] = fullSchedule(),
+): string[] {
+  const blockable = new Set<CardType>(BLOCKABLE_ATTACKS);
+  return rows
+    .filter((c) => {
+      if (c.targetParticipantId !== defenderId) return false;
+      if (c.status !== "played") return false;
+      if (c.reflected) return false; // ya rebotado: no se toca de nuevo
+      if (!blockable.has(c.cardType)) return false;
+      const aj = c.effectDate ?? (c.playedAt ? bindDay(c.playedAt, schedule) : null);
+      return aj === jornada;
+    })
+    .map((c) => c.id);
 }
 
 /** Ata la carta a su ventana: próximo partido, o próximo día con partidos. */

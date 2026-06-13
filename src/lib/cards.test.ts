@@ -11,11 +11,13 @@ import {
   caldeadorScore,
   caldeadorKoPred,
   resolvePlay,
+  retroDefenseTargets,
   applyCardEffects,
   resolveDeck,
   pickDailyCard,
   type PlayedCardEffect,
   type PlayInput,
+  type RetroAttackRow,
 } from "./cards";
 import {
   CARD_CATALOG,
@@ -248,55 +250,110 @@ describe("resolvePlay (validación)", () => {
     });
   });
 
-  it("el Anulo mufa de la víctima bloquea el ataque", () => {
+  it("no le podés tirar un ataque a alguien que ya tiene escudo puesto hoy", () => {
     const r = resolvePlay({
       ...basePlay,
       cardType: "pedo",
       targetId: "beto",
       targetShieldCardId: "escudo-de-beto",
     });
-    expect(r).toMatchObject({ ok: true, blockedByShieldId: "escudo-de-beto" });
+    expect(r).toMatchObject({ ok: false });
   });
 
-  it("el Espejito rebota el ataque y lo ata al que lo tiró", () => {
+  it("no le podés tirar un ataque a alguien que ya tiene espejito puesto hoy", () => {
     const r = resolvePlay({
       ...basePlay,
       cardType: "mufa",
       targetId: "beto",
       targetMirrorCardId: "espejito-de-beto",
     });
-    // La mufa rebotada queda atada al día de ANA (la atacante).
-    expect(r).toMatchObject({
-      ok: true,
-      effectMatchId: null,
-      effectDate: DAY_1,
-      reflectedByMirrorId: "espejito-de-beto",
-    });
+    expect(r).toMatchObject({ ok: false });
   });
 
-  it("el escudo tiene prioridad sobre el espejito, y el matambre sí rebota", () => {
-    expect(
-      resolvePlay({
-        ...basePlay,
-        cardType: "mufa",
-        targetId: "beto",
-        targetShieldCardId: "escudo",
-        targetMirrorCardId: "espejito",
-      }),
-    ).toMatchObject({ ok: true, blockedByShieldId: "escudo" });
-    expect(
-      resolvePlay({
-        ...basePlay,
-        cardType: "duelo",
-        targetId: "beto",
-        targetMirrorCardId: "espejito",
-        now: new Date("2026-06-20T08:00:00-06:00"),
-      }),
-    ).toMatchObject({ ok: true, reflectedByMirrorId: "espejito", effectDate: DAY_1 });
+  it("la defensa solo frena ataques: una carta social igual se le puede jugar al defendido", () => {
+    // apodo es social (no es ataque): el escudo/espejito no la bloquea.
+    const r = resolvePlay({
+      ...basePlay,
+      cardType: "apodo",
+      targetId: "beto",
+      targetShieldCardId: "escudo-de-beto",
+      targetMirrorCardId: "espejito-de-beto",
+    });
+    expect(r).toMatchObject({ ok: true });
   });
 
   it("las maldiciones no se pueden jugar a mano", () => {
     expect(resolvePlay({ ...basePlay, cardType: "nemo" })).toMatchObject({ ok: false });
+  });
+});
+
+describe("retroDefenseTargets (defensa retroactiva)", () => {
+  const row = (over: Partial<RetroAttackRow> & { id: string }): RetroAttackRow => ({
+    cardType: "mufa",
+    status: "played",
+    reflected: false,
+    effectDate: DAY_1,
+    playedAt: BEFORE_M1,
+    targetParticipantId: "beto",
+    ...over,
+  });
+
+  it("agarra los ataques del día dirigidos al defensor y nada más", () => {
+    const rows: RetroAttackRow[] = [
+      row({ id: "hit-mufa" }), // ataque de día, a beto, played → cae
+      row({ id: "otra-jornada", effectDate: "2026-06-21" }), // otro día → no
+      row({ id: "ya-rebotado", reflected: true }), // ya rebotado → no
+      row({ id: "bloqueado", status: "blocked" }), // no está "played" → no
+      row({ id: "a-otro", targetParticipantId: "caro" }), // a otra persona → no
+      row({ id: "no-ataque", cardType: "escudo" }), // no es ataque bloqueable → no
+    ];
+    expect(retroDefenseTargets(rows, "beto", DAY_1, SCHEDULE)).toEqual(["hit-mufa"]);
+  });
+
+  it("un instantáneo sin día (pedo) cae por la jornada en que se jugó", () => {
+    const rows: RetroAttackRow[] = [
+      // pedo no tiene effectDate: se ata por bindDay(playedAt). 13:00 del 20 → DAY_1.
+      row({
+        id: "pedo-hoy",
+        cardType: "pedo",
+        effectDate: null,
+        playedAt: new Date("2026-06-20T13:00:00-06:00"),
+      }),
+      // pedo jugado el 22 → otra jornada, no lo toca una defensa de DAY_1.
+      row({
+        id: "pedo-otro-dia",
+        cardType: "pedo",
+        effectDate: null,
+        playedAt: new Date("2026-06-22T13:00:00-06:00"),
+      }),
+    ];
+    expect(retroDefenseTargets(rows, "beto", DAY_1, SCHEDULE)).toEqual(["pedo-hoy"]);
+  });
+
+  it("el escudo anula y el espejito rebota: marcar blocked excluye, reflected rebota", () => {
+    // Verifica el efecto AGUAS ABAJO de la defensa retroactiva sobre los puntos.
+    const base = {
+      ana: { M1: 4, M2: 0 }, // ana (atacante) base
+      beto: { M1: 6, M2: 0 }, // beto (víctima) tiene una mufa de ana en M1
+    };
+    const opts = { base, matchOrder: ORDER, kickoffById: KICKOFFS };
+
+    // Mufa de ana sobre el primer partido del día de beto (M1: 6 → 3).
+    const mufa = played("mufa", "ana", { targetId: "beto", effectDate: DAY_1 });
+    const sinDefensa = applyCardEffects({ ...opts, cards: [mufa] });
+    expect(sinDefensa.points.beto.M1).toBe(3); // pegó
+
+    // Escudo retroactivo → la mufa queda "blocked" → no entra a applyCardEffects.
+    const conEscudo = applyCardEffects({ ...opts, cards: [] });
+    expect(conEscudo.points.beto.M1).toBe(6); // como si nunca hubiera pasado
+
+    // Espejito retroactivo → la mufa pasa a reflected → le pega a ana (M1: 4 → 2).
+    const conEspejito = applyCardEffects({
+      ...opts,
+      cards: [{ ...mufa, reflected: true }],
+    });
+    expect(conEspejito.points.beto.M1).toBe(6); // beto se salva
+    expect(conEspejito.points.ana.M1).toBe(2); // el rebote le pega al atacante
   });
 });
 

@@ -87,7 +87,7 @@ describe("auditoría: las 28 cartas del catálogo", () => {
     }
   });
 
-  it("todo ataque bloqueable rebota contra escudo y contra espejito", () => {
+  it("a un defendido (escudo o espejito) no le podés tirar ningún ataque bloqueable", () => {
     for (const def of ALL_CARDS) {
       if (!def.blockable || def.kind !== "attack") continue;
       const base = {
@@ -99,19 +99,19 @@ describe("auditoría: las 28 cartas del catálogo", () => {
         targetMirrorCardId: null,
         schedule: SCHEDULE,
       };
-      const blocked = resolvePlay({ ...base, targetShieldCardId: "esc" });
-      expect(blocked, def.type).toMatchObject({ ok: true, blockedByShieldId: "esc" });
+      const conEscudo = resolvePlay({ ...base, targetShieldCardId: "esc" });
+      expect(conEscudo, def.type).toMatchObject({ ok: false });
 
-      const mirrored = resolvePlay({
+      const conEspejito = resolvePlay({
         ...base,
         targetShieldCardId: null,
         targetMirrorCardId: "esp",
       });
-      expect(mirrored, def.type).toMatchObject({ ok: true, reflectedByMirrorId: "esp" });
+      expect(conEspejito, def.type).toMatchObject({ ok: false });
     }
   });
 
-  it("las cartas sociales NO gastan el escudo ni el espejito (no te tocan puntos)", () => {
+  it("las cartas sociales SÍ se le pueden jugar a un defendido (no son ataques)", () => {
     for (const def of ALL_CARDS) {
       if (def.kind !== "social") continue;
       const base = {
@@ -127,22 +127,14 @@ describe("auditoría: las 28 cartas del catálogo", () => {
         targetShieldCardId: "esc",
         targetMirrorCardId: null,
       });
-      expect(withShield, def.type).toMatchObject({
-        ok: true,
-        blockedByShieldId: null,
-        reflectedByMirrorId: null,
-      });
+      expect(withShield, def.type).toMatchObject({ ok: true });
 
       const withMirror = resolvePlay({
         ...base,
         targetShieldCardId: null,
         targetMirrorCardId: "esp",
       });
-      expect(withMirror, def.type).toMatchObject({
-        ok: true,
-        blockedByShieldId: null,
-        reflectedByMirrorId: null,
-      });
+      expect(withMirror, def.type).toMatchObject({ ok: true });
     }
   });
 
@@ -278,9 +270,9 @@ describe("auditoría: escenarios cruzados", () => {
     expect(s.current).toBe(3); // M1, M2 (pisados) + M3 → racha de 3, sin protecciones
   });
 
-  it("un escudo del día frena todos los ataques: cada ataque con escudo activo bloquea", () => {
+  it("un escudo del día vuelve intocable a la víctima: ningún ataque le entra", () => {
     // El escudo es del día y no se consume (getPlayContext devuelve el mismo
-    // shieldId mientras siga activo): resolvePlay bloquea cada ataque que reciba.
+    // shieldId mientras siga activo): resolvePlay rechaza cada ataque que reciba.
     for (const shieldId of ["esc-1", "esc-1"]) {
       const r = resolvePlay({
         cardType: "pedo",
@@ -292,7 +284,7 @@ describe("auditoría: escenarios cruzados", () => {
         targetMirrorCardId: null,
         schedule: SCHEDULE,
       });
-      expect(r).toMatchObject({ ok: true, blockedByShieldId: shieldId });
+      expect(r).toMatchObject({ ok: false });
     }
   });
 

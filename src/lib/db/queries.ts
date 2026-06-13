@@ -327,11 +327,11 @@ export type LeaderboardRow = {
   fun?: FunLeaderboardInfo;
 };
 
-/** Tabla de un prode: calcula puntos de cada miembro contra los resultados reales. */
-export async function getLeaderboard(pool: Pool): Promise<LeaderboardRow[]> {
+/** Construye la base de puntos + la resolución de cartas de un prode. Compartido
+ *  por getLeaderboard (la tabla) y getResolvedMatchPoints (el push de resultados). */
+async function computePoolScores(pool: Pool) {
   const poolId = pool.id;
   const memberIds = await getPoolMemberIds(poolId);
-  if (memberIds.length === 0) return [];
 
   const [people, allPreds, allExtras, allKoPreds, results, tourney, bracket] =
     await Promise.all([
@@ -474,6 +474,52 @@ export async function getLeaderboard(pool: Pool): Promise<LeaderboardRow[]> {
     pool.mode === "fun"
       ? resolveFun(funCardRows, ptsByMember, bracket, people, await loadDefsById(poolId))
       : null;
+
+  return {
+    people,
+    ptsByMember,
+    pureByMember,
+    exactByMember,
+    countByPerson,
+    extrasByPerson,
+    tourney,
+    groupResultIds,
+    funCardRows,
+    fun,
+  };
+}
+
+/**
+ * Puntos por partido por miembro DESPUÉS de aplicar las cartas (`resolved`), más
+ * la base sin cartas (`base`). Lo usa el push de resultados para avisar lo que
+ * REALMENTE sumaste en este prode (multiplicadores, VAR, robos, ceros, etc.).
+ */
+export async function getResolvedMatchPoints(pool: Pool): Promise<{
+  base: Record<string, MatchPointsMap>;
+  resolved: Record<string, MatchPointsMap>;
+}> {
+  const s = await computePoolScores(pool);
+  const resolved: Record<string, MatchPointsMap> = {};
+  for (const p of s.people)
+    resolved[p.id] = s.fun?.effects.points[p.id] ?? s.ptsByMember[p.id] ?? {};
+  return { base: s.ptsByMember, resolved };
+}
+
+/** Tabla de un prode: calcula puntos de cada miembro contra los resultados reales. */
+export async function getLeaderboard(pool: Pool): Promise<LeaderboardRow[]> {
+  const {
+    people,
+    ptsByMember,
+    pureByMember,
+    exactByMember,
+    countByPerson,
+    extrasByPerson,
+    tourney,
+    groupResultIds,
+    funCardRows,
+    fun,
+  } = await computePoolScores(pool);
+  if (people.length === 0) return [];
 
   // Sai Bamba: el vidente le garantiza al que la jugó los puntos del campeón.
   const saibambaIds = new Set(
@@ -779,6 +825,8 @@ export type FunState = {
     | null;
   /** Historial completo de jugadas, más nuevas primero (la UI agrupa por día). */
   feed: FunFeedItem[];
+  /** Miembros con defensa activa hoy (escudo/espejito de la jornada): intocables. */
+  defendedIds: string[];
 };
 
 // 15 personas × ~1 jugada/día × 39 días ≈ 600, más maldiciones y bloqueos:
@@ -857,7 +905,33 @@ export async function getFunState(pool: Pool, viewerId: string): Promise<FunStat
       };
     });
 
-  return { today, claimedToday, canClaim: !claimedToday && !pending, pending, myCardToday, feed };
+  // Defensas activas de la jornada: a un defendido no le podés tirar ataques (el
+  // selector lo deshabilita; resolvePlay lo rechaza igual del lado server).
+  const jornada = bindDay(new Date());
+  const defendedIds = jornada
+    ? [
+        ...new Set(
+          cards
+            .filter(
+              (c) =>
+                c.status === "played" &&
+                (c.cardType === "escudo" || c.cardType === "espejito") &&
+                c.effectDate === jornada,
+            )
+            .map((c) => c.participantId),
+        ),
+      ]
+    : [];
+
+  return {
+    today,
+    claimedToday,
+    canClaim: !claimedToday && !pending,
+    pending,
+    myCardToday,
+    feed,
+    defendedIds,
+  };
 }
 
 export type PlayContext = {
@@ -866,6 +940,8 @@ export type PlayContext = {
   rows: LeaderboardRow[];
   targetShieldCardId: string | null;
   targetMirrorCardId: string | null;
+  /** Miembros con defensa activa de la jornada (escudo/espejito): intocables. */
+  defendedIds: string[];
 };
 
 /** Contexto para jugar una carta: tabla actual + defensas de la víctima. */
@@ -897,11 +973,27 @@ export async function getPlayContext(
       .sort((a, b) => (a.playedAt?.getTime() ?? 0) - (b.playedAt?.getTime() ?? 0))[0]?.id ??
     null;
 
+  const defendedIds = jornada
+    ? [
+        ...new Set(
+          cards
+            .filter(
+              (c) =>
+                c.status === "played" &&
+                (c.cardType === "escudo" || c.cardType === "espejito") &&
+                c.effectDate === jornada,
+            )
+            .map((c) => c.participantId),
+        ),
+      ]
+    : [];
+
   return {
     memberIds,
     rows,
     targetShieldCardId: targetId ? dayShield(targetId, "escudo") : null,
     targetMirrorCardId: targetId ? dayShield(targetId, "espejito") : null,
+    defendedIds,
   };
 }
 
