@@ -404,13 +404,14 @@ export async function getLeaderboard(pool: Pool): Promise<LeaderboardRow[]> {
   }
 
   // (miembro, partido) → id de la Piedrambre que le da vuelta el marcador del día
-  // (2-1 cuenta como 1-2). Misma mecánica upstream que el Caldeador: no muta el
-  // pronóstico guardado (global entre prodes), solo recalcula la base de este prode.
+  // (2-1 cuenta como 1-2). Misma mecánica upstream que el Caldeador, pero es una
+  // maldición self: te toca a vos al reclamar la carta del día (no muta el
+  // pronóstico guardado, global entre prodes; solo recalcula la base de este prode).
   const flippedBy: Record<string, string> = {};
   for (const c of funCardRows) {
     if (c.cardType !== "piedrambre" || c.status !== "played" || !c.playedAt || !c.effectDate)
       continue;
-    const affected = c.reflected ? c.participantId : c.targetParticipantId;
+    const affected = c.participantId; // maldición self: siempre el dueño
     if (!affected) continue;
     for (const id of Object.keys(results)) {
       const k = KICKOFF_BY_ID[id];

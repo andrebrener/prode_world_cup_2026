@@ -31,7 +31,6 @@ export type CardType =
   | "costillar"
   | "cabala"
   // ataques de día
-  | "piedrambre"
   | "caido"
   | "filtro"
   // caos
@@ -53,6 +52,7 @@ export type CardType =
   | "heladera"
   | "matambrito"
   | "ramirez"
+  | "piedrambre"
   // sociales
   | "apodo"
   | "foto"
@@ -225,18 +225,6 @@ export const CARD_CATALOG: Record<CardType, CardDef> = {
   }),
 
   // ---------- Ataques de día ----------
-  piedrambre: c({
-    type: "piedrambre",
-    spec: { outcome: "upstream_forecast", mode: "invert" },
-    name: "Piedrambre",
-    emoji: "🪨",
-    rarity: "legendaria",
-    kind: "attack",
-    target: "other",
-    window: "day",
-    blockable: true,
-    description: "A tu víctima se le dan vuelta los pronósticos del día: el marcador que cargó cuenta al revés (jugó 2-1, le vale como 1-2). Que rece que igual le pegue.",
-  }),
   caido: c({
     type: "caido",
     spec: { outcome: "zero_day", streak: "protect_on_hit" },
@@ -428,6 +416,18 @@ export const CARD_CATALOG: Record<CardType, CardDef> = {
     window: null,
     blockable: false,
     description: "Le prestaste plata a un Ramirez. Despedite: -5 puntos que no vuelven más.",
+  }),
+  piedrambre: c({
+    type: "piedrambre",
+    spec: { outcome: "upstream_forecast", mode: "invert" },
+    name: "Piedrambre",
+    emoji: "🪨",
+    rarity: "maldicion",
+    kind: "curse",
+    target: "self",
+    window: "day",
+    blockable: false,
+    description: "Se te dan vuelta los pronósticos del día: el marcador que cargaste cuenta al revés (pusiste 2-1, te vale como 1-2). Rezá que igual le pegues.",
   }),
 
   // ---------- Sociales (no tocan puntos: tocan el ego) ----------
