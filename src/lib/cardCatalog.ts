@@ -557,7 +557,7 @@ export function outcomeLabel(spec: OutcomeSpec): string {
       return "Tu racha aguanta el día entero en cero";
     case "upstream_forecast":
       return spec.mode === "invert"
-        ? "Da vuelta los pronósticos del día de la víctima"
+        ? "Se te dan vuelta TUS pronósticos del día (cuentan al revés)"
         : "Reemplaza los pronósticos del día de la víctima por azar";
     case "social_overlay":
       return spec.kind === "apodo"
