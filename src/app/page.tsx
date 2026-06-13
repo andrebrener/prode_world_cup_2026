@@ -8,6 +8,7 @@ import {
 import JoinForm from "@/components/JoinForm";
 import JoinByCode from "@/components/JoinByCode";
 import JoinPoolButton from "@/components/JoinPoolButton";
+import LeavePoolButton from "@/components/LeavePoolButton";
 import Avatar from "@/components/Avatar";
 import FunBadge from "@/components/FunBadge";
 
@@ -63,27 +64,29 @@ export default async function Home() {
         ) : (
           <div className="grid gap-3 sm:grid-cols-2">
             {myPools.map((p) => (
-              <Link
+              <div
                 key={p.id}
-                href={`/p/${p.slug}`}
-                className={`group flex items-center justify-between rounded-2xl bg-surface px-5 py-4 transition ${
+                className={`group flex items-center justify-between gap-3 rounded-2xl bg-surface px-5 py-4 transition ${
                   p.mode === "fun"
                     ? "fun-mode fun-border"
                     : "border border-border hover:border-primary"
                 }`}
               >
-                <div>
-                  <div className="flex items-center gap-2 font-bold text-foreground group-hover:text-primary">
-                    {p.name}
-                    {p.mode === "fun" && <FunBadge mode="fun" />}
+                <Link href={`/p/${p.slug}`} className="flex min-w-0 flex-1 items-center justify-between">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 font-bold text-foreground group-hover:text-primary">
+                      {p.name}
+                      {p.mode === "fun" && <FunBadge mode="fun" />}
+                    </div>
+                    <div className="text-xs text-muted">
+                      {p.memberCount} {p.memberCount === 1 ? "jugador" : "jugadores"}
+                      {p.isPublic ? " · público" : " · privado"}
+                    </div>
                   </div>
-                  <div className="text-xs text-muted">
-                    {p.memberCount} {p.memberCount === 1 ? "jugador" : "jugadores"}
-                    {p.isPublic ? " · público" : " · privado"}
-                  </div>
-                </div>
-                <span className="text-muted group-hover:text-primary">→</span>
-              </Link>
+                  <span className="ml-3 text-muted group-hover:text-primary">→</span>
+                </Link>
+                <LeavePoolButton slug={p.slug} poolName={p.name} variant="inline" />
+              </div>
             ))}
           </div>
         )}

@@ -19,7 +19,7 @@ import {
 } from "./db/schema";
 import { eq, and, inArray } from "drizzle-orm";
 import { getParticipantId, setParticipantId } from "./session";
-import { MATCHES, predictionsLockedForName } from "./fixtures";
+import { MATCHES, predictionsLockedForName, teamName } from "./fixtures";
 import { allGroupStandings } from "./standings";
 import { computeR32, KO_MATCHES_BY_ID } from "./bracket";
 import {
@@ -44,6 +44,13 @@ import {
 import { bindDay, dailyCard, funToday, resolvePlay } from "./cards";
 import { renderAttackEmail } from "./funDigest";
 import { sendEmail } from "./mailer";
+import { matchPoints } from "./scoring";
+import {
+  sendPushToParticipants,
+  savePushSubscription,
+  deletePushSubscription,
+  type ClientSubscription,
+} from "./push";
 
 const VALID_MATCH_IDS = new Set(MATCHES.map((m) => m.id));
 const VALID_KO_IDS = new Set(Object.keys(KO_MATCHES_BY_ID));
@@ -248,6 +255,28 @@ export async function joinPoolAction(
   return { ok: true, slug: pool.slug };
 }
 
+/**
+ * Salir de un prode: borra la membresía del participante actual.
+ * Las predicciones son globales del jugador, así que no se tocan: salir solo
+ * lo saca de la tabla de ese prode (y se puede volver a entrar con el código).
+ */
+export async function leavePoolAction(
+  slug: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const id = await getParticipantId();
+  if (!id) return { ok: false, error: "Primero ingresá tu nombre." };
+
+  const pool = await getPoolBySlug(slug.trim().toLowerCase());
+  if (!pool) return { ok: false, error: "No encontramos ese prode." };
+
+  await db
+    .delete(poolMembers)
+    .where(and(eq(poolMembers.poolId, pool.id), eq(poolMembers.participantId, id)));
+
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
 export type PredictionInput = {
   matches: { matchId: string; home: number; away: number }[];
   extras: {
@@ -308,6 +337,67 @@ export async function savePredictionsAction(
 }
 
 /** Carga/actualiza el resultado real de un partido (cualquier participante puede). */
+/**
+ * Push "sumaste X pts" a cada jugador que pronosticó alguno de los partidos
+ * recién cargados (o que cambiaron). Corre en after() para no demorar al admin.
+ * Agrupa por puntaje: una sola push por valor distinto (0, 3, 5…).
+ */
+function notifyResults(changed: { matchId: string; home: number; away: number }[]) {
+  if (changed.length === 0) return;
+  after(async () => {
+    try {
+      const ids = changed.map((c) => c.matchId);
+      const preds = await db
+        .select()
+        .from(matchPredictions)
+        .where(inArray(matchPredictions.matchId, ids));
+      if (preds.length === 0) return;
+
+      const realById = new Map(
+        changed.map((c) => [c.matchId, { homeGoals: c.home, awayGoals: c.away }]),
+      );
+      const ptsByPart = new Map<string, number>();
+      for (const p of preds) {
+        const pts = matchPoints(
+          { homeGoals: p.homeGoals, awayGoals: p.awayGoals },
+          realById.get(p.matchId),
+        );
+        ptsByPart.set(p.participantId, (ptsByPart.get(p.participantId) ?? 0) + pts);
+      }
+
+      // Encabezado: si fue un solo partido lo nombramos; si varios, resumen.
+      const single = changed.length === 1 ? changed[0] : null;
+      const m = single ? MATCHES.find((x) => x.id === single.matchId) : null;
+      const head = m
+        ? `⚽ ${teamName(m.homeCode)} ${single!.home}–${single!.away} ${teamName(m.awayCode)}`
+        : `⚽ Se cargaron ${changed.length} resultados`;
+
+      // Agrupar participantes por puntaje para mandar una push por grupo.
+      const byPts = new Map<number, string[]>();
+      for (const [pid, pts] of ptsByPart) {
+        const arr = byPts.get(pts) ?? [];
+        arr.push(pid);
+        byPts.set(pts, arr);
+      }
+      await Promise.all(
+        [...byPts].map(([pts, pids]) =>
+          sendPushToParticipants(pids, {
+            title: head,
+            body:
+              pts > 0
+                ? `¡Sumaste ${pts} ${pts === 1 ? "punto" : "puntos"}! Mirá la tabla.`
+                : `Esta vez no sumaste. ¡A remontar! 💪`,
+            url: "/",
+            tag: "resultados",
+          }),
+        ),
+      );
+    } catch (e) {
+      console.error("[notifyResults]", e);
+    }
+  });
+}
+
 export async function updateResultAction(
   matchId: string,
   home: number,
@@ -319,6 +409,7 @@ export async function updateResultAction(
 
   const h = clampGoals(home);
   const a = clampGoals(away);
+  const prev = (await getResultsMap())[matchId];
   await db
     .insert(matchResults)
     .values({ matchId, homeGoals: h, awayGoals: a })
@@ -326,6 +417,11 @@ export async function updateResultAction(
       target: matchResults.matchId,
       set: { homeGoals: h, awayGoals: a },
     });
+
+  // Solo avisamos si el resultado es nuevo o cambió (no en re-guardados iguales).
+  if (!prev || prev.homeGoals !== h || prev.awayGoals !== a) {
+    notifyResults([{ matchId, home: h, away: a }]);
+  }
 
   revalidatePath("/", "layout");
   return { ok: true };
@@ -354,6 +450,8 @@ export async function saveResultsBatchAction(input: {
   const id = await getParticipantId();
   if (!id) return { ok: false, error: "Ingresá tu nombre para poder cargar resultados." };
 
+  const prevResults = await getResultsMap();
+  const changed: { matchId: string; home: number; away: number }[] = [];
   for (const r of input.results) {
     if (!VALID_MATCH_IDS.has(r.matchId)) continue;
     const h = clampGoals(r.home);
@@ -362,10 +460,17 @@ export async function saveResultsBatchAction(input: {
       .insert(matchResults)
       .values({ matchId: r.matchId, homeGoals: h, awayGoals: a })
       .onConflictDoUpdate({ target: matchResults.matchId, set: { homeGoals: h, awayGoals: a } });
+    const p = prevResults[r.matchId];
+    if (!p || p.homeGoals !== h || p.awayGoals !== a) {
+      changed.push({ matchId: r.matchId, home: h, away: a });
+    }
   }
   for (const matchId of input.cleared) {
     await db.delete(matchResults).where(eq(matchResults.matchId, matchId));
   }
+
+  // Push de puntos solo para los partidos nuevos o que cambiaron.
+  notifyResults(changed);
 
   const t = input.tournament;
   const values = {
@@ -545,6 +650,22 @@ function notifyVictim(opts: {
 }) {
   after(async () => {
     try {
+      // Push instantánea (si tiene notificaciones activadas).
+      const def = CARD_CATALOG[opts.cardType];
+      const cardLabel = `${def.emoji} ${def.name}`;
+      const body = opts.blocked
+        ? `${opts.attackerName} te tiró ${cardLabel} pero tu escudo la frenó 🛡️`
+        : opts.reflected
+          ? `${opts.attackerName} te tiró ${cardLabel}… ¡y tu espejito se la devolvió! 🪞`
+          : `${opts.attackerName} te jugó ${cardLabel}`;
+      await sendPushToParticipants([opts.victimId], {
+        title: `Libro de pases · ${opts.pool.name}`,
+        body,
+        url: `/p/${opts.pool.slug}`,
+        tag: `carta-${opts.pool.id}`,
+      });
+
+      // Mail (si dejó su mail).
       const [victim] = await db
         .select({ email: participants.email })
         .from(participants)
@@ -858,5 +979,34 @@ export async function updateTournamentResultAction(extras: {
     .onConflictDoUpdate({ target: tournamentResult.id, set: values });
 
   revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+// ---------- Notificaciones push (PWA) ----------
+
+/** Guarda la suscripción del navegador para mandarle push a este jugador. */
+export async function subscribeToPushAction(
+  sub: ClientSubscription,
+): Promise<{ ok: boolean; error?: string }> {
+  const id = await getParticipantId();
+  if (!id) return { ok: false, error: "Primero ingresá tu nombre." };
+  try {
+    await savePushSubscription(id, sub, randomUUID());
+    return { ok: true };
+  } catch (e) {
+    console.error("[subscribeToPush]", e);
+    return { ok: false, error: "No se pudo activar las notificaciones." };
+  }
+}
+
+/** Borra la suscripción de este navegador (desactivar notificaciones). */
+export async function unsubscribeFromPushAction(
+  endpoint: string,
+): Promise<{ ok: boolean }> {
+  try {
+    await deletePushSubscription(endpoint);
+  } catch (e) {
+    console.error("[unsubscribeFromPush]", e);
+  }
   return { ok: true };
 }

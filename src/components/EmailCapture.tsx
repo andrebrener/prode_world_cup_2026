@@ -3,23 +3,34 @@
 // Modo Diversión — pedirle el mail al que todavía no lo dejó, para el resumen
 // diario (carta + tabla + libro de pases). "Después" lo esconde por la sesión.
 
-import { useEffect, useState, useTransition } from "react";
+import { useState, useSyncExternalStore, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { saveEmailAction } from "@/lib/actions";
+
+// "Después" se recuerda por la sesión en sessionStorage. Lo leemos con
+// useSyncExternalStore: en el server (y primer render) devuelve "visible", y
+// recién en el cliente refleja el valor real — sin romper la hidratación.
+const DISMISS_KEY = "fun-email-later";
+const listeners = new Set<() => void>();
+
+function subscribe(cb: () => void) {
+  listeners.add(cb);
+  return () => listeners.delete(cb);
+}
+function isDismissed() {
+  return sessionStorage.getItem(DISMISS_KEY) === "1";
+}
+function dismissForSession() {
+  sessionStorage.setItem(DISMISS_KEY, "1");
+  listeners.forEach((l) => l());
+}
 
 export default function EmailCapture() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [error, setError] = useState<string | null>(null);
-  // sessionStorage solo existe en el cliente: leerlo en el render inicial
-  // rompe la hidratación. Server y primer render coinciden (visible) y el
-  // efecto lo esconde recién después si corresponde.
-  const [dismissed, setDismissed] = useState(false);
   const [pending, start] = useTransition();
-
-  useEffect(() => {
-    if (sessionStorage.getItem("fun-email-later") === "1") setDismissed(true);
-  }, []);
+  const dismissed = useSyncExternalStore(subscribe, isDismissed, () => false);
 
   if (dismissed) return null;
 
@@ -64,10 +75,7 @@ export default function EmailCapture() {
         </button>
         <button
           type="button"
-          onClick={() => {
-            sessionStorage.setItem("fun-email-later", "1");
-            setDismissed(true);
-          }}
+          onClick={dismissForSession}
           className="text-xs text-muted transition hover:text-foreground"
         >
           Después

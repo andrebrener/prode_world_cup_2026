@@ -13,6 +13,7 @@ import { db } from "@/lib/db";
 import { pools, poolMembers, participants } from "@/lib/db/schema";
 import { buildPoolDigest, renderDigestEmail } from "@/lib/funDigest";
 import { sendEmails, type Mail } from "@/lib/mailer";
+import { sendPushToParticipants } from "@/lib/push";
 import type { Pool } from "@/lib/db/queries";
 
 export const dynamic = "force-dynamic";
@@ -36,6 +37,9 @@ export async function GET(req: NextRequest) {
   // final: Resend acepta hasta 100 por request, evitando el límite de 5 req/s
   // que antes dejaba afuera a todos menos los primeros cinco destinatarios.
   const mails: Mail[] = [];
+  // Para la push del resumen: todos los miembros del prode (tengan mail o no);
+  // sendPushToParticipants ya filtra a los que activaron notificaciones.
+  const pushJobs: { pool: Pool; memberIds: string[] }[] = [];
 
   for (const poolRow of funPools) {
     const pool: Pool = {
@@ -47,6 +51,14 @@ export async function GET(req: NextRequest) {
       mode: "fun",
       createdBy: poolRow.createdBy,
     };
+
+    const allMembers = await db
+      .select({ id: poolMembers.participantId })
+      .from(poolMembers)
+      .where(eq(poolMembers.poolId, pool.id));
+    if (allMembers.length > 0) {
+      pushJobs.push({ pool, memberIds: allMembers.map((m) => m.id) });
+    }
 
     // Miembros con mail cargado.
     const memberRows = await db
@@ -75,6 +87,18 @@ export async function GET(req: NextRequest) {
 
   const { sent, failed, errors } = await sendEmails(mails);
 
+  // Push del resumen diario a los que activaron notificaciones.
+  let pushSent = 0;
+  for (const job of pushJobs) {
+    const r = await sendPushToParticipants(job.memberIds, {
+      title: `📰 Tu resumen del día · ${job.pool.name}`,
+      body: "Cómo viene la tabla, qué se tiraron ayer y tu carta de hoy 👀",
+      url: `/p/${job.pool.slug}`,
+      tag: `digest-${job.pool.id}`,
+    });
+    pushSent += r.sent;
+  }
+
   return NextResponse.json({
     ok: true,
     pools: funPools.length,
@@ -82,5 +106,6 @@ export async function GET(req: NextRequest) {
     sent,
     failed,
     errors,
+    pushSent,
   });
 }

@@ -23,6 +23,7 @@ import MatchdayPanel from "@/components/MatchdayPanel";
 import Leaderboard from "@/components/Leaderboard";
 import JoinForm from "@/components/JoinForm";
 import JoinPoolButton from "@/components/JoinPoolButton";
+import LeavePoolButton from "@/components/LeavePoolButton";
 import ShareCode from "@/components/ShareCode";
 
 export const dynamic = "force-dynamic";
@@ -259,6 +260,9 @@ export default async function PoolTabla({
           })}
         </div>
       </section>
+
+      {/* Salir del prode (discreto, al final) */}
+      <LeavePoolButton slug={pool.slug} poolName={pool.name} />
     </div>
   );
 }

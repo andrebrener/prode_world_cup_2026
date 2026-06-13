@@ -22,6 +22,24 @@ export const participants = sqliteTable(
   (table) => [uniqueIndex("participants_name_lower_unique").on(sql`lower(${table.name})`)],
 );
 
+// Suscripciones a notificaciones push (Web Push / PWA). Una fila por
+// navegador/dispositivo: un participante puede tener varias (celu, compu…).
+export const pushSubscriptions = sqliteTable(
+  "push_subscriptions",
+  {
+    id: text("id").primaryKey(),
+    participantId: text("participant_id")
+      .notNull()
+      .references(() => participants.id, { onDelete: "cascade" }),
+    endpoint: text("endpoint").notNull(),
+    p256dh: text("p256dh").notNull(),
+    auth: text("auth").notNull(),
+    createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+  },
+  // El endpoint identifica al dispositivo: único para no duplicar.
+  (table) => [uniqueIndex("push_subscriptions_endpoint_unique").on(table.endpoint)],
+);
+
 // ---------- Prodes (grupos) y membresías ----------
 
 // Un "prode" es un grupo con su propia tabla. Las predicciones siguen siendo

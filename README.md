@@ -2,22 +2,43 @@
 
 A **prediction pool** for the 2026 World Cup (USA · Mexico · Canada, Jun 11 – Jul 19, 2026).
 Each player predicts match results and earns points for what they get right.
-Whoever finishes on top of the table wins.
+Create as many pools as you want, invite your friends, and whoever finishes on top of each table wins.
 
 Built with **Next.js 16** (App Router) + **React 19**, a **SQLite/Turso** database via **Drizzle ORM**,
-and styled with **Tailwind CSS 4**.
+and styled with **Tailwind CSS 4**. Installable as a **PWA**.
 
 ---
 
 ## How to play
 
-1. **Sign in with your name** (`/jugar`). A player is created and stored in a cookie (~4 months, covers the whole tournament). No passwords.
-2. **Predict the group stage**: the score of each of the 72 matches (48 teams · 12 groups).
-3. **Predict the extras**: champion, runner-up, top scorer, and player of the tournament.
-4. Once the knockout stage starts, the **bracket** is generated and you predict each tie (score + who advances, penalties included).
-5. As matches are played, the **real results** are loaded (`/resultados`) and the **standings table** updates automatically.
+1. **Enter your name.** A player is created and stored in a cookie (~4 months, covers the whole tournament). No passwords — your name is your identity (case-insensitive, must be unique).
+2. **Create a pool or join one.** Create your own group (`/crear`, public or private) and share the **invite code** / link, paste a code someone gave you, or join a **public pool** from the home list.
+3. **Predict.** The score of each of the 72 group-stage matches (48 teams · 12 groups), plus the **extras**: champion, runner-up, top scorer, and player of the tournament.
+4. **Knockouts.** Once the knockout stage starts, the **bracket** is generated from the group standings and you predict each tie (score + who advances, penalties included).
+5. **Watch the tables move.** As matches are played, the **official results** are loaded (`/resultados`) and every pool's **standings table** updates automatically.
 
-> ⚠️ **Note:** in this version the results page (`/resultados`) is **open to anyone** — there's no admin authentication. Whoever has the link can load or edit official results and generate the bracket. Add proper access control before using this for a real pool.
+> **One set of predictions, many pools.** Your predictions are **global to you** — you edit them once and they count in *every* pool you're in. A pool is just a leaderboard (plus, optionally, its own cards & streaks). Joining a second pool doesn't mean re-predicting.
+
+> ⏰ **Deadline.** Predictions lock when the first match kicks off (Jun 11, 2026, 13:00 Mexico City time). After that they're frozen (a small name-based whitelist can still edit, for late joiners).
+
+> ⚠️ **No admin auth.** The results page (`/resultados`) is **open to anyone** — whoever has the link can load/edit official results and generate the bracket. Add access control before using this for a real pool.
+
+## Pools
+
+- **Public or private** — public pools show up on the home page for anyone to join; private ones are invite-only.
+- **Invite code + slug** — every pool gets a short code (paste-to-join) and a shareable URL (`/p/[slug]`). A **Share** widget surfaces both inside the pool.
+- **Pool switcher** in the nav to jump between your pools; the home page lists *your* pools and other public ones.
+- **Normal or Fun mode** — picked at creation, fixed afterwards. Fun adds cards + streaks (see below).
+
+## Profile & avatars
+
+`/perfil` lets each player set their **name**, a **profile photo** (cropped & compressed client-side, stored as a data URL), and an **email** for the Fun-mode daily digest. Avatars show up across leaderboards, the nav, and pool cards.
+
+## Standings, simulator & match panel
+
+- **Leaderboard** rows are clickable — tap a player to open a drawer with *all* their predictions. In Fun pools it also shows the **pure total** (points without cards) next to the card-adjusted total.
+- **Match-day panel** shows the day's fixtures with everyone's predictions side by side, plus a **🔮 simulator**: punch in hypothetical scores and watch the projected table shift before the games are played.
+- **Bracket view** and **group standings** (the basis for the knockout draw) render automatically from the loaded results.
 
 ## Scoring
 
@@ -37,16 +58,12 @@ and styled with **Tailwind CSS 4**.
 
 ## Fun mode 🃏✨
 
-When creating a pool you can pick **Fun mode**: everything from a normal pool, plus cards and streaks (scoped to that pool — predictions stay global).
+When creating a pool you can pick **Fun mode**: everything from a normal pool, plus cards and streaks. These are **scoped to that pool** — your predictions stay global, but the chaos only affects that table.
 
-- **Daily card draw, forced play**: every player gets one surprise card per day (common 50% / rare 26% / legendary 9% / **curse 15%**, per-card weights tunable in the catalog). The card **plays itself on draw**: buffs activate instantly, attacks/socials immediately ask you to pick the victim (no stash, no take-backs), curses just hit you. Effects stack in play order (zeros always win). Unclaimed cards expire at midnight (America/Mexico_City). The draw is deterministic per (pool, player, date) — no cron needed.
-- **Two effect windows**: surgical *next-match* cards (Doblete ×2, El Diego ×3, La Yapa, Mufa, VAR a favor) and *whole-day* cards (Cábala del Echugo ×2, Piedrambre, Filtro 5mm, Se me cayó el Fernet, Costillar 7 AM…). Day effects only cover matches that haven't kicked off yet — no retroactive plays.
-- **Chaos**: Caldeador de las tinieblas replaces a rival's predictions for the day with seeded-random scores; Caparazón azul auto-targets the pool leader and drops them to last−1; Robo de identidad swaps total points (both snapshot at play time).
-- **Duels**: Duelo de matambres — most day points doubles, loser zeroes (one duel per person per day).
-- **Defenses**: Anulo mufa blocks the next attack; Espejito rebotín bounces it back to the attacker.
-- **Social cards** (no points, pure ego): Los apodos del Droco (sticky nickname rendered as Name «Apodo»), Foto trucha (pool-scoped avatar swap), Micrófono abierto (pinned message) — all until the victim plays Borrón y cuenta nueva. Pool-scoped: real name/avatar untouched elsewhere.
-- **Fairness**: max one active effect per player per match; effects resolve at pool-scoring time and never touch predictions.
-- **Streaks**: consecutive matches scoring >0 points pay milestone bonuses (3→+3, 5→+6, 8→+12, 12→+20). A 0-point match resets (unless protected by Fernet de Fernemo / Costillar).
+- **Daily card, forced play.** Every player draws one surprise card per day. Cards come in rarities (common / rare / legendary / curse), and the draw is **deterministic** per (pool, player, date) — no cron needed. The card **plays itself on draw**: there's no stash and no take-backs.
+- **Card types.** Buffs (boost your own points), attacks (hit a rival), defenses (block or bounce back an incoming attack), social cards (no points — pure ego: nicknames, avatar swaps, pinned messages, all pool-scoped), and curses (just hit you). Effects also have a **window**: surgical *next-match* cards vs. *whole-day* cards (day effects only cover matches that haven't kicked off yet).
+- **Fairness.** Max one active effect per player per match; effects resolve at pool-scoring time and never touch the underlying predictions. Unclaimed cards expire at midnight (America/Mexico_City).
+- **Streaks.** Consecutive matches scoring >0 points pay milestone bonuses (3→+3, 5→+6, 8→+12, 12→+20). A 0-point match resets the streak (unless a protective card saves it).
 - Catalog (data-only, easy to tune) in [`src/lib/cardCatalog.ts`](src/lib/cardCatalog.ts); engine in [`src/lib/cards.ts`](src/lib/cards.ts) + [`src/lib/streaks.ts`](src/lib/streaks.ts) (pure + unit-tested); resolution happens inside `getLeaderboard`.
 
 ### Daily email digest (fun pools)
@@ -65,6 +82,32 @@ Env vars:
 
 Besides the daily digest, victims get an **instant email** when a card is played on them (attack landed / shield blocked it / mirror bounced it back) — sent via `next/server` `after()` so plays are never delayed. With neither provider configured everything logs to console instead (dev). Local preview: `GET /api/cron/daily-fun-email?debug=1` returns the first rendered email as HTML (non-production only).
 
+## Progressive Web App
+
+The app is installable to the home screen on mobile and desktop: web app manifest ([`src/app/manifest.ts`](src/app/manifest.ts)), maskable icons, Apple web-app meta, and a service worker registered client-side ([`src/components/ServiceWorkerRegister.tsx`](src/components/ServiceWorkerRegister.tsx), [`public/sw.js`](public/sw.js)).
+
+### Push notifications
+
+Once installed, players can opt in to **Web Push** notifications from `/perfil` (the 🔔 toggle, [`src/components/PushToggle.tsx`](src/components/PushToggle.tsx)). Subscriptions are stored per device in the `push_subscriptions` table; sending and dead-subscription pruning live in [`src/lib/push.ts`](src/lib/push.ts) (the service worker shows the notification and focuses/opens the app on tap).
+
+Three triggers are wired up:
+
+- **⚽ Results & points** — when official results are loaded/changed, each player gets their points for that match (only when the result actually changed; grouped by score).
+- **🃏 Cards** — when a card is played on you (attack landed / shield blocked / mirror bounced), alongside the existing instant email.
+- **📰 Daily digest** — the daily cron also pushes the morning summary to fun-pool members who enabled notifications.
+
+> **iOS:** Web Push only works when the app is **added to the home screen** (iOS 16.4+) and opened from that icon — the toggle shows an install hint until then. Android/Chrome and desktop work whether installed or not.
+
+Generate a VAPID key pair once with `npx web-push generate-vapid-keys` and set:
+
+| Var | Purpose |
+|---|---|
+| `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | Public key — also used by the client to subscribe |
+| `VAPID_PRIVATE_KEY` | Private key — signs the push messages (keep secret) |
+| `VAPID_SUBJECT` | Contact for push services, e.g. `mailto:prode@prodemundial2026.xyz` |
+
+With no VAPID keys configured, push is a no-op (nothing breaks). The new table needs a migration: run `npm run db:push` (locally and against Turso for prod).
+
 ---
 
 ## Structure
@@ -72,19 +115,27 @@ Besides the daily digest, victims get an **instant email** when a card is played
 ```
 src/
   app/
-    page.tsx            # Home / standings table
-    jugar/              # Sign in and submit predictions
-    resultados/         # Load real results and generate the bracket (open — no auth)
-    como-funciona/      # Rules and scoring
-  components/           # Forms and views (PredictionForm, Leaderboard, KnockoutPredict, ResultsEditor, ...)
+    page.tsx              # Home — your pools + create/join + public pools
+    crear/                # Create a pool (name, public/private, mode)
+    p/[slug]/             # A pool: standings table, bracket, match panel, fun zone
+    p/[slug]/jugar/       # Submit predictions (global) + knockout picks
+    perfil/               # Profile: name, avatar, email
+    resultados/           # Load official results and generate the bracket (open — no auth)
+    como-funciona/        # Rules and scoring
+    manifest.ts           # PWA manifest
+    api/cron/daily-fun-email/  # Daily digest endpoint (Vercel Cron)
+  components/             # Forms and views (PredictionForm, Leaderboard, KnockoutPredict,
+                          #   ResultsEditor, FunZone, MatchdayPanel, CreatePoolForm, ...)
   lib/
-    fixtures.ts         # Groups, teams, schedule, and scoring constants
-    scoring.ts          # Points calculation (groups, knockout, extras)
-    bracket.ts          # Knockout bracket builder
-    standings.ts        # Group standings table
-    session.ts          # Player cookie
-    actions.ts          # Server Actions (save predictions, results, etc.)
-    db/                 # Drizzle schema and queries
+    fixtures.ts           # Groups, teams, schedule, deadline, and scoring constants
+    scoring.ts            # Points calculation (groups, knockout, extras)
+    bracket.ts            # Knockout bracket builder
+    standings.ts          # Group standings table
+    cards.ts / streaks.ts # Fun-mode engine
+    cardCatalog.ts        # Card catalog (data-only)
+    session.ts            # Player cookie
+    actions.ts            # Server Actions (pools, predictions, results, cards, ...)
+    db/                   # Drizzle schema and queries
 ```
 
 ## Getting started
@@ -125,6 +176,7 @@ Create the database with the Turso CLI, then run `npm run db:push` pointing at t
 | `npm run build` | Production build |
 | `npm run start` | Serve the build |
 | `npm run lint` | ESLint |
+| `npm run test` | Run unit tests (Vitest) |
 | `npm run db:push` | Apply the schema to the database |
 | `npm run db:generate` | Generate migrations from the schema |
 | `npm run db:studio` | Drizzle Studio |
@@ -132,4 +184,4 @@ Create the database with the Turso CLI, then run `npm run db:push` pointing at t
 ## Deploy
 
 Designed for [Vercel](https://vercel.com/new). Connect the repo, add `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN`
-as environment variables, and you're set.
+as environment variables (plus the mail vars for the digest and the VAPID vars for push notifications, both above), and you're set.

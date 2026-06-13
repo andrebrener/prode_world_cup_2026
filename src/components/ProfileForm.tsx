@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { joinAction, updateAvatarAction, saveEmailAction } from "@/lib/actions";
 import { fileToSquareDataUrl as fileToAvatar } from "@/lib/imageFile";
 import Avatar from "./Avatar";
+import PushToggle from "./PushToggle";
 
 export default function ProfileForm({
   currentName,
@@ -129,6 +130,9 @@ export default function ProfileForm({
         placeholder="tu@mail.com — vacío para no recibir nada"
         className="mt-1.5 w-full rounded-xl border border-border bg-background px-4 py-3 text-foreground outline-none focus:border-primary"
       />
+
+      {/* Notificaciones push (PWA) */}
+      <PushToggle />
 
       {error && <p className="mt-3 text-sm text-danger">{error}</p>}
       {done && !error && <p className="mt-3 text-sm text-primary">Guardado ✓</p>}
