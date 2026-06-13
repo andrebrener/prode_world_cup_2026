@@ -522,6 +522,79 @@ export function isNoEffect(def: Pick<CardDef, "spec">): boolean {
   return def.spec.outcome === "social_overlay" || def.spec.outcome === "clear_social";
 }
 
+/** Resumen neutro (sin el nombre) de qué hace una mecánica — para la UI de admin. */
+export function outcomeLabel(spec: OutcomeSpec): string {
+  switch (spec.outcome) {
+    case "multiply_match": {
+      const scope =
+        spec.scope === "chosen"
+          ? "un partido que elegís"
+          : spec.scope === "all_of_day"
+            ? "todos tus partidos del día"
+            : "tu primer partido del día";
+      const f = spec.factor === 0.5 ? "a la mitad" : `×${spec.factor}`;
+      return `Multiplica ${f} ${scope}`;
+    }
+    case "bonus_if_scored":
+      return `+${spec.amount} si sumás en tu primer partido del día`;
+    case "floor_match_points":
+      return "Piso de puntos en cada partido del día";
+    case "zero_day":
+      return spec.streak === "skip"
+        ? "0 puntos en el día (no cuenta para la racha)"
+        : spec.streak === "protect_on_hit"
+          ? "0 puntos en el día (te banca la racha)"
+          : "0 puntos en el día";
+    case "var_bonus":
+      return `+${spec.amount} a tus partidos del día donde sumes`;
+    case "steal_day_points":
+      return "Le roba a la víctima sus puntos del día";
+    case "flat_points":
+      return spec.victimAmount != null
+        ? `${spec.selfAmount >= 0 ? "+" : ""}${spec.selfAmount} a vos / ${spec.victimAmount} a la víctima`
+        : `${spec.selfAmount >= 0 ? "+" : ""}${spec.selfAmount} puntos al toque`;
+    case "champion_points":
+      return `Cobra los puntos del campeón (${spec.amount})`;
+    case "shield":
+      return spec.mode === "reflect" ? "Rebota el próximo ataque" : "Bloquea el próximo ataque";
+    case "streak_shield":
+      return "Tu racha aguanta un partido en cero";
+    case "upstream_forecast":
+      return spec.mode === "invert"
+        ? "Da vuelta los pronósticos del día de la víctima"
+        : "Reemplaza los pronósticos del día de la víctima por azar";
+    case "social_overlay":
+      return spec.kind === "apodo"
+        ? "Le pone un apodo a la víctima"
+        : spec.kind === "foto"
+          ? "Le cambia la foto a la víctima"
+          : "Fija un mensaje sobre la víctima";
+    case "clear_social":
+      return "Te saca los apodos/fotos/mensajes colgados";
+  }
+}
+
+/** Opciones de mecánica para el selector "agregar carta" del admin (una por carta del catálogo). */
+export type MechanicOption = {
+  mechanic: CardType;
+  defaultName: string;
+  emoji: string;
+  description: string;
+  rarity: CardRarity;
+  effect: string;
+  kind: CardDef["kind"];
+};
+
+export const MECHANIC_OPTIONS: MechanicOption[] = ALL_CARDS.map((card) => ({
+  mechanic: card.type,
+  defaultName: card.name,
+  emoji: card.emoji,
+  description: card.description,
+  rarity: card.rarity,
+  effect: outcomeLabel(card.spec),
+  kind: card.kind,
+}));
+
 /** Campos cosméticos editables por prode (re-skin). */
 export type CardCosmetic = {
   name: string;

@@ -9,6 +9,7 @@ import {
   getPoolBySlug,
   isPoolMember,
   getFunState,
+  getPoolRole,
 } from "@/lib/db/queries";
 import FunBadge from "@/components/FunBadge";
 import FunZone from "@/components/FunZone";
@@ -73,6 +74,9 @@ export default async function PoolTabla({
     );
   }
 
+  const role = await getPoolRole(pool.id, participant.id);
+  const canManage = role === "owner" || role === "admin";
+
   const isFun = pool.mode === "fun";
   const [leaderboard, results, tourney, predictionsByMatch, bracket, funState] =
     await Promise.all([
@@ -108,14 +112,24 @@ export default async function PoolTabla({
               " Acá hay cartas y rachas: el total suma (o resta) lo que pase en la Zona de cartas."}
           </p>
         </div>
-        <Link
-          href={`/p/${pool.slug}/jugar`}
-          className={`rounded-xl px-4 py-2 text-sm font-bold transition hover:brightness-110 ${
-            isFun ? "fun-gradient text-white" : "bg-primary text-primary-ink"
-          }`}
-        >
-          Jugar →
-        </Link>
+        <div className="flex items-center gap-2">
+          {canManage && (
+            <Link
+              href={`/p/${pool.slug}/admin`}
+              className="rounded-xl border border-border bg-surface px-4 py-2 text-sm font-bold text-foreground transition hover:bg-background"
+            >
+              ⚙️ Administrar
+            </Link>
+          )}
+          <Link
+            href={`/p/${pool.slug}/jugar`}
+            className={`rounded-xl px-4 py-2 text-sm font-bold transition hover:brightness-110 ${
+              isFun ? "fun-gradient text-white" : "bg-primary text-primary-ink"
+            }`}
+          >
+            Jugar →
+          </Link>
+        </div>
       </header>
 
       <ShareCode code={pool.code} slug={pool.slug} />

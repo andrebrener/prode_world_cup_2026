@@ -12,8 +12,9 @@ import {
   poolMembers,
   funCards,
   cardDefs,
+  poolFunConfig,
 } from "./schema";
-import { eq, inArray, sql } from "drizzle-orm";
+import { eq, and, inArray, sql } from "drizzle-orm";
 import {
   matchPoints,
   extraPoints,
@@ -29,6 +30,8 @@ import { MATCHES } from "../fixtures";
 import {
   CARD_CATALOG,
   cardView,
+  outcomeLabel,
+  DEFAULT_FUN_CONFIG,
   type CardCosmetic,
   type CardDef,
   type CardType,
@@ -96,6 +99,95 @@ export async function isPoolMember(poolId: string, participantId: string): Promi
     .from(poolMembers)
     .where(eq(poolMembers.poolId, poolId));
   return rows.some((r) => r.id === participantId);
+}
+
+export type PoolRole = "owner" | "admin" | "player";
+
+/** Rol del participante en el prode (null si no es miembro). */
+export async function getPoolRole(
+  poolId: string,
+  participantId: string,
+): Promise<PoolRole | null> {
+  const [row] = await db
+    .select({ role: poolMembers.role })
+    .from(poolMembers)
+    .where(and(eq(poolMembers.poolId, poolId), eq(poolMembers.participantId, participantId)));
+  return (row?.role as PoolRole | undefined) ?? null;
+}
+
+/** ¿Puede gestionar el prode (editar mazo/sorteo, cargar resultados)? owner o admin. */
+export async function canManagePool(poolId: string, participantId: string): Promise<boolean> {
+  const role = await getPoolRole(poolId, participantId);
+  return role === "owner" || role === "admin";
+}
+
+/** Miembros del prode con su rol y nombre (para la pantalla de admin). */
+export async function getPoolMembersWithRoles(
+  poolId: string,
+): Promise<{ id: string; name: string; role: PoolRole }[]> {
+  const rows = await db
+    .select({ id: participants.id, name: participants.name, role: poolMembers.role })
+    .from(poolMembers)
+    .innerJoin(participants, eq(participants.id, poolMembers.participantId))
+    .where(eq(poolMembers.poolId, poolId));
+  return rows
+    .map((r) => ({ id: r.id, name: r.name, role: (r.role as PoolRole) ?? "player" }))
+    .sort((a, b) => a.name.localeCompare(b.name, "es"));
+}
+
+export type PoolAdminData = {
+  deck: {
+    id: string;
+    mechanic: string;
+    name: string;
+    emoji: string;
+    description: string;
+    rarity: string;
+    weight: number;
+    enabled: boolean;
+    sortOrder: number;
+    effect: string;
+  }[];
+  config: {
+    noEffectShare: number;
+    weightComun: number;
+    weightRara: number;
+    weightLegendaria: number;
+    weightMaldicion: number;
+  };
+  members: { id: string; name: string; role: PoolRole }[];
+};
+
+/** Todo lo que la pantalla de admin necesita: mazo (incl. deshabilitadas), config y miembros. */
+export async function getPoolAdmin(poolId: string): Promise<PoolAdminData> {
+  const [deckRows, cfgRows, members] = await Promise.all([
+    db.select().from(cardDefs).where(eq(cardDefs.poolId, poolId)).orderBy(cardDefs.sortOrder),
+    db.select().from(poolFunConfig).where(eq(poolFunConfig.poolId, poolId)),
+    getPoolMembersWithRoles(poolId),
+  ]);
+  const cfg = cfgRows[0];
+  return {
+    deck: deckRows.map((d) => ({
+      id: d.id,
+      mechanic: d.mechanic,
+      name: d.name,
+      emoji: d.emoji,
+      description: d.description,
+      rarity: d.rarity,
+      weight: d.weight,
+      enabled: d.enabled,
+      sortOrder: d.sortOrder,
+      effect: CARD_CATALOG[d.mechanic as CardType] ? outcomeLabel(CARD_CATALOG[d.mechanic as CardType].spec) : "—",
+    })),
+    config: {
+      noEffectShare: cfg?.noEffectShare ?? DEFAULT_FUN_CONFIG.noEffectShare,
+      weightComun: cfg?.weightComun ?? DEFAULT_FUN_CONFIG.weights.comun,
+      weightRara: cfg?.weightRara ?? DEFAULT_FUN_CONFIG.weights.rara,
+      weightLegendaria: cfg?.weightLegendaria ?? DEFAULT_FUN_CONFIG.weights.legendaria,
+      weightMaldicion: cfg?.weightMaldicion ?? DEFAULT_FUN_CONFIG.weights.maldicion,
+    },
+    members,
+  };
 }
 
 export type PoolSummary = Pool & { memberCount: number };

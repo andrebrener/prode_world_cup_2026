@@ -17,6 +17,7 @@ import {
   poolMembers,
   funCards,
   cardDefs,
+  poolFunConfig,
 } from "./db/schema";
 import { eq, and, inArray } from "drizzle-orm";
 import { getParticipantId, setParticipantId } from "./session";
@@ -31,6 +32,8 @@ import {
   getPoolByCode,
   isPoolMember,
   getPlayContext,
+  canManagePool,
+  getPoolRole,
   type ParticipantDetail,
 } from "./db/queries";
 import {
@@ -616,6 +619,178 @@ async function funGate(slug: string) {
   if (!(await isPoolMember(pool.id, id)))
     return { error: "No estás en este prode." } as const;
   return { id, pool } as const;
+}
+
+// ---------- Administración del prode (owner/admin) ----------
+
+const RARITIES = new Set(["comun", "rara", "legendaria", "maldicion"]);
+
+/** Gate de gestión: el visitante debe ser owner o admin del prode. */
+async function manageGate(slug: string) {
+  const id = await getParticipantId();
+  if (!id) return { error: "Primero ingresá tu nombre." } as const;
+  const pool = await getPoolBySlug(slug);
+  if (!pool) return { error: "No encontramos ese prode." } as const;
+  if (!(await canManagePool(pool.id, id)))
+    return { error: "No tenés permiso para administrar este prode." } as const;
+  return { id, pool } as const;
+}
+
+export type CardDefPatch = {
+  name?: string;
+  emoji?: string;
+  description?: string;
+  rarity?: string;
+  weight?: number;
+  enabled?: boolean;
+};
+
+/** Edita una carta del mazo del prode (re-skin cosmético + peso/habilitada). */
+export async function saveCardDefAction(
+  slug: string,
+  defId: string,
+  patch: CardDefPatch,
+): Promise<{ ok: boolean; error?: string }> {
+  const gate = await manageGate(slug);
+  if ("error" in gate) return { ok: false, error: gate.error };
+  const [row] = await db.select().from(cardDefs).where(eq(cardDefs.id, defId));
+  if (!row || row.poolId !== gate.pool.id) return { ok: false, error: "Carta no encontrada." };
+
+  const set: Record<string, unknown> = {};
+  if (patch.name !== undefined) {
+    const v = patch.name.trim().slice(0, 40);
+    if (v.length < 1) return { ok: false, error: "El nombre no puede quedar vacío." };
+    set.name = v;
+  }
+  if (patch.emoji !== undefined) {
+    const v = patch.emoji.trim().slice(0, 8);
+    if (!v) return { ok: false, error: "Poné un emoji." };
+    set.emoji = v;
+  }
+  if (patch.description !== undefined) set.description = patch.description.trim().slice(0, 240);
+  if (patch.rarity !== undefined) {
+    if (!RARITIES.has(patch.rarity)) return { ok: false, error: "Rareza inválida." };
+    set.rarity = patch.rarity;
+  }
+  if (patch.weight !== undefined) set.weight = Math.max(0, Math.min(99, Math.trunc(patch.weight)));
+  if (patch.enabled !== undefined) set.enabled = !!patch.enabled;
+  if (Object.keys(set).length === 0) return { ok: true };
+
+  await db.update(cardDefs).set(set).where(eq(cardDefs.id, defId));
+  revalidatePath(`/p/${gate.pool.slug}`, "layout");
+  return { ok: true };
+}
+
+/** Agrega una carta al mazo, basada en una mecánica del catálogo (defaults editables). */
+export async function addCardDefAction(
+  slug: string,
+  mechanic: string,
+): Promise<{ ok: boolean; error?: string; id?: string }> {
+  const gate = await manageGate(slug);
+  if ("error" in gate) return { ok: false, error: gate.error };
+  const base = CARD_CATALOG[mechanic as CardType];
+  if (!base) return { ok: false, error: "Mecánica desconocida." };
+
+  const existing = await db
+    .select({ sortOrder: cardDefs.sortOrder })
+    .from(cardDefs)
+    .where(eq(cardDefs.poolId, gate.pool.id));
+  const nextOrder = existing.reduce((m, r) => Math.max(m, r.sortOrder), -1) + 1;
+  const id = randomUUID();
+  await db.insert(cardDefs).values({
+    id,
+    poolId: gate.pool.id,
+    mechanic: base.type,
+    name: base.name,
+    emoji: base.emoji,
+    description: base.description,
+    rarity: base.rarity,
+    weight: base.weight ?? 1,
+    enabled: true,
+    sortOrder: nextOrder,
+    createdAt: new Date(),
+  });
+  revalidatePath(`/p/${gate.pool.slug}`, "layout");
+  return { ok: true, id };
+}
+
+/** Borra una carta del mazo. Las jugadas que la referencian quedan con su mecánica (card_def_id → null). */
+export async function deleteCardDefAction(
+  slug: string,
+  defId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const gate = await manageGate(slug);
+  if ("error" in gate) return { ok: false, error: gate.error };
+  const [row] = await db.select().from(cardDefs).where(eq(cardDefs.id, defId));
+  if (!row || row.poolId !== gate.pool.id) return { ok: false, error: "Carta no encontrada." };
+  await db.delete(cardDefs).where(eq(cardDefs.id, defId));
+  revalidatePath(`/p/${gate.pool.slug}`, "layout");
+  return { ok: true };
+}
+
+export type FunConfigPatch = {
+  noEffectShare: number;
+  weightComun: number;
+  weightRara: number;
+  weightLegendaria: number;
+  weightMaldicion: number;
+};
+
+/** Edita la config de sorteo del prode (% sin efecto + pesos de rareza). */
+export async function updateFunConfigAction(
+  slug: string,
+  cfg: FunConfigPatch,
+): Promise<{ ok: boolean; error?: string }> {
+  const gate = await manageGate(slug);
+  if ("error" in gate) return { ok: false, error: gate.error };
+  const clamp = (n: number, max: number) => Math.max(0, Math.min(max, Math.trunc(Number(n) || 0)));
+  const values = {
+    poolId: gate.pool.id,
+    noEffectShare: clamp(cfg.noEffectShare, 100),
+    weightComun: clamp(cfg.weightComun, 1000),
+    weightRara: clamp(cfg.weightRara, 1000),
+    weightLegendaria: clamp(cfg.weightLegendaria, 1000),
+    weightMaldicion: clamp(cfg.weightMaldicion, 1000),
+  };
+  await db
+    .insert(poolFunConfig)
+    .values(values)
+    .onConflictDoUpdate({ target: poolFunConfig.poolId, set: values });
+  revalidatePath(`/p/${gate.pool.slug}`, "layout");
+  return { ok: true };
+}
+
+/** Cambia el rol de un miembro. Solo un owner puede, y no se puede dejar el prode sin owner. */
+export async function setMemberRoleAction(
+  slug: string,
+  participantId: string,
+  role: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const id = await getParticipantId();
+  if (!id) return { ok: false, error: "Primero ingresá tu nombre." };
+  const pool = await getPoolBySlug(slug);
+  if (!pool) return { ok: false, error: "No encontramos ese prode." };
+  if ((await getPoolRole(pool.id, id)) !== "owner")
+    return { ok: false, error: "Solo un owner puede cambiar roles." };
+  if (!["owner", "admin", "player"].includes(role)) return { ok: false, error: "Rol inválido." };
+  if (!(await isPoolMember(pool.id, participantId)))
+    return { ok: false, error: "No es miembro del prode." };
+
+  if (role !== "owner") {
+    const owners = await db
+      .select({ pid: poolMembers.participantId })
+      .from(poolMembers)
+      .where(and(eq(poolMembers.poolId, pool.id), eq(poolMembers.role, "owner")));
+    if (owners.length === 1 && owners[0].pid === participantId)
+      return { ok: false, error: "No podés dejar el prode sin ningún owner." };
+  }
+
+  await db
+    .update(poolMembers)
+    .set({ role })
+    .where(and(eq(poolMembers.poolId, pool.id), eq(poolMembers.participantId, participantId)));
+  revalidatePath(`/p/${pool.slug}`, "layout");
+  return { ok: true };
 }
 export type PlayCardExtra = {
   /** Apodo para "Los apodos del Droco". */

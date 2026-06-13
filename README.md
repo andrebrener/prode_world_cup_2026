@@ -21,7 +21,7 @@ and styled with **Tailwind CSS 4**. Installable as a **PWA**.
 
 > ⏰ **Deadline.** Predictions lock when the first match kicks off (Jun 11, 2026, 13:00 Mexico City time). After that they're frozen (a small name-based whitelist can still edit, for late joiners).
 
-> ⚠️ **No admin auth.** The results page (`/resultados`), the bracket generator, and pool/card management are **open to anyone** with the link. Pool membership carries a role (`owner` / `admin` / `player`), but the role is **not enforced** — add access control before using this for a real pool.
+> ⚠️ **Partial admin auth.** Pool and card management lives at `/p/[slug]/admin` and is gated by the membership role (`owner` / `admin` / `player`) — only owners/admins get there. The results page (`/resultados`) and the bracket generator are still **open to anyone** with the link; add access control there before using this for a real pool.
 
 ## Pools
 
@@ -29,7 +29,7 @@ and styled with **Tailwind CSS 4**. Installable as a **PWA**.
 - **Invite code + slug** — every pool gets a short code (paste-to-join) and a shareable URL (`/p/[slug]`). A **Share** widget surfaces both inside the pool.
 - **Pool switcher** in the nav to jump between your pools; the home page lists *your* pools and other public ones.
 - **Normal or Fun mode** — picked at creation, fixed afterwards. Fun adds cards + streaks (see below).
-- **Roles** — each membership has a role (`owner` / `admin` / `player`); the creator is an `owner` and a pool can have several. Roles are not enforced (see the warning above).
+- **Roles & admin** — each membership has a role (`owner` / `admin` / `player`); the creator is an `owner` and a pool can have several. Owners and admins get an **Administrar ⚙️** button on the pool page that opens `/p/[slug]/admin` — the deck editor, draw config, and member roles. Owners manage roles; results loading is still open (see the warning above).
 
 ## Profile & avatars
 
@@ -74,7 +74,7 @@ The card system is split in two so the **same mechanics can be re-skinned per po
 - **The engine (code).** A closed set of reusable, parameterized **outcomes** — the *math* of a card — lives in [`src/lib/cards.ts`](src/lib/cards.ts): `multiply_match` (×2 / ×3 / ÷2 over the first match of the day, a chosen match, or the whole day), `flat_points`, `steal_day_points`, `var_bonus`, `zero_day`, `shield`, `upstream_forecast`, `social_overlay`, and more. Every card maps to one of these, so re-skinning a card **never** changes the scoring — the math always comes from here.
 - **The deck (data, per pool).** Each Fun pool owns a **deck** (`card_defs` table): one row per card, with the editable bits — **name, emoji, description, rarity, draw weight, enabled** — plus the `mechanic` it points at. A pool's deck is seeded from the **official deck** ([`DEFAULT_DECK`](src/lib/cardCatalog.ts), derived from `CARD_CATALOG`), and each pool renames, re-emojis, re-rarities, weights, or disables its cards independently. The draw and the whole UI (feed, badges, emails) render each pool's own names/emojis.
 - **Draw config, per pool.** `pool_fun_config` holds the odds: the **% of "no-effect" (ego) cards** (default `40`) and the **rarity weights** — common / rare / legendary / curse (default `50 / 26 / 9 / 15`).
-- **Editing.** Deck and config live at the data layer (Drizzle Studio / SQL); there is no in-app admin screen for them.
+- **Editing.** Owners/admins manage the deck and draw config from the pool's admin screen (`/p/[slug]/admin`): rename / re-emoji / re-rarity / weight / enable each card, add or remove cards (pick a mechanic), and tune the draw odds — the two-level breakdown (no-effect % first, then rarity split) is shown live.
 - Card catalog + outcome registry (data + helpers) in [`src/lib/cardCatalog.ts`](src/lib/cardCatalog.ts); sorteo + effects engine in [`src/lib/cards.ts`](src/lib/cards.ts), streaks in [`src/lib/streaks.ts`](src/lib/streaks.ts) (pure + unit-tested); per-pool deck/roles helpers in [`src/lib/db/decks.ts`](src/lib/db/decks.ts); resolution happens inside `getLeaderboard`. Design notes: [`docs/cartas-data-driven.md`](docs/cartas-data-driven.md).
 
 ### Daily email digest (fun pools)
