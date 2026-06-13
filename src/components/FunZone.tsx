@@ -387,9 +387,28 @@ export default function FunZone({
               </button>
             </>
           ) : (
-            <p className="text-sm text-muted">
-              Ya reclamaste la de hoy. Mañana hay otra (cambia a la medianoche de México 🇲🇽).
-            </p>
+            <>
+              <p className="text-sm text-muted">
+                Ya reclamaste la de hoy. Mañana hay otra (cambia a la medianoche de México 🇲🇽).
+              </p>
+              {state.myCardToday && (
+                <>
+                  <p className="text-sm text-foreground">
+                    Hoy te {state.myCardToday.curse ? "tocó" : "salió"}{" "}
+                    {state.myCardToday.emoji} <strong>{state.myCardToday.name}</strong>.
+                  </p>
+                  <ShareCardButton
+                    slug={slug}
+                    name={state.myCardToday.name}
+                    emoji={state.myCardToday.emoji}
+                    rarity={state.myCardToday.rarity}
+                    curse={state.myCardToday.curse}
+                    description={state.myCardToday.description}
+                    by={myName}
+                  />
+                </>
+              )}
+            </>
           )}
           {error && !playing && <p className="text-sm text-danger">{error}</p>}
           {lastPlay && (

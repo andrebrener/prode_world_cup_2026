@@ -772,6 +772,10 @@ export type FunState = {
   canClaim: boolean;
   /** Carta sin resolver (pidió víctima/apodo/foto al salir): bloquea el sorteo. */
   pending: HeldCard | null;
+  /** Carta que el visitante ya sacó hoy (para poder compartirla tras recargar). */
+  myCardToday:
+    | (Pick<CardDef, "name" | "emoji" | "rarity" | "description"> & { curse: boolean })
+    | null;
   /** Historial completo de jugadas, más nuevas primero (la UI agrupa por día). */
   feed: FunFeedItem[];
 };
@@ -808,6 +812,21 @@ export async function getFunState(pool: Pool, viewerId: string): Promise<FunStat
 
   const claimedToday = mine.some((c) => c.drawDate === today);
 
+  // Carta de hoy del visitante (para compartirla aunque ya haya recargado).
+  const myTodayCard = mine.find((c) => c.drawDate === today);
+  const myTodayDef = myTodayCard
+    ? (viewOf(myTodayCard, defsById) ?? CARD_CATALOG[myTodayCard.cardType as CardType])
+    : null;
+  const myCardToday = myTodayDef
+    ? {
+        name: myTodayDef.name,
+        emoji: myTodayDef.emoji,
+        rarity: myTodayDef.rarity,
+        description: myTodayDef.description,
+        curse: myTodayDef.kind === "curse",
+      }
+    : null;
+
   const feed: FunFeedItem[] = cards
     .filter((c) => c.status !== "held" && c.playedAt)
     .sort((a, b) => b.playedAt!.getTime() - a.playedAt!.getTime())
@@ -837,7 +856,7 @@ export async function getFunState(pool: Pool, viewerId: string): Promise<FunStat
       };
     });
 
-  return { today, claimedToday, canClaim: !claimedToday && !pending, pending, feed };
+  return { today, claimedToday, canClaim: !claimedToday && !pending, pending, myCardToday, feed };
 }
 
 export type PlayContext = {
