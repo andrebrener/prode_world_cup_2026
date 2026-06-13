@@ -337,7 +337,7 @@ export function predictionsLocked(now: Date = new Date()): boolean {
 
 // Participantes con permiso para editar sus pronósticos incluso después del cierre.
 // Se compara por token del nombre, sin distinguir mayúsculas (ej "Oscar Brener" → "oscar").
-const EDIT_AFTER_DEADLINE_NAMES = new Set(["bj", "oscar"]);
+const EDIT_AFTER_DEADLINE_NAMES = new Set(["bj"]);
 
 export function canEditAfterDeadline(name: string | null | undefined): boolean {
   if (!name) return false;
