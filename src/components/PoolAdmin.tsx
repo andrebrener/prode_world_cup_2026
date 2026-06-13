@@ -322,11 +322,12 @@ function NewCardForm({
           ))}
         </select>
       </div>
-      <input
+      <textarea
         value={draft.description}
         onChange={(e) => setDraft({ ...draft, description: e.target.value })}
         placeholder="Descripción"
-        className="mt-2 w-full rounded-lg border border-border bg-surface px-2 py-1.5 text-xs"
+        rows={3}
+        className="mt-2 w-full resize-y rounded-lg border border-border bg-surface px-2 py-1.5 text-xs leading-snug"
         aria-label="Descripción"
       />
 
@@ -404,10 +405,11 @@ function CardRow({
         </select>
       </div>
 
-      <input
+      <textarea
         value={draft.description}
         onChange={(e) => setDraft({ ...draft, description: e.target.value })}
-        className="mt-2 w-full rounded-lg border border-border bg-surface px-2 py-1.5 text-xs"
+        rows={3}
+        className="mt-2 w-full resize-y rounded-lg border border-border bg-surface px-2 py-1.5 text-xs leading-snug"
         aria-label="Descripción"
       />
 
