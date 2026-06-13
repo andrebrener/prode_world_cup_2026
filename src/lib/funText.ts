@@ -6,10 +6,10 @@ import type { CardType } from "./cardCatalog";
 type Verb = (o: string, t: string, d: string | null) => string;
 
 export const FEED_VERB: Record<CardType, Verb> = {
-  doblete: (o) => `✌️ ${o} jugó un Doblete`,
+  doblete: (o) => `🐓 ${o} madrugó: dobla su primer partido del día`,
   honguito: (o) => `🍄 ${o} le puso un Honguito a un partido: ahí cuenta doble`,
   yapa: (o) => `🎁 ${o} pidió La Yapa`,
-  mufa: (o, t) => `🐈‍⬛ ${o} mufó el próximo partido de ${t}`,
+  mufa: (o, t) => `🐈‍⬛ ${o} le mufó el primer partido del día a ${t}`,
   diego: (o) => `🔟 ${o} sacó El Diego`,
   var: (o) => `📺 ${o} llamó al VAR`,
   costillar: (o) => `🥩 ${o} desayunó costillar a las 7 AM`,
