@@ -12,7 +12,7 @@ import {
   addCardDefAction,
   deleteCardDefAction,
   updateFunConfigAction,
-  setMemberRoleAction,
+  setMemberRolesAction,
   type CardDefPatch,
 } from "@/lib/actions";
 import { RARITY_LABEL, type CardRarity, type MechanicOption } from "@/lib/cardCatalog";
@@ -461,17 +461,45 @@ function Members({
   run: (fn: () => Promise<{ ok: boolean; error?: string }>, okText: string) => void;
 }) {
   const canEditRoles = myRole === "owner";
+  // Borrador de roles (id → rol). Se persiste en lote con un solo botón.
+  const [roles, setRoles] = useState<Record<string, PoolRole>>(() =>
+    Object.fromEntries(members.map((m) => [m.id, m.role])),
+  );
+  const changes = members
+    .filter((m) => roles[m.id] !== m.role)
+    .map((m) => ({ participantId: m.id, role: roles[m.id] }));
+
   return (
     <section className="rounded-2xl border border-border bg-surface p-5">
-      <h2 className="wordmark text-2xl">Miembros ({members.length})</h2>
-      <p className="mt-1 text-sm text-muted">
-        {canEditRoles
-          ? "Como owner podés promover a admin (gestiona mazo y sorteo) o degradar a jugador."
-          : "Solo un owner puede cambiar roles."}
-      </p>
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <h2 className="wordmark text-2xl">Miembros ({members.length})</h2>
+          <p className="mt-1 text-sm text-muted">
+            {canEditRoles
+              ? "Como owner podés promover a admin (gestiona mazo y sorteo) o degradar a jugador."
+              : "Solo un owner puede cambiar roles."}
+          </p>
+        </div>
+        {canEditRoles && (
+          <button
+            disabled={busy || changes.length === 0}
+            onClick={() => run(() => setMemberRolesAction(slug, changes), "Roles guardados.")}
+            className="rounded-xl bg-primary px-4 py-2 text-sm font-bold text-primary-ink transition hover:brightness-110 disabled:opacity-40"
+          >
+            Guardar cambios{changes.length > 0 ? ` (${changes.length})` : ""}
+          </button>
+        )}
+      </div>
       <div className="mt-4 flex flex-col divide-y divide-border/60">
         {members.map((m) => (
-          <MemberRow key={m.id} slug={slug} member={m} canEdit={canEditRoles} isMe={m.id === meId} busy={busy} run={run} />
+          <MemberRow
+            key={m.id}
+            member={m}
+            canEdit={canEditRoles}
+            isMe={m.id === meId}
+            role={roles[m.id] ?? m.role}
+            onChangeRole={(r) => setRoles((prev) => ({ ...prev, [m.id]: r }))}
+          />
         ))}
       </div>
     </section>
@@ -496,22 +524,18 @@ function RoleChip({ role }: { role: PoolRole }) {
 }
 
 function MemberRow({
-  slug,
   member,
   canEdit,
   isMe,
-  busy,
-  run,
+  role,
+  onChangeRole,
 }: {
-  slug: string;
   member: PoolAdminData["members"][number];
   canEdit: boolean;
   isMe: boolean;
-  busy: boolean;
-  run: (fn: () => Promise<{ ok: boolean; error?: string }>, okText: string) => void;
+  role: PoolRole;
+  onChangeRole: (role: PoolRole) => void;
 }) {
-  const [role, setRole] = useState<PoolRole>(member.role);
-  const dirty = role !== member.role;
   return (
     <div className="flex items-center justify-between gap-2 py-2">
       <span className="flex items-center gap-2 text-sm font-semibold text-foreground">
@@ -521,26 +545,17 @@ function MemberRow({
         </span>
         <RoleChip role={member.role} />
       </span>
-      {canEdit ? (
-        <div className="flex items-center gap-2">
-          <select
-            value={role}
-            onChange={(e) => setRole(e.target.value as PoolRole)}
-            className="rounded-lg border border-border bg-background px-2 py-1 text-sm"
-          >
-            <option value="owner">Owner</option>
-            <option value="admin">Admin</option>
-            <option value="player">Jugador</option>
-          </select>
-          <button
-            disabled={busy || !dirty}
-            onClick={() => run(() => setMemberRoleAction(slug, member.id, role), "Rol actualizado.")}
-            className="rounded-lg bg-primary px-3 py-1 text-xs font-bold text-primary-ink transition hover:brightness-110 disabled:opacity-40"
-          >
-            Guardar
-          </button>
-        </div>
-      ) : null}
+      {canEdit && (
+        <select
+          value={role}
+          onChange={(e) => onChangeRole(e.target.value as PoolRole)}
+          className="rounded-lg border border-border bg-background px-2 py-1 text-sm"
+        >
+          <option value="owner">Owner</option>
+          <option value="admin">Admin</option>
+          <option value="player">Jugador</option>
+        </select>
+      )}
     </div>
   );
 }

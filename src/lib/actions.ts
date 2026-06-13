@@ -768,11 +768,13 @@ export async function updateFunConfigAction(
   return { ok: true };
 }
 
-/** Cambia el rol de un miembro. Solo un owner puede, y no se puede dejar el prode sin owner. */
-export async function setMemberRoleAction(
+/**
+ * Guarda en lote los roles que cambiaron. Solo un owner puede, y el prode no puede
+ * quedar sin ningún owner tras aplicar todos los cambios.
+ */
+export async function setMemberRolesAction(
   slug: string,
-  participantId: string,
-  role: string,
+  changes: { participantId: string; role: string }[],
 ): Promise<{ ok: boolean; error?: string }> {
   const id = await getParticipantId();
   if (!id) return { ok: false, error: "Primero ingresá tu nombre." };
@@ -780,23 +782,29 @@ export async function setMemberRoleAction(
   if (!pool) return { ok: false, error: "No encontramos ese prode." };
   if ((await getPoolRole(pool.id, id)) !== "owner")
     return { ok: false, error: "Solo un owner puede cambiar roles." };
-  if (!["owner", "admin", "player"].includes(role)) return { ok: false, error: "Rol inválido." };
-  if (!(await isPoolMember(pool.id, participantId)))
-    return { ok: false, error: "No es miembro del prode." };
-
-  if (role !== "owner") {
-    const owners = await db
-      .select({ pid: poolMembers.participantId })
-      .from(poolMembers)
-      .where(and(eq(poolMembers.poolId, pool.id), eq(poolMembers.role, "owner")));
-    if (owners.length === 1 && owners[0].pid === participantId)
-      return { ok: false, error: "No podés dejar el prode sin ningún owner." };
+  if (changes.length === 0) return { ok: true };
+  for (const c of changes) {
+    if (!["owner", "admin", "player"].includes(c.role)) return { ok: false, error: "Rol inválido." };
   }
 
-  await db
-    .update(poolMembers)
-    .set({ role })
-    .where(and(eq(poolMembers.poolId, pool.id), eq(poolMembers.participantId, participantId)));
+  const members = await db
+    .select({ pid: poolMembers.participantId, role: poolMembers.role })
+    .from(poolMembers)
+    .where(eq(poolMembers.poolId, pool.id));
+  const finalRole = new Map(members.map((m) => [m.pid, m.role as string]));
+  for (const c of changes) {
+    if (!finalRole.has(c.participantId)) return { ok: false, error: "Alguien no es miembro del prode." };
+    finalRole.set(c.participantId, c.role);
+  }
+  if (![...finalRole.values()].some((r) => r === "owner"))
+    return { ok: false, error: "No podés dejar el prode sin ningún owner." };
+
+  for (const c of changes) {
+    await db
+      .update(poolMembers)
+      .set({ role: c.role })
+      .where(and(eq(poolMembers.poolId, pool.id), eq(poolMembers.participantId, c.participantId)));
+  }
   revalidatePath(`/p/${pool.slug}`, "layout");
   return { ok: true };
 }
