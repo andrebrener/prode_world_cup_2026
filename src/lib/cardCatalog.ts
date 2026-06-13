@@ -59,11 +59,53 @@ export type CardType =
 
 export type CardWindow = "match" | "day" | null;
 
+/**
+ * Outcome = la MECÁNICA de la carta (qué le hace a los puntos), reutilizable y
+ * parametrizable. El set es cerrado y lo define el motor (cards.ts). Varias
+ * cartas distintas comparten outcome con params distintos: doblete/diego/cábala/
+ * honguito/mufa son todas `multiply_match` con otro `(scope, factor)`.
+ *
+ * Lo que el outcome NO define son `kind`/`target`/`blockable`/`window` (mufa y
+ * doblete son ambas `multiply_match` pero una es ataque y la otra buff): esos son
+ * atributos ortogonales de la carta. El outcome es solo la matemática de puntos.
+ */
+export type OutcomeSpec =
+  /** Multiplica los puntos de un partido por `factor` (floor). */
+  | { outcome: "multiply_match"; scope: "chosen" | "first_of_day" | "all_of_day"; factor: number }
+  /** +`amount` al partido `scope` solo si ahí sumaste (>0). */
+  | { outcome: "bonus_if_scored"; scope: "first_of_day"; amount: number }
+  /** Piso de puntos por partido del día = lo de acertar el resultado (3/4). */
+  | { outcome: "floor_match_points"; scope: "all_of_day" }
+  /** 0 puntos en el día; `streak` controla qué pasa con la racha. */
+  | { outcome: "zero_day"; streak: "protect_on_hit" | "skip" | "none" }
+  /** +`amount` al próximo partido con puntos posterior a jugarla (standing). */
+  | { outcome: "var_bonus"; amount: number }
+  /** Roba todos los puntos del día de la víctima. */
+  | { outcome: "steal_day_points" }
+  /** ±puntos planos: `selfAmount` al dueño; si hay víctima, `victimAmount`. */
+  | { outcome: "flat_points"; selfAmount: number; victimAmount?: number }
+  /** Cobra los puntos del campeón (no se duplica si ya lo tenía). */
+  | { outcome: "champion_points"; amount: number }
+  /** Defensa standing: bloquea o rebota el próximo ataque. */
+  | { outcome: "shield"; mode: "block" | "reflect" }
+  /** La racha aguanta el próximo partido en cero (standing). */
+  | { outcome: "streak_shield" }
+  /** Reemplaza el pronóstico del día de la víctima (azar o invertido). Pre-base. */
+  | { outcome: "upstream_forecast"; mode: "random" | "invert" }
+  /** Overlay de ego (no toca puntos): apodo, foto o mensaje. */
+  | { outcome: "social_overlay"; kind: "apodo" | "foto" | "mensaje" }
+  /** Limpia los overlays sociales propios. */
+  | { outcome: "clear_social" };
+
+export type Outcome = OutcomeSpec["outcome"];
+
 export type CardDef = {
   type: CardType;
   name: string;
   emoji: string;
   rarity: CardRarity;
+  /** Mecánica de puntos (parametrizada). Ver OutcomeSpec. */
+  spec: OutcomeSpec;
   /** buff/instant = te afecta a vos · attack = hostil · shield = defensa · social = ego · curse = te toca */
   kind: "buff" | "attack" | "shield" | "instant" | "social" | "curse";
   /** self · other (elegís víctima) */
@@ -90,6 +132,7 @@ export const CARD_CATALOG: Record<CardType, CardDef> = {
   // ---------- Primer partido del día (doblete/diego/mufa/yapa) + honguito/VAR ----------
   doblete: c({
     type: "doblete",
+    spec: { outcome: "multiply_match", scope: "first_of_day", factor: 2 },
     name: "El que madruga, dobla",
     emoji: "🐓",
     rarity: "comun",
@@ -102,6 +145,7 @@ export const CARD_CATALOG: Record<CardType, CardDef> = {
   }),
   honguito: c({
     type: "honguito",
+    spec: { outcome: "multiply_match", scope: "chosen", factor: 2 },
     name: "Honguito",
     emoji: "🍄",
     rarity: "rara",
@@ -115,6 +159,7 @@ export const CARD_CATALOG: Record<CardType, CardDef> = {
   }),
   yapa: c({
     type: "yapa",
+    spec: { outcome: "bonus_if_scored", scope: "first_of_day", amount: 1 },
     name: "La Yapa",
     emoji: "🎁",
     rarity: "comun",
@@ -127,6 +172,7 @@ export const CARD_CATALOG: Record<CardType, CardDef> = {
   }),
   mufa: c({
     type: "mufa",
+    spec: { outcome: "multiply_match", scope: "first_of_day", factor: 0.5 },
     name: "Mufa",
     emoji: "🐈‍⬛",
     rarity: "rara",
@@ -139,6 +185,7 @@ export const CARD_CATALOG: Record<CardType, CardDef> = {
   }),
   diego: c({
     type: "diego",
+    spec: { outcome: "multiply_match", scope: "first_of_day", factor: 3 },
     name: "El Diego",
     emoji: "🔟",
     rarity: "legendaria",
@@ -151,9 +198,10 @@ export const CARD_CATALOG: Record<CardType, CardDef> = {
   }),
   var: c({
     type: "var",
+    spec: { outcome: "var_bonus", amount: 2 },
     name: "VAR a favor",
     emoji: "📺",
-    rarity: "legendaria",
+    rarity: "rara",
     kind: "buff",
     target: "self",
     window: null,
@@ -165,9 +213,10 @@ export const CARD_CATALOG: Record<CardType, CardDef> = {
   // ---------- Buffs de día ----------
   costillar: c({
     type: "costillar",
+    spec: { outcome: "floor_match_points", scope: "all_of_day" },
     name: "Costillar 7 AM",
     emoji: "🥩",
-    rarity: "rara",
+    rarity: "legendaria",
     kind: "buff",
     target: "self",
     window: "day",
@@ -177,9 +226,10 @@ export const CARD_CATALOG: Record<CardType, CardDef> = {
   }),
   cabala: c({
     type: "cabala",
+    spec: { outcome: "multiply_match", scope: "all_of_day", factor: 2 },
     name: "Cábala del Echugo",
     emoji: "🍀",
-    rarity: "rara",
+    rarity: "legendaria",
     kind: "buff",
     target: "self",
     window: "day",
@@ -191,6 +241,7 @@ export const CARD_CATALOG: Record<CardType, CardDef> = {
   // ---------- Ataques de día ----------
   piedrambre: c({
     type: "piedrambre",
+    spec: { outcome: "upstream_forecast", mode: "invert" },
     name: "Piedrambre",
     emoji: "🪨",
     rarity: "legendaria",
@@ -203,6 +254,7 @@ export const CARD_CATALOG: Record<CardType, CardDef> = {
   }),
   caido: c({
     type: "caido",
+    spec: { outcome: "zero_day", streak: "protect_on_hit" },
     name: "Se me cayó el Fernet",
     emoji: "😭",
     rarity: "rara",
@@ -215,6 +267,7 @@ export const CARD_CATALOG: Record<CardType, CardDef> = {
   }),
   filtro: c({
     type: "filtro",
+    spec: { outcome: "zero_day", streak: "skip" },
     name: "Filtro 5mm",
     emoji: "🚬",
     rarity: "rara",
@@ -229,6 +282,7 @@ export const CARD_CATALOG: Record<CardType, CardDef> = {
   // ---------- Caos ----------
   caldeador: c({
     type: "caldeador",
+    spec: { outcome: "upstream_forecast", mode: "random" },
     name: "Caldeador de las tinieblas",
     emoji: "🤮",
     rarity: "legendaria",
@@ -243,6 +297,7 @@ export const CARD_CATALOG: Record<CardType, CardDef> = {
   // ---------- Robo del día (type histórico "duelo") ----------
   duelo: c({
     type: "duelo",
+    spec: { outcome: "steal_day_points" },
     name: "Matambre de cerdo",
     emoji: "🐷",
     rarity: "legendaria",
@@ -257,6 +312,7 @@ export const CARD_CATALOG: Record<CardType, CardDef> = {
   // ---------- Puntos directos / robo ----------
   papas: c({
     type: "papas",
+    spec: { outcome: "flat_points", selfAmount: 5 },
     name: "Nico compró papas",
     emoji: "🍟",
     rarity: "rara",
@@ -269,6 +325,7 @@ export const CARD_CATALOG: Record<CardType, CardDef> = {
   }),
   speed: c({
     type: "speed",
+    spec: { outcome: "flat_points", selfAmount: 2 },
     name: "Built for speed",
     emoji: "🏎️",
     rarity: "comun",
@@ -281,9 +338,10 @@ export const CARD_CATALOG: Record<CardType, CardDef> = {
   }),
   pedo: c({
     type: "pedo",
+    spec: { outcome: "flat_points", selfAmount: 5, victimAmount: -5 },
     name: "Pedo en la cara",
     emoji: "💨",
-    rarity: "rara",
+    rarity: "legendaria",
     kind: "attack",
     target: "other",
     window: null,
@@ -295,6 +353,7 @@ export const CARD_CATALOG: Record<CardType, CardDef> = {
   // ---------- Vidente ----------
   saibamba: c({
     type: "saibamba",
+    spec: { outcome: "champion_points", amount: 10 },
     name: "Sai Bamba",
     emoji: "🔮",
     rarity: "legendaria",
@@ -309,6 +368,7 @@ export const CARD_CATALOG: Record<CardType, CardDef> = {
   // ---------- Standings ----------
   escudo: c({
     type: "escudo",
+    spec: { outcome: "shield", mode: "block" },
     name: "Anulo mufa",
     emoji: "🛡️",
     rarity: "comun",
@@ -321,6 +381,7 @@ export const CARD_CATALOG: Record<CardType, CardDef> = {
   }),
   aguante: c({
     type: "aguante",
+    spec: { outcome: "streak_shield" },
     name: "Fernet de Fernemo",
     emoji: "🥃",
     rarity: "rara",
@@ -333,6 +394,7 @@ export const CARD_CATALOG: Record<CardType, CardDef> = {
   }),
   espejito: c({
     type: "espejito",
+    spec: { outcome: "shield", mode: "reflect" },
     name: "Espejito rebotín",
     emoji: "🪞",
     rarity: "legendaria",
@@ -347,6 +409,7 @@ export const CARD_CATALOG: Record<CardType, CardDef> = {
   // ---------- Maldiciones (se aplican solas al reclamar) ----------
   nemo: c({
     type: "nemo",
+    spec: { outcome: "zero_day", streak: "none" },
     name: "Nemo usó tus sábanas",
     emoji: "🛏️",
     rarity: "maldicion",
@@ -359,6 +422,7 @@ export const CARD_CATALOG: Record<CardType, CardDef> = {
   }),
   heladera: c({
     type: "heladera",
+    spec: { outcome: "zero_day", streak: "none" },
     name: "Te toca limpiar la heladera",
     emoji: "🧊",
     rarity: "maldicion",
