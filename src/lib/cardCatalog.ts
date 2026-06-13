@@ -28,7 +28,7 @@ export type CardType =
   | "costillar"
   | "cabala"
   // ataques de día
-  | "pelambreada"
+  | "piedrambre"
   | "caido"
   | "filtro"
   // caos
@@ -175,17 +175,17 @@ export const CARD_CATALOG: Record<CardType, CardDef> = {
   }),
 
   // ---------- Ataques de día ----------
-  pelambreada: c({
-    type: "pelambreada",
-    name: "Pelambreada",
-    emoji: "🤦",
+  piedrambre: c({
+    type: "piedrambre",
+    name: "Piedrambre",
+    emoji: "🪨",
     rarity: "legendaria",
     kind: "attack",
     target: "other",
     window: "day",
     standing: false,
     blockable: true,
-    description: "Tu víctima se mandó una pelambreada épica: hoy no suma ni un punto y se le corta la racha.",
+    description: "A tu víctima se le dan vuelta los pronósticos del día: el marcador que cargó cuenta al revés (jugó 2-1, le vale como 1-2). Que rece que igual le pegue.",
   }),
   caido: c({
     type: "caido",

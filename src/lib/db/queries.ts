@@ -302,6 +302,34 @@ export async function getLeaderboard(pool: Pool): Promise<LeaderboardRow[]> {
     }
   }
 
+  // (miembro, partido) → id de la Piedrambre que le da vuelta el marcador del día
+  // (2-1 cuenta como 1-2). Misma mecánica upstream que el Caldeador: no muta el
+  // pronóstico guardado (global entre prodes), solo recalcula la base de este prode.
+  const flippedBy: Record<string, string> = {};
+  for (const c of funCardRows) {
+    if (c.cardType !== "piedrambre" || c.status !== "played" || !c.playedAt || !c.effectDate)
+      continue;
+    const affected = c.reflected ? c.participantId : c.targetParticipantId;
+    if (!affected) continue;
+    for (const id of Object.keys(results)) {
+      const k = KICKOFF_BY_ID[id];
+      if (k && matchDay(k) === c.effectDate && new Date(k).getTime() > c.playedAt.getTime()) {
+        flippedBy[`${affected}:${id}`] = c.id;
+      }
+    }
+    for (const km of bracket.matches) {
+      const k = koKickoff(km.id);
+      if (
+        km.result &&
+        k &&
+        matchDay(k) === c.effectDate &&
+        new Date(k).getTime() > c.playedAt.getTime()
+      ) {
+        flippedBy[`${affected}:${km.id}`] = c.id;
+      }
+    }
+  }
+
   // Puntos por partido por miembro (todo partido CON resultado tiene entrada,
   // aunque sea 0). Es la base sobre la que el modo Diversión aplica cartas.
   const groupResultIds = new Set(Object.keys(results));
@@ -317,25 +345,28 @@ export async function getLeaderboard(pool: Pool): Promise<LeaderboardRow[]> {
     let pure = 0;
     for (const [matchId, real] of Object.entries(results)) {
       const caldeador = caldeadoBy[`${person.id}:${matchId}`];
+      const flipped = flippedBy[`${person.id}:${matchId}`];
       const purePts = matchPoints(preds[matchId], real);
       pure += purePts;
-      const pts = caldeador ? matchPoints(caldeadorScore(caldeador, matchId), real) : purePts;
-      m[matchId] = pts;
+      // Caldeador pisa el pronóstico con uno random; la Piedrambre da vuelta el
+      // que quede en juego (el real, o el del Caldeador si stackean).
+      let pred = caldeador ? caldeadorScore(caldeador, matchId) : preds[matchId];
+      if (pred && flipped) pred = { homeGoals: pred.awayGoals, awayGoals: pred.homeGoals };
+      m[matchId] = caldeador || flipped ? matchPoints(pred, real) : purePts;
       if (purePts === 5) exact++;
     }
     for (const km of bracket.matches) {
       if (!km.result || !km.home || !km.away) continue;
       const caldeador = caldeadoBy[`${person.id}:${km.id}`];
+      const flipped = flippedBy[`${person.id}:${km.id}`];
       const purePts = knockoutPoints(koPreds[km.id], km.result as KoReal, km.home, km.away);
       pure += purePts;
-      m[km.id] = caldeador
-        ? knockoutPoints(
-            caldeadorKoPred(caldeador, km.id, km.home, km.away),
-            km.result as KoReal,
-            km.home,
-            km.away,
-          )
-        : purePts;
+      let pred = caldeador ? caldeadorKoPred(caldeador, km.id, km.home, km.away) : koPreds[km.id];
+      if (pred && flipped) pred = { ...pred, homeGoals: pred.awayGoals, awayGoals: pred.homeGoals };
+      m[km.id] =
+        caldeador || flipped
+          ? knockoutPoints(pred, km.result as KoReal, km.home, km.away)
+          : purePts;
     }
     ptsByMember[person.id] = m;
     exactByMember[person.id] = exact;

@@ -318,15 +318,8 @@ describe("applyCardEffects", () => {
     expect(r.points.ana.M2).toBe(10);
   });
 
-  it("pelambreada deja el día en 0", () => {
-    const r = applyCardEffects({
-      ...opts,
-      cards: [played("pelambreada", "ana", { targetId: "beto", effectDate: DAY_1 })],
-    });
-    expect(r.points.beto.M1).toBe(0);
-    expect(r.points.beto.M2).toBe(0);
-    expect(r.points.beto.M3).toBe(3);
-  });
+  // La Piedrambre da vuelta el marcador del pronóstico (no pone 0), así que se
+  // resuelve al armar la base en getLeaderboard —como el Caldeador—, no acá.
 
   it("caído del fernet: 0 puntos pero protege la racha donde hubiese sumado", () => {
     const r = applyCardEffects({
