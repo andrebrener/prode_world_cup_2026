@@ -89,15 +89,15 @@ describe("dailyCard (sorteo diario, 4 baldes)", () => {
     );
   });
 
-  it("la mitad de las tiradas son cartas sin efecto (puro ego)", () => {
+  it("el 40% de las tiradas son cartas sin efecto (puro ego)", () => {
     const noEffect = new Set<CardType>(NO_EFFECT_CARDS);
     let sinEfecto = 0;
     const N = 4000;
     for (let i = 0; i < N; i++) {
       if (noEffect.has(dailyCard("pool1", `jugador-${i}`, "2026-06-15").type)) sinEfecto++;
     }
-    expect(sinEfecto / N).toBeGreaterThan(0.45);
-    expect(sinEfecto / N).toBeLessThan(0.55);
+    expect(sinEfecto / N).toBeGreaterThan(0.35);
+    expect(sinEfecto / N).toBeLessThan(0.45);
   });
 
   it("dentro del tramo con efecto respeta los baldes (50/26/9/15)", () => {
@@ -173,9 +173,35 @@ describe("fullSchedule / nextMatchAfter", () => {
 });
 
 describe("resolvePlay (validación)", () => {
-  it("un buff de partido apunta al próximo partido", () => {
+  it("el doblete (primer partido del día) queda atado al día", () => {
     const r = resolvePlay({ ...basePlay, cardType: "doblete" });
+    expect(r).toMatchObject({ ok: true, effectMatchId: null, effectDate: DAY_1 });
+  });
+
+  it("el honguito se ata al partido del día que elijas", () => {
+    const r = resolvePlay({ ...basePlay, cardType: "honguito", chosenMatchId: "M2" });
+    expect(r).toMatchObject({ ok: true, effectMatchId: "M2", effectDate: null });
+  });
+
+  it("el honguito sin elección cae al próximo partido", () => {
+    const r = resolvePlay({ ...basePlay, cardType: "honguito" });
     expect(r).toMatchObject({ ok: true, effectMatchId: "M1", effectDate: null });
+  });
+
+  it("el honguito no puede ir a un partido de otro día ni a uno ya arrancado", () => {
+    // M3 es del 21/jun; la carta se ata al día de M1/M2 (20/jun).
+    expect(
+      resolvePlay({ ...basePlay, cardType: "honguito", chosenMatchId: "M3" }),
+    ).toMatchObject({ ok: false });
+    // A las 14:00 del 20/jun, M1 ya arrancó: no es elegible.
+    expect(
+      resolvePlay({
+        ...basePlay,
+        cardType: "honguito",
+        chosenMatchId: "M1",
+        now: new Date("2026-06-20T14:00:00-06:00"),
+      }),
+    ).toMatchObject({ ok: false });
   });
 
   it("un buff de día queda atado a hoy", () => {
@@ -212,7 +238,8 @@ describe("resolvePlay (validación)", () => {
     });
     expect(resolvePlay({ ...basePlay, cardType: "mufa", targetId: "beto" })).toMatchObject({
       ok: true,
-      effectMatchId: "M1",
+      effectMatchId: null,
+      effectDate: DAY_1,
     });
   });
 
@@ -233,10 +260,11 @@ describe("resolvePlay (validación)", () => {
       targetId: "beto",
       targetMirrorCardId: "espejito-de-beto",
     });
-    // La mufa rebotada queda atada al próximo partido de ANA (la atacante).
+    // La mufa rebotada queda atada al día de ANA (la atacante).
     expect(r).toMatchObject({
       ok: true,
-      effectMatchId: "M1",
+      effectMatchId: null,
+      effectDate: DAY_1,
       reflectedByMirrorId: "espejito-de-beto",
     });
   });
@@ -281,19 +309,30 @@ describe("applyCardEffects", () => {
     expect(r.delta).toEqual({ ana: 0, beto: 0 });
   });
 
-  it("doblete y diego (ventana partido) siguen funcionando", () => {
+  it("doblete y diego doblan/triplican el primer partido del día", () => {
     const r = applyCardEffects({
       ...opts,
       cards: [
-        played("doblete", "ana", { effectMatchId: "M1" }),
-        played("diego", "beto", { effectMatchId: "M4" }),
+        played("doblete", "ana", { effectDate: DAY_1 }), // primer partido del 20 = M1
+        played("diego", "beto", { effectDate: "2026-06-22" }), // único del 22 = M4
       ],
     });
-    expect(r.points.ana.M1).toBe(6);
-    expect(r.points.beto.M4).toBe(15);
+    expect(r.points.ana.M1).toBe(6); // 3 → ×2
+    expect(r.points.ana.M2).toBe(5); // segundo del día: intacto
+    expect(r.points.beto.M4).toBe(15); // 5 → ×3
   });
 
-  it("cábala duplica todos los partidos del día (posteriores a jugarla)", () => {
+  it("honguito duplica solo el partido elegido", () => {
+    const r = applyCardEffects({
+      ...opts,
+      cards: [played("honguito", "ana", { effectMatchId: "M2" })],
+    });
+    expect(r.points.ana.M1).toBe(3); // intacto
+    expect(r.points.ana.M2).toBe(10); // 5 → ×2
+    expect(r.delta.ana).toBe(5);
+  });
+
+  it("cábala duplica todos los partidos del día (toda la jornada)", () => {
     const r = applyCardEffects({
       ...opts,
       cards: [played("cabala", "ana", { effectDate: DAY_1 })],
@@ -304,7 +343,7 @@ describe("applyCardEffects", () => {
     expect(r.delta.ana).toBe(8);
   });
 
-  it("la cábala no aplica a partidos que ya habían arrancado al jugarla", () => {
+  it("la cábala cubre todo el día, incluso partidos ya arrancados al jugarla", () => {
     const r = applyCardEffects({
       ...opts,
       cards: [
@@ -314,7 +353,7 @@ describe("applyCardEffects", () => {
         }),
       ],
     });
-    expect(r.points.ana.M1).toBe(3); // ya jugado: no retro
+    expect(r.points.ana.M1).toBe(6); // retroactivo dentro del día: M1 también dobla
     expect(r.points.ana.M2).toBe(10);
   });
 
@@ -443,7 +482,7 @@ describe("applyCardEffects", () => {
         played("cabala", "ana", { effectDate: DAY_1, playedAt: BEFORE_M1 }),
         played("mufa", "beto", {
           targetId: "ana",
-          effectMatchId: "M1",
+          effectDate: DAY_1,
           playedAt: new Date("2026-06-19T13:00:00-06:00"),
         }),
       ],

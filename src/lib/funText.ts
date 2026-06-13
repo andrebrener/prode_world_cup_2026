@@ -7,6 +7,7 @@ type Verb = (o: string, t: string, d: string | null) => string;
 
 export const FEED_VERB: Record<CardType, Verb> = {
   doblete: (o) => `✌️ ${o} jugó un Doblete`,
+  honguito: (o) => `🍄 ${o} le puso un Honguito a un partido: ahí cuenta doble`,
   yapa: (o) => `🎁 ${o} pidió La Yapa`,
   mufa: (o, t) => `🐈‍⬛ ${o} mufó el próximo partido de ${t}`,
   diego: (o) => `🔟 ${o} sacó El Diego`,

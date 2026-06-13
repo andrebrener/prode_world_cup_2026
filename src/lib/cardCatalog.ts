@@ -20,6 +20,7 @@ export type CardRarity = "comun" | "rara" | "legendaria" | "maldicion";
 export type CardType =
   // ventana partido (v1)
   | "doblete"
+  | "honguito"
   | "yapa"
   | "mufa"
   | "diego"
@@ -72,8 +73,8 @@ export type CardDef = {
   standing: boolean;
   /** un escudo la bloquea / un espejito la rebota */
   blockable: boolean;
-  /** input extra que pide la UI al jugarla */
-  input?: "apodo" | "mensaje" | "imagen";
+  /** input extra que pide la UI al jugarla ("partido": elegís a qué partido se ata) */
+  input?: "apodo" | "mensaje" | "imagen" | "partido";
   /**
    * Peso dentro de su balde de rareza (default 1). La probabilidad efectiva de
    * una carta = peso_rareza × (weight / suma de weights del balde).
@@ -86,18 +87,31 @@ export type CardDef = {
 const c = (def: CardDef): CardDef => def;
 
 export const CARD_CATALOG: Record<CardType, CardDef> = {
-  // ---------- Ventana partido (quirúrgicas, v1) ----------
+  // ---------- Primer partido del día (doblete/diego/mufa/yapa) + honguito/VAR ----------
   doblete: c({
     type: "doblete",
-    name: "Doblete",
-    emoji: "✌️",
+    name: "El que madruga, dobla",
+    emoji: "🐓",
     rarity: "comun",
+    kind: "buff",
+    target: "self",
+    window: "day",
+    standing: false,
+    blockable: false,
+    description: "Tu primer partido del día suma puntos dobles. No importa cuándo la juegues: siempre pega en el primer partido de la jornada.",
+  }),
+  honguito: c({
+    type: "honguito",
+    name: "Honguito",
+    emoji: "🍄",
+    rarity: "rara",
     kind: "buff",
     target: "self",
     window: "match",
     standing: false,
     blockable: false,
-    description: "Tu próximo partido suma puntos dobles. Quirúrgica: jugala justo antes del partido que tenés clavado.",
+    input: "partido",
+    description: "Le ponés un honguito al partido del día que vos elijas (de los que todavía no arrancaron): ahí tus puntos cuentan doble.",
   }),
   yapa: c({
     type: "yapa",
@@ -106,10 +120,10 @@ export const CARD_CATALOG: Record<CardType, CardDef> = {
     rarity: "comun",
     kind: "buff",
     target: "self",
-    window: "match",
+    window: "day",
     standing: false,
     blockable: false,
-    description: "Si sumás en tu próximo partido, te llevás +1 de yapa. Si no sumás, no hay yapa.",
+    description: "Si sumás en el primer partido del día, te llevás +1 de yapa. Si no sumás, no hay yapa.",
   }),
   mufa: c({
     type: "mufa",
@@ -118,10 +132,10 @@ export const CARD_CATALOG: Record<CardType, CardDef> = {
     rarity: "rara",
     kind: "attack",
     target: "other",
-    window: "match",
+    window: "day",
     standing: false,
     blockable: true,
-    description: "El próximo partido de tu víctima suma la mitad, redondeado para abajo (3 → 1).",
+    description: "El primer partido del día de tu víctima suma la mitad, redondeado para abajo (3 → 1).",
   }),
   diego: c({
     type: "diego",
@@ -130,10 +144,10 @@ export const CARD_CATALOG: Record<CardType, CardDef> = {
     rarity: "legendaria",
     kind: "buff",
     target: "self",
-    window: "match",
+    window: "day",
     standing: false,
     blockable: false,
-    description: "Tu próximo partido suma triple. Barrilete cósmico, ¿de qué planeta viniste?",
+    description: "Tu primer partido del día suma triple. Barrilete cósmico, ¿de qué planeta viniste?",
   }),
   var: c({
     type: "var",
@@ -438,13 +452,13 @@ export const ALL_CARDS: CardDef[] = Object.values(CARD_CATALOG);
 
 /**
  * Cartas que NO tocan los puntos: puro ego (apodo, foto, mensaje) o limpieza.
- * El sorteo diario las saca la mitad de las veces (ver NO_EFFECT_SHARE): primero
+ * El sorteo diario las saca el 40% de las veces (ver NO_EFFECT_SHARE): primero
  * tira si toca una de estas, y solo si no, va al sorteo por rareza con el resto.
  */
 export const NO_EFFECT_CARDS: CardType[] = ["apodo", "foto", "microfono", "borron"];
 
 /** Probabilidad de que el sorteo diario saque una carta sin efecto (sobre 100). */
-export const NO_EFFECT_SHARE = 50;
+export const NO_EFFECT_SHARE = 40;
 
 /** Probabilidad de cada rareza DENTRO del sorteo con efecto (sobre 100). */
 export const RARITY_WEIGHTS: Record<CardRarity, number> = {
@@ -483,3 +497,14 @@ export const STREAK_MILESTONES: { len: number; bonus: number }[] = [
 ];
 
 export type PoolMode = "normal" | "fun";
+
+/** Opción del selector de partido del Honguito (un partido que todavía no arrancó). */
+export type FunMatchOption = {
+  id: string;
+  /** Etiqueta principal: equipos (grupos) o fase (eliminatoria). */
+  label: string;
+  /** Subtítulo: grupo o ronda. */
+  sub: string;
+  /** Kickoff ISO con offset de la sede (la UI lo formatea). */
+  kickoff: string;
+};

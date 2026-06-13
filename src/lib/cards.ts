@@ -8,13 +8,14 @@
 // Las cartas NUNCA tocan pronósticos (son globales entre prodes): todos los
 // efectos se resuelven al calcular la tabla del prode (queries.getLeaderboard).
 //
-// Regla anti-viveza de las cartas de día: el efecto vale solo para los partidos
-// del día que TODAVÍA NO ARRANCARON al jugarla (nada de jugar la Cábala a la
-// noche para duplicar retroactivamente lo que ya viste).
+// Las cartas de día valen para TODA su jornada (huso de México): cubren todos
+// los partidos del día, hayan arrancado o no al jugarla. El día al que se atan
+// se fija al jugarlas (bindDay) y queda guardado; el efecto se recalcula siempre
+// sobre los resultados actuales (puede aplicar retroactivo dentro del día).
 
 import { createHash } from "crypto";
-import { MATCHES, SCORING } from "./fixtures";
-import { KO_MATCHES, koKickoff } from "./bracket";
+import { MATCHES, SCORING, teamName, teamFlag } from "./fixtures";
+import { KO_MATCHES, KO_MATCHES_BY_ID, ROUND_LABEL, koKickoff } from "./bracket";
 import {
   CARD_CATALOG,
   RARITY_WEIGHTS,
@@ -24,6 +25,7 @@ import {
   type CardDef,
   type CardRarity,
   type CardType,
+  type FunMatchOption,
 } from "./cardCatalog";
 
 /** IDs de partidos de eliminatoria (para distinguir el piso de puntos por fase). */
@@ -82,7 +84,7 @@ const weightSum = (options: CardDef[]): number =>
 
 /** Carta del día para un participante en un prode. Determinística. */
 export function dailyCard(poolId: string, participantId: string, date: string): CardDef {
-  // Primer nivel: la mitad de las veces, una carta sin efecto (puro ego).
+  // Primer nivel: el 40% de las veces, una carta sin efecto (puro ego).
   if (roll([poolId, participantId, date, "sinEfecto"], 100) < NO_EFFECT_SHARE) {
     return weightedPick(
       NO_EFFECT_OPTIONS,
@@ -174,6 +176,38 @@ export function fullSchedule(): ScheduledMatch[] {
   );
 }
 
+/**
+ * Partidos elegibles para el Honguito: los del DÍA al que se ata la carta (hoy
+ * si quedan partidos, si no el próximo día con partidos) que todavía no
+ * arrancaron, con etiqueta legible (equipos en grupos, ronda en eliminatoria).
+ */
+export function pickableMatches(now: Date = new Date()): FunMatchOption[] {
+  const matchById = new Map(MATCHES.map((m) => [m.id, m]));
+  const schedule = fullSchedule();
+  const day = bindDay(now, schedule);
+  if (!day) return [];
+  return schedule
+    .filter((m) => new Date(m.kickoff).getTime() > now.getTime() && matchDay(m.kickoff) === day)
+    .map((m) => {
+      const g = matchById.get(m.id);
+      if (g) {
+        return {
+          id: m.id,
+          label: `${teamFlag(g.homeCode)} ${teamName(g.homeCode)} vs ${teamName(g.awayCode)} ${teamFlag(g.awayCode)}`,
+          sub: `Grupo ${g.group}`,
+          kickoff: m.kickoff,
+        };
+      }
+      const ko = KO_MATCHES_BY_ID[m.id];
+      return {
+        id: m.id,
+        label: ko ? ROUND_LABEL[ko.round] : `Partido ${m.id}`,
+        sub: "Eliminatoria",
+        kickoff: m.kickoff,
+      };
+    });
+}
+
 /** Próximo partido que todavía no arrancó (las cartas de partido apuntan acá). */
 export function nextMatchAfter(
   now: Date,
@@ -226,6 +260,8 @@ export type PlayInput = {
   targetShieldCardId: string | null;
   /** id del Espejito rebotín activo de la víctima, si tiene. */
   targetMirrorCardId: string | null;
+  /** Partido elegido por el dueño (solo cartas con input "partido", ej. Honguito). */
+  chosenMatchId?: string | null;
   schedule?: ScheduledMatch[];
 };
 
@@ -294,6 +330,19 @@ function bindWindow(
   const schedule = input.schedule ?? fullSchedule();
 
   if (def.window === "match") {
+    // El Honguito (input "partido") se ata al partido que el dueño eligió, siempre
+    // que sea del DÍA de la carta y no haya arrancado. Sin elección, cae al
+    // próximo partido como las demás.
+    if (def.input === "partido" && input.chosenMatchId) {
+      const chosen = schedule.find((m) => m.id === input.chosenMatchId);
+      if (!chosen) return { ok: false, error: "Ese partido no existe." };
+      if (new Date(chosen.kickoff).getTime() <= input.now.getTime())
+        return { ok: false, error: "Ese partido ya arrancó. Elegí uno que no haya empezado." };
+      const day = bindDay(input.now, schedule);
+      if (day && matchDay(chosen.kickoff) !== day)
+        return { ok: false, error: "El honguito va a un partido del día de la carta." };
+      return { ok: true, effectMatchId: chosen.id, effectDate: null };
+    }
     const next = nextMatchAfter(input.now, schedule);
     if (!next) return { ok: false, error: "No quedan partidos por jugarse." };
     return { ok: true, effectMatchId: next.id, effectDate: null };
@@ -375,16 +424,18 @@ export function applyCardEffects(opts: {
   };
   const map = (id: string) => (points[id] ??= {});
 
-  // Partidos (con resultado) de un día, posteriores a jugar la carta.
+  // Partidos (con resultado) del día de la carta. Cubre TODA la jornada, hayan
+  // arrancado o no al jugarla: una carta de día vale para todos sus partidos.
   const dayIds = (card: PlayedCardEffect): string[] =>
     opts.matchOrder.filter((id) => {
       const k = opts.kickoffById[id];
-      return (
-        k &&
-        matchDay(k) === card.effectDate &&
-        new Date(k).getTime() > card.playedAt.getTime()
-      );
+      return k != null && matchDay(k) === card.effectDate;
     });
+
+  // Primer partido (con resultado) del día de la carta, en orden de kickoff.
+  // Es a donde apuntan doblete/diego/mufa/yapa: el primero de la jornada, sin
+  // importar el momento en que se jugó la carta.
+  const firstOfDay = (card: PlayedCardEffect): string | null => dayIds(card)[0] ?? null;
 
   // Orden estable por playedAt para que la resolución sea determinística.
   const cards = [...opts.cards].sort((a, b) => a.playedAt.getTime() - b.playedAt.getTime());
@@ -395,27 +446,33 @@ export function applyCardEffects(opts: {
   for (const card of cards) {
     const affected = affectedIdOf(card);
     switch (card.cardType) {
-      case "doblete":
-      case "diego": {
-        const mult = card.cardType === "diego" ? 3 : 2;
+      case "honguito": {
+        // Quirúrgica: doblás el partido que elegiste (effectMatchId), el que sea.
         const m = map(card.ownerId);
         if (card.effectMatchId && card.effectMatchId in m) {
-          m[card.effectMatchId] = m[card.effectMatchId] * mult;
+          m[card.effectMatchId] = m[card.effectMatchId] * 2;
         }
+        break;
+      }
+      case "doblete":
+      case "diego": {
+        // Primer partido del día: ×2 (doblete) / ×3 (El Diego).
+        const mult = card.cardType === "diego" ? 3 : 2;
+        const m = map(card.ownerId);
+        const id = firstOfDay(card);
+        if (id && id in m) m[id] = m[id] * mult;
         break;
       }
       case "yapa": {
         const m = map(card.ownerId);
-        if (card.effectMatchId && (m[card.effectMatchId] ?? 0) > 0) {
-          m[card.effectMatchId] += 1;
-        }
+        const id = firstOfDay(card);
+        if (id && (m[id] ?? 0) > 0) m[id] += 1;
         break;
       }
       case "mufa": {
         const m = map(affected);
-        if (card.effectMatchId && card.effectMatchId in m) {
-          m[card.effectMatchId] = Math.floor(m[card.effectMatchId] / 2);
-        }
+        const id = firstOfDay(card);
+        if (id && id in m) m[id] = Math.floor(m[id] / 2);
         break;
       }
       case "cabala": {
@@ -452,7 +509,7 @@ export function applyCardEffects(opts: {
       case "nemo":
       case "heladera":
       case "matambrito": {
-        // Maldición: 0 en los partidos del día (posteriores al reclamo).
+        // Maldición: 0 en todos los partidos del día.
         for (const id of dayIds(card)) zeroings.push({ member: card.ownerId, matchId: id });
         break;
       }

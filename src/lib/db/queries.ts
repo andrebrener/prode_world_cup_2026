@@ -285,18 +285,13 @@ export async function getLeaderboard(pool: Pool): Promise<LeaderboardRow[]> {
     if (!affected) continue;
     for (const id of Object.keys(results)) {
       const k = KICKOFF_BY_ID[id];
-      if (k && matchDay(k) === c.effectDate && new Date(k).getTime() > c.playedAt.getTime()) {
+      if (k && matchDay(k) === c.effectDate) {
         caldeadoBy[`${affected}:${id}`] = c.id;
       }
     }
     for (const km of bracket.matches) {
       const k = koKickoff(km.id);
-      if (
-        km.result &&
-        k &&
-        matchDay(k) === c.effectDate &&
-        new Date(k).getTime() > c.playedAt.getTime()
-      ) {
+      if (km.result && k && matchDay(k) === c.effectDate) {
         caldeadoBy[`${affected}:${km.id}`] = c.id;
       }
     }
@@ -313,18 +308,13 @@ export async function getLeaderboard(pool: Pool): Promise<LeaderboardRow[]> {
     if (!affected) continue;
     for (const id of Object.keys(results)) {
       const k = KICKOFF_BY_ID[id];
-      if (k && matchDay(k) === c.effectDate && new Date(k).getTime() > c.playedAt.getTime()) {
+      if (k && matchDay(k) === c.effectDate) {
         flippedBy[`${affected}:${id}`] = c.id;
       }
     }
     for (const km of bracket.matches) {
       const k = koKickoff(km.id);
-      if (
-        km.result &&
-        k &&
-        matchDay(k) === c.effectDate &&
-        new Date(k).getTime() > c.playedAt.getTime()
-      ) {
+      if (km.result && k && matchDay(k) === c.effectDate) {
         flippedBy[`${affected}:${km.id}`] = c.id;
       }
     }
@@ -453,14 +443,28 @@ function parsePayload(raw: string | null): Record<string, string> | null {
   }
 }
 
+// Doblete/Diego/Mufa/Yapa pasaron de "próximo partido" a "primer partido del
+// día". Las jugadas viejas guardaron effectMatchId; las reinterpretamos como el
+// día de ese partido (el motor ya resuelve el primero de la jornada).
+const DAY_FIRST_MATCH_CARDS = new Set<CardType>(["doblete", "diego", "mufa", "yapa"]);
+
 function toEffect(c: FunCardRow): PlayedCardEffect {
+  let effectMatchId = c.effectMatchId;
+  let effectDate = c.effectDate;
+  if (!effectDate && effectMatchId && DAY_FIRST_MATCH_CARDS.has(c.cardType as CardType)) {
+    const k = kickoffOf(effectMatchId);
+    if (k) {
+      effectDate = matchDay(k);
+      effectMatchId = null;
+    }
+  }
   return {
     id: c.id,
     cardType: c.cardType as CardType,
     ownerId: c.participantId,
     targetId: c.targetParticipantId,
-    effectMatchId: c.effectMatchId,
-    effectDate: c.effectDate,
+    effectMatchId,
+    effectDate,
     reflected: c.reflected,
     playedAt: c.playedAt!,
   };

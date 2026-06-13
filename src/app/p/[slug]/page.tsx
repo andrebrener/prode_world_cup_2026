@@ -18,6 +18,7 @@ import { getParticipant } from "@/lib/db/queries";
 import { allGroupStandings } from "@/lib/standings";
 import { GROUPS, teamName, teamFlag } from "@/lib/fixtures";
 import { ROUND_LABEL, type KoRound } from "@/lib/bracket";
+import { pickableMatches } from "@/lib/cards";
 import MatchdayPanel from "@/components/MatchdayPanel";
 import Leaderboard from "@/components/Leaderboard";
 import JoinForm from "@/components/JoinForm";
@@ -129,6 +130,7 @@ export default async function PoolTabla({
           members={leaderboard.map((r) => ({ id: r.id, name: r.name, avatar: r.avatar }))}
           meId={participant.id}
           myInfo={leaderboard.find((r) => r.id === participant.id)?.fun ?? null}
+          matchOptions={pickableMatches()}
         />
       )}
 

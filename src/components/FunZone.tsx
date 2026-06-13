@@ -15,6 +15,7 @@ import {
   MAX_MENSAJE_CHARS,
   type CardDef,
   type CardRarity,
+  type FunMatchOption,
 } from "@/lib/cardCatalog";
 import { playText } from "@/lib/funText";
 import { fileToSquareDataUrl } from "@/lib/imageFile";
@@ -126,6 +127,7 @@ export default function FunZone({
   members,
   meId,
   myInfo = null,
+  matchOptions = [],
 }: {
   slug: string;
   state: FunState;
@@ -133,6 +135,8 @@ export default function FunZone({
   meId: string;
   /** Info fun del visitante (efectos activos / pendientes sobre él). */
   myInfo?: FunLeaderboardInfo | null;
+  /** Partidos del día elegibles para el Honguito (input "partido"). */
+  matchOptions?: FunMatchOption[];
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -150,6 +154,7 @@ export default function FunZone({
   const [apodo, setApodo] = useState("");
   const [mensaje, setMensaje] = useState("");
   const [imagen, setImagen] = useState<string | null>(null);
+  const [matchId, setMatchId] = useState<string | null>(null);
   const [lastPlay, setLastPlay] = useState<{ text: string; bad: boolean } | null>(null);
 
   const rivals = members.filter((m) => m.id !== meId);
@@ -205,6 +210,7 @@ export default function FunZone({
           setApodo("");
           setMensaje("");
           setImagen(null);
+          setMatchId(null);
           setLocalPlaying({ id: res.cardId, def });
         }
       });
@@ -220,6 +226,7 @@ export default function FunZone({
         apodo: apodo || undefined,
         mensaje: mensaje || undefined,
         imagen: imagen || undefined,
+        matchId: matchId || undefined,
       });
       if (!res.ok) {
         setError(res.error ?? "No se pudo jugar.");
@@ -249,7 +256,8 @@ export default function FunZone({
     (!playing?.def.input ||
       (playing.def.input === "apodo" && apodo.trim().length >= 2) ||
       (playing.def.input === "mensaje" && mensaje.trim().length >= 2) ||
-      (playing.def.input === "imagen" && !!imagen)) &&
+      (playing.def.input === "imagen" && !!imagen) ||
+      (playing.def.input === "partido" && (!!matchId || matchOptions.length === 0))) &&
     (playing?.def.target !== "other" || !!targetId || rivals.length === 0);
 
   // Tu colección: las cartas "que se guardan" (standing) que tenés activas
@@ -520,6 +528,36 @@ export default function FunZone({
                   }}
                 />
               </label>
+            )}
+
+            {/* Selector de partido (Honguito): partidos del día sin arrancar */}
+            {playing.def.input === "partido" && (
+              <div className="mt-4 flex max-h-56 flex-col gap-2 overflow-y-auto">
+                {matchOptions.length === 0 && (
+                  <p className="text-sm text-muted">
+                    No quedan partidos por jugarse hoy: la carta se va a jugar al vacío 🫥
+                  </p>
+                )}
+                {matchOptions.map((o) => (
+                  <button
+                    key={o.id}
+                    onClick={() => setMatchId(o.id)}
+                    className={`flex items-center gap-3 rounded-xl border px-3 py-2 text-left transition ${
+                      matchId === o.id
+                        ? "border-primary bg-background"
+                        : "border-border bg-background/50 hover:border-primary/50"
+                    }`}
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-bold text-foreground">{o.label}</p>
+                      <p className="text-[11px] text-muted">
+                        {o.sub} · {fmtTime(new Date(o.kickoff))}
+                      </p>
+                    </div>
+                    {matchId === o.id && <span className="ml-auto">🍄</span>}
+                  </button>
+                ))}
+              </div>
             )}
 
             {error && <p className="mt-2 text-sm text-danger">{error}</p>}

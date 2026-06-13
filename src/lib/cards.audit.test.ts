@@ -42,16 +42,18 @@ const played = (
   ...over,
 });
 
-describe("auditoría: las 27 cartas del catálogo", () => {
+describe("auditoría: las 28 cartas del catálogo", () => {
   it("el catálogo está completo y consistente", () => {
-    expect(ALL_CARDS.length).toBe(27);
+    expect(ALL_CARDS.length).toBe(28);
     for (const def of ALL_CARDS) {
       expect(def.name.length, def.type).toBeGreaterThan(1);
       expect(def.description.length, def.type).toBeGreaterThan(10);
       expect(def.emoji.length, def.type).toBeGreaterThan(0);
       // Reglas estructurales:
       if (def.kind === "curse") expect(def.target, def.type).toBe("self");
-      if (def.input) expect(def.kind, def.type).toBe("social");
+      // Los inputs sociales (apodo/foto/micrófono) son de cartas sociales; el
+      // input "partido" (Honguito) es un buff que elige a qué partido se ata.
+      if (def.input && def.input !== "partido") expect(def.kind, def.type).toBe("social");
       if (def.kind === "social") expect(def.blockable, def.type).toBe(true);
       if (def.standing) expect(def.window, def.type).toBeNull();
       if (def.kind === "attack") expect(def.target, def.type).toBe("other");
@@ -197,14 +199,14 @@ describe("auditoría: escenarios cruzados", () => {
       cards: [
         played("cabala", { effectDate: DAY_1, playedAt: NOW }),
         played("doblete", {
-          effectMatchId: "M1",
+          effectDate: DAY_1, // primer partido del día = M1
           playedAt: new Date(NOW.getTime() + 1000),
         }),
         played("mufa", {
           id: "mufa-beto",
           ownerId: "beto",
           targetId: "ana",
-          effectMatchId: "M1",
+          effectDate: DAY_1,
           playedAt: new Date(NOW.getTime() + 2000),
         }),
       ],
@@ -217,7 +219,7 @@ describe("auditoría: escenarios cruzados", () => {
     const r = applyCardEffects({
       ...opts,
       cards: [
-        played("yapa", { effectMatchId: "M1" }),
+        played("yapa", { effectDate: DAY_1 }),
         played("nemo", { effectDate: DAY_1, playedAt: new Date(NOW.getTime() + 1000) }),
       ],
     });

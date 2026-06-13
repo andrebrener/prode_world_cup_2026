@@ -516,6 +516,8 @@ export type PlayCardExtra = {
   mensaje?: string;
   /** Data URL (ya comprimida en el cliente) para "Foto trucha". */
   imagen?: string;
+  /** Partido elegido para "Honguito" (input "partido"). */
+  matchId?: string;
 };
 
 type PlayResult = {
@@ -597,6 +599,13 @@ async function executePlay(
       return { ok: false, error: "La foto es muy pesada. Probá con una más chica." };
     payload.imagen = imagen;
   }
+  // Honguito: el dueño elige a qué partido se ata. resolvePlay valida que exista
+  // y que no haya arrancado.
+  let chosenMatchId: string | null = null;
+  if (def.input === "partido") {
+    if (!extra?.matchId) return { ok: false, error: "Elegí un partido." };
+    chosenMatchId = extra.matchId;
+  }
 
   const ctx = await getPlayContext(pool, ownerId, targetId);
   const finalTargetId = targetId;
@@ -618,6 +627,7 @@ async function executePlay(
     memberIds: ctx.memberIds,
     targetShieldCardId: ctx.targetShieldCardId,
     targetMirrorCardId: ctx.targetMirrorCardId,
+    chosenMatchId,
   });
   if (!outcome.ok) return { ok: false, error: outcome.error };
 
