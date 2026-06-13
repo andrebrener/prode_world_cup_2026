@@ -83,9 +83,9 @@ describe("auditoría: las 27 cartas del catálogo", () => {
     }
   });
 
-  it("toda carta bloqueable rebota contra escudo y contra espejito", () => {
+  it("todo ataque bloqueable rebota contra escudo y contra espejito", () => {
     for (const def of ALL_CARDS) {
-      if (!def.blockable) continue;
+      if (!def.blockable || def.kind !== "attack") continue;
       const base = {
         cardType: def.type,
         ownerId: "ana",
@@ -96,7 +96,7 @@ describe("auditoría: las 27 cartas del catálogo", () => {
         schedule: SCHEDULE,
       };
       const blocked = resolvePlay({ ...base, targetShieldCardId: "esc" });
-      expect(blocked).toMatchObject({ ok: true, blockedByShieldId: "esc" });
+      expect(blocked, def.type).toMatchObject({ ok: true, blockedByShieldId: "esc" });
 
       const mirrored = resolvePlay({
         ...base,
@@ -104,6 +104,41 @@ describe("auditoría: las 27 cartas del catálogo", () => {
         targetMirrorCardId: "esp",
       });
       expect(mirrored, def.type).toMatchObject({ ok: true, reflectedByMirrorId: "esp" });
+    }
+  });
+
+  it("las cartas sociales NO gastan el escudo ni el espejito (no te tocan puntos)", () => {
+    for (const def of ALL_CARDS) {
+      if (def.kind !== "social") continue;
+      const base = {
+        cardType: def.type,
+        ownerId: "ana",
+        targetId: "beto",
+        now: NOW,
+        memberIds: ["ana", "beto"],
+        schedule: SCHEDULE,
+      };
+      const withShield = resolvePlay({
+        ...base,
+        targetShieldCardId: "esc",
+        targetMirrorCardId: null,
+      });
+      expect(withShield, def.type).toMatchObject({
+        ok: true,
+        blockedByShieldId: null,
+        reflectedByMirrorId: null,
+      });
+
+      const withMirror = resolvePlay({
+        ...base,
+        targetShieldCardId: null,
+        targetMirrorCardId: "esp",
+      });
+      expect(withMirror, def.type).toMatchObject({
+        ok: true,
+        blockedByShieldId: null,
+        reflectedByMirrorId: null,
+      });
     }
   });
 

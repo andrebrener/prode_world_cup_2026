@@ -258,7 +258,11 @@ export function resolvePlay(input: PlayInput): PlayOutcome {
   }
 
   // Defensas de la víctima: el escudo come el ataque; el espejito lo devuelve.
-  if (def.blockable && input.targetId && input.targetId !== input.ownerId) {
+  // Solo saltan contra ataques que te tocan puntos (kind "attack"). Las cartas
+  // sociales (apodo/foto/micrófono) cambian tu ego, no tu puntaje: el escudo no
+  // se gasta defendiéndote de que te cambien el nombre. Para sacarte esos
+  // overlays está el borrón.
+  if (def.kind === "attack" && def.blockable && input.targetId && input.targetId !== input.ownerId) {
     if (input.targetShieldCardId) {
       return {
         ok: true,
@@ -428,11 +432,6 @@ export function applyCardEffects(opts: {
         for (const id of dayIds(card)) m[id] = Math.max(m[id] ?? 0, matchFloor(id));
         break;
       }
-      case "pelambreada": {
-        // 0 en todo el día; los ceros cortan la racha solos.
-        for (const id of dayIds(card)) zeroings.push({ member: affected, matchId: id });
-        break;
-      }
       case "caido": {
         // 0 puntos, pero los partidos que IGUAL hubiese acertado mantienen la racha.
         const m = map(affected);
@@ -459,7 +458,8 @@ export function applyCardEffects(opts: {
       }
       // ramirez/papas/speed/pedo → pase de planos.
       // escudo/espejito → se resuelven al jugarse el ataque.
-      // duelo → pase 3. var → pase 2. caldeador → upstream. sociales/borron → no tocan puntos.
+      // duelo → pase 3. var → pase 2. caldeador/piedrambre → upstream (dan vuelta el
+      // pronóstico al armar la base). sociales/borron → no tocan puntos.
       // saibamba → en queries (bonus del campeón, vive en los extras).
       default:
         break;
