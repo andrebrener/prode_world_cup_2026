@@ -12,7 +12,7 @@ import { eq, isNotNull, and } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { pools, poolMembers, participants } from "@/lib/db/schema";
 import { buildPoolDigest, renderDigestEmail } from "@/lib/funDigest";
-import { sendEmail } from "@/lib/mailer";
+import { sendEmails, type Mail } from "@/lib/mailer";
 import type { Pool } from "@/lib/db/queries";
 
 export const dynamic = "force-dynamic";
@@ -31,9 +31,11 @@ export async function GET(req: NextRequest) {
   const debug = !isProd && req.nextUrl.searchParams.get("debug") === "1";
 
   const funPools = await db.select().from(pools).where(eq(pools.mode, "fun"));
-  let sent = 0;
-  let failed = 0;
-  const details: string[] = [];
+
+  // Juntamos todos los mails de todos los prodes y los mandamos en batch al
+  // final: Resend acepta hasta 100 por request, evitando el límite de 5 req/s
+  // que antes dejaba afuera a todos menos los primeros cinco destinatarios.
+  const mails: Mail[] = [];
 
   for (const poolRow of funPools) {
     const pool: Pool = {
@@ -67,14 +69,18 @@ export async function GET(req: NextRequest) {
         });
       }
 
-      const res = await sendEmail({ to: member.email, subject: mail.subject, html: mail.html });
-      if (res.ok) sent++;
-      else {
-        failed++;
-        details.push(`${pool.slug}/${member.email}: ${res.error}`);
-      }
+      mails.push({ to: member.email, subject: mail.subject, html: mail.html });
     }
   }
 
-  return NextResponse.json({ ok: true, pools: funPools.length, sent, failed, details });
+  const { sent, failed, errors } = await sendEmails(mails);
+
+  return NextResponse.json({
+    ok: true,
+    pools: funPools.length,
+    recipients: mails.length,
+    sent,
+    failed,
+    errors,
+  });
 }
