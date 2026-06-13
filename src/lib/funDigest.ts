@@ -8,7 +8,7 @@ import { MATCHES, teamFlag, teamName } from "./fixtures";
 import { koKickoff } from "./bracket";
 import { funToday, matchDay } from "./cards";
 import { playText } from "./funText";
-import { CARD_CATALOG, type CardType } from "./cardCatalog";
+import { type CardType } from "./cardCatalog";
 import {
   getLeaderboard,
   getFunState,
@@ -31,15 +31,31 @@ export function renderAttackEmail(opts: {
   attackerName: string;
   victimName: string;
   cardType: CardType;
+  /** Nombre/emoji/descripción del mazo del prode (re-skin). */
+  cardName: string;
+  cardEmoji: string;
+  cardDescription: string;
   detail: string | null;
   blocked: boolean;
   reflected: boolean;
 }): { subject: string; html: string } {
-  const { pool, attackerName, victimName, cardType, detail, blocked, reflected } = opts;
-  const def = CARD_CATALOG[cardType];
+  const {
+    pool,
+    attackerName,
+    victimName,
+    cardType,
+    cardName,
+    cardEmoji,
+    cardDescription,
+    detail,
+    blocked,
+    reflected,
+  } = opts;
   const poolUrl = `${APP_BASE_URL}/p/${pool.slug}`;
   const headline = playText({
     cardType,
+    name: cardName,
+    emoji: cardEmoji,
     ownerName: attackerName,
     targetName: victimName,
     detail,
@@ -52,19 +68,19 @@ export function renderAttackEmail(opts: {
   let body: string;
   let cta: string;
   if (blocked) {
-    subject = `🛡️ Tu Anulo mufa te salvó de ${attackerName}`;
+    subject = `🛡️ Tu escudo te salvó de ${attackerName}`;
     title = `🛡️ ¡Bloqueado!`;
-    body = `${attackerName} te quiso tirar <strong>${esc(def?.name ?? cardType)}</strong> y tu Anulo mufa se lo comió entero. El escudo se consumió — atento, quedaste descubierto.`;
+    body = `${attackerName} te quiso tirar <strong>${esc(cardName)}</strong> y tu escudo se lo comió entero. Se consumió — atento, quedaste descubierto.`;
     cta = "Ver el papelón en el libro de pases";
   } else if (reflected) {
-    subject = `🪞 Tu Espejito le devolvió la ${def?.name ?? "carta"} a ${attackerName}`;
+    subject = `🪞 Tu espejito le devolvió ${cardName} a ${attackerName}`;
     title = `🪞 ¡Rebotó!`;
-    body = `${attackerName} te quiso tirar <strong>${esc(def?.name ?? cardType)}</strong>… y tu Espejito rebotín se la devolvió en la cara. Ahora la sufre él. El espejito se consumió.`;
+    body = `${attackerName} te quiso tirar <strong>${esc(cardName)}</strong>… y tu espejito se la devolvió en la cara. Ahora la sufre él. Se consumió.`;
     cta = "Ver cómo le explotó";
   } else {
-    subject = `${def?.emoji ?? "🃏"} ${attackerName} te jugó ${def?.name ?? "una carta"} en ${pool.name}`;
-    title = `${def?.emoji ?? "🃏"} Te la jugaron`;
-    body = `<strong>${esc(headline)}</strong>.<br/>${esc(def?.description ?? "")}`;
+    subject = `${cardEmoji} ${attackerName} te jugó ${cardName} en ${pool.name}`;
+    title = `${cardEmoji} Te la jugaron`;
+    body = `<strong>${esc(headline)}</strong>.<br/>${esc(cardDescription)}`;
     cta = "Entrar y devolverla 😈";
   }
 
@@ -132,6 +148,8 @@ export async function buildPoolDigest(pool: Pool, now: Date = new Date()): Promi
     .map((f) =>
       playText({
         cardType: f.cardType,
+        name: f.name,
+        emoji: f.emoji,
         ownerName: f.ownerName,
         targetName: f.targetName,
         detail: f.detail,

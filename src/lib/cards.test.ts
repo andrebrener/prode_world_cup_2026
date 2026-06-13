@@ -385,6 +385,18 @@ describe("applyCardEffects", () => {
     expect(r.streakOverrides.beto?.M2).toBe("skip");
   });
 
+  it("fernet (aguante): protege la racha en todos los ceros de su día, sin tocar puntos", () => {
+    const r = applyCardEffects({
+      ...opts,
+      cards: [played("aguante", "beto", { effectDate: DAY_1 })],
+    });
+    expect(r.points.beto.M1).toBe(5); // no toca puntos
+    expect(r.points.beto.M2).toBe(0);
+    expect(r.streakOverrides.beto?.M1).toBe("protect");
+    expect(r.streakOverrides.beto?.M2).toBe("protect"); // el 0 del día no corta la racha
+    expect(r.streakOverrides.beto?.M3).toBeUndefined(); // otro día: sin protección
+  });
+
   it("costillar pone piso de puntos en cada partido del día (3 en grupos)", () => {
     const r = applyCardEffects({
       ...opts,
@@ -457,26 +469,27 @@ describe("applyCardEffects", () => {
     expect(rebotado.flat).toEqual({ ana: -5, beto: 5 });
   });
 
-  it("var suma +2 al primer partido con puntos posterior a jugarla", () => {
+  it("var suma +2 a todos los partidos del día donde sumaste", () => {
     const r = applyCardEffects({
       ...opts,
-      cards: [played("var", "ana", { playedAt: new Date("2026-06-20T14:00:00-06:00") })],
-    });
-    expect(r.points.ana.M1).toBe(3); // ya se jugó
-    expect(r.points.ana.M2).toBe(7); // 5 + 2
-    expect(r.varAppliedTo.ana).toEqual(["M2"]);
-  });
-
-  it("dos VAR agarran partidos distintos", () => {
-    const r = applyCardEffects({
-      ...opts,
-      cards: [
-        played("var", "ana", { id: "v1", playedAt: BEFORE_M1 }),
-        played("var", "ana", { id: "v2", playedAt: BEFORE_M1 }),
-      ],
+      cards: [played("var", "ana", { effectDate: DAY_1 })],
     });
     expect(r.points.ana.M1).toBe(5); // 3 + 2
     expect(r.points.ana.M2).toBe(7); // 5 + 2
+    expect(r.points.ana.M3).toBe(0); // otro día: sin tocar
+    expect(r.varAppliedTo.ana).toEqual(["M1", "M2"]);
+  });
+
+  it("dos VAR el mismo día no apilan sobre el mismo partido", () => {
+    const r = applyCardEffects({
+      ...opts,
+      cards: [
+        played("var", "ana", { id: "v1", effectDate: DAY_1 }),
+        played("var", "ana", { id: "v2", effectDate: DAY_1 }),
+      ],
+    });
+    expect(r.points.ana.M1).toBe(5); // 3 + 2 (una sola vez)
+    expect(r.points.ana.M2).toBe(7); // 5 + 2 (una sola vez)
     expect(r.varAppliedTo.ana).toEqual(["M1", "M2"]);
   });
 

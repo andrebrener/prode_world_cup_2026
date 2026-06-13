@@ -16,6 +16,7 @@ import {
   pools,
   poolMembers,
   funCards,
+  cardDefs,
 } from "./db/schema";
 import { eq, and, inArray } from "drizzle-orm";
 import { getParticipantId, setParticipantId } from "./session";
@@ -34,6 +35,7 @@ import {
 } from "./db/queries";
 import {
   CARD_CATALOG,
+  cardView,
   MAX_APODO_CHARS,
   MAX_MENSAJE_CHARS,
   MAX_FOTO_CHARS,
@@ -645,6 +647,10 @@ function notifyVictim(opts: {
   victimId: string;
   victimName: string;
   cardType: CardType;
+  /** Nombre/emoji/descripción del mazo del prode (re-skin). */
+  cardName: string;
+  cardEmoji: string;
+  cardDescription: string;
   detail: string | null;
   blocked: boolean;
   reflected: boolean;
@@ -652,8 +658,7 @@ function notifyVictim(opts: {
   after(async () => {
     try {
       // Push instantánea (si tiene notificaciones activadas).
-      const def = CARD_CATALOG[opts.cardType];
-      const cardLabel = `${def.emoji} ${def.name}`;
+      const cardLabel = `${opts.cardEmoji} ${opts.cardName}`;
       const body = opts.blocked
         ? `${opts.attackerName} te tiró ${cardLabel} pero tu escudo la frenó 🛡️`
         : opts.reflected
@@ -677,6 +682,9 @@ function notifyVictim(opts: {
         attackerName: opts.attackerName,
         victimName: opts.victimName,
         cardType: opts.cardType,
+        cardName: opts.cardName,
+        cardEmoji: opts.cardEmoji,
+        cardDescription: opts.cardDescription,
         detail: opts.detail,
         blocked: opts.blocked,
         reflected: opts.reflected,
@@ -759,15 +767,12 @@ async function executePlay(
     : undefined;
 
   if (outcome.blockedByShieldId) {
-    // El ataque rebota contra el Anulo mufa: queda en el feed y el escudo se consume.
+    // El ataque choca contra el Anulo mufa: queda "blocked" en el feed. El escudo
+    // es del día y NO se consume: sigue frenando el resto de los ataques de hoy.
     await db
       .update(funCards)
       .set({ status: "blocked", playedAt: now, targetParticipantId: finalTargetId })
       .where(eq(funCards.id, cardId));
-    await db
-      .update(funCards)
-      .set({ status: "consumed" })
-      .where(eq(funCards.id, outcome.blockedByShieldId));
     if (finalTargetId && finalTargetId !== ownerId) {
       notifyVictim({
         pool,
@@ -775,6 +780,9 @@ async function executePlay(
         victimId: finalTargetId,
         victimName: targetName ?? "vos",
         cardType: def.type,
+        cardName: def.name,
+        cardEmoji: def.emoji,
+        cardDescription: def.description,
         detail: null,
         blocked: true,
         reflected: false,
@@ -797,12 +805,8 @@ async function executePlay(
     })
     .where(eq(funCards.id, cardId));
 
-  if (outcome.reflectedByMirrorId) {
-    await db
-      .update(funCards)
-      .set({ status: "consumed" })
-      .where(eq(funCards.id, outcome.reflectedByMirrorId));
-  }
+  // El Espejito rebotín también es del día: no se consume, rebota todos los
+  // ataques de su jornada (outcome.reflectedByMirrorId solo marca el rebote).
 
   // Aviso a la víctima (ataques y sociales contra otro; el rebote también avisa
   // al que se salvó con el espejito).
@@ -813,6 +817,9 @@ async function executePlay(
       victimId: finalTargetId,
       victimName: targetName ?? "vos",
       cardType: def.type,
+      cardName: def.name,
+      cardEmoji: def.emoji,
+      cardDescription: def.description,
       detail:
         typeof payload.apodo === "string"
           ? payload.apodo
@@ -961,8 +968,23 @@ export async function playCardAction(
     return { ok: false, error: "Esa carta no es tuya." };
   }
   if (row.status !== "held") return { ok: false, error: "Esa carta ya se jugó." };
-  const def = CARD_CATALOG[row.cardType as CardType];
-  if (!def) return { ok: false, error: "Carta desconocida." };
+  const baseDef = CARD_CATALOG[row.cardType as CardType];
+  if (!baseDef) return { ok: false, error: "Carta desconocida." };
+  // Re-skin del prode: si la carta apunta a una def del mazo, usamos su nombre/
+  // emoji/descripción (la mecánica igual sale del registro por cardType).
+  let def: CardDef = baseDef;
+  if (row.cardDefId) {
+    const [d] = await db
+      .select({
+        name: cardDefs.name,
+        emoji: cardDefs.emoji,
+        description: cardDefs.description,
+        rarity: cardDefs.rarity,
+      })
+      .from(cardDefs)
+      .where(eq(cardDefs.id, row.cardDefId));
+    if (d) def = cardView(row.cardType, { ...d, rarity: d.rarity as CardDef["rarity"] }) ?? baseDef;
+  }
 
   const result = await executePlay(pool, id, cardId, def, targetId, extra);
   if (result.ok) revalidatePath("/", "layout");

@@ -1,53 +1,60 @@
 // Modo Diversión — textos de las jugadas ("el libro de pases").
 // Compartido entre la UI (FunZone) y el mail diario. Client-safe.
+//
+// La narración es GENÉRICA por mecánica: describe el efecto sin el nombre de la
+// carta. El nombre y el emoji los pone el mazo del prode (re-skin), así que el
+// feed dice el nombre que cada prode le puso a su carta.
 
 import type { CardType } from "./cardCatalog";
 
-type Verb = (o: string, t: string, d: string | null) => string;
+// Efecto de cada mecánica, sin el nombre de la carta. t=víctima, d=detalle social.
+type Clause = (t: string, d: string | null) => string;
 
-export const FEED_VERB: Record<CardType, Verb> = {
-  doblete: (o) => `🐓 ${o} madrugó: dobla su primer partido del día`,
-  honguito: (o) => `🍄 ${o} le puso un Honguito a un partido: ahí cuenta doble`,
-  yapa: (o) => `🎁 ${o} pidió La Yapa`,
-  mufa: (o, t) => `🐈‍⬛ ${o} le mufó el primer partido del día a ${t}`,
-  diego: (o) => `🔟 ${o} sacó El Diego`,
-  var: (o) => `📺 ${o} llamó al VAR`,
-  costillar: (o) => `🥩 ${o} desayunó costillar a las 7 AM`,
-  cabala: (o) => `🍀 ${o} activó la Cábala del Echugo`,
-  piedrambre: (o, t) => `🪨 ${o} le dio vuelta los pronósticos a ${t} con una Piedrambre`,
-  caido: (o, t) => `😭 ${o} le tiró el fernet de ${t} al piso`,
-  filtro: (o, t) => `🚬 ${o} le afanó el filtro de 5mm a ${t}`,
-  caldeador: (o, t) => `🤮 ${o} caldeó los pronósticos de ${t}`,
-  duelo: (o, t) => `🐷 ${o} le afanó el matambre de cerdo a ${t}: se llevó sus puntos del día`,
-  papas: (o) => `🍟 A ${o} le sobran papas: +5`,
-  speed: (o) => `🏎️ ${o} está built for speed: +2`,
-  pedo: (o, t) => `💨 ${o} se lo soltó en la cara a ${t}`,
-  saibamba: (o) => `🔮 ${o} consultó a Sai Bamba: ya le pegó al campeón`,
-  escudo: (o) => `🛡️ ${o} levantó el Anulo mufa`,
-  aguante: (o) => `🥃 ${o} se aseguró el Fernet de Fernemo`,
-  espejito: (o) => `🪞 ${o} colgó el Espejito rebotín`,
-  nemo: (o) => `🛏️ Nemo usó las sábanas de ${o}: hoy no suma`,
-  heladera: (o) => `🧊 A ${o} le tocó limpiar la heladera: 0 hoy`,
-  matambrito: (o) => `🐄 ${o} quedó como matambrito de vaca: 0 hoy`,
-  ramirez: (o) => `💸 ${o} le prestó plata a un Ramirez: -5`,
-  apodo: (o, t, d) => `🏷️ ${o} bautizó a ${t}: «${d ?? "…"}»`,
-  foto: (o, t) => `📸 ${o} le cambió la foto a ${t}`,
-  microfono: (o, t, d) => `🎤 ${o} dejó dicho sobre ${t}: “${d ?? "…"}”`,
-  borron: (o) => `🧽 ${o} pasó el borrón: cuenta nueva`,
+const ACTION: Record<CardType, Clause> = {
+  doblete: () => "dobla su primer partido del día",
+  honguito: () => "dobla el partido que eligió",
+  yapa: () => "+1 si suma en el primer partido del día",
+  mufa: (t) => `le parte al medio el primer partido del día a ${t}`,
+  diego: () => "triplica su primer partido del día",
+  var: () => "+2 en su próximo partido con puntos",
+  costillar: () => "piso de puntos en cada partido de hoy",
+  cabala: () => "dobla todos sus partidos de hoy",
+  piedrambre: (t) => `le da vuelta los pronósticos del día a ${t}`,
+  caido: (t) => `${t} no suma hoy (pero le banca la racha)`,
+  filtro: (t) => `${t} no suma hoy y el día no le cuenta`,
+  caldeador: (t) => `le reemplaza los pronósticos de hoy a ${t} por uno al azar`,
+  duelo: (t) => `le afana a ${t} todos sus puntos del día`,
+  papas: () => "+5 al toque",
+  speed: () => "+2 al toque",
+  pedo: (t) => `le roba 5 puntos a ${t}`,
+  saibamba: () => "cobra los puntos del campeón",
+  escudo: () => "bloquea todos los ataques que le tiren hoy",
+  aguante: () => "su racha aguanta los ceros de hoy",
+  espejito: () => "todos los ataques que le tiren hoy rebotan",
+  nemo: () => "hoy no suma",
+  heladera: () => "hoy no suma",
+  matambrito: () => "hoy no suma",
+  ramirez: () => "pierde 5 puntos",
+  apodo: (t, d) => `bautiza a ${t}: «${d ?? "…"}»`,
+  foto: (t) => `le cambia la foto a ${t}`,
+  microfono: (t, d) => `deja dicho sobre ${t}: “${d ?? "…"}”`,
+  borron: () => "se limpia los apodos y fotos que le colgaron",
 };
 
 export function playText(opts: {
   cardType: CardType;
+  /** Nombre y emoji del mazo del prode (re-skin). */
+  name: string;
+  emoji: string;
   ownerName: string;
   targetName: string | null;
   detail: string | null;
   blocked?: boolean;
   reflected?: boolean;
 }): string {
-  const base =
-    FEED_VERB[opts.cardType]?.(opts.ownerName, opts.targetName ?? "nadie", opts.detail) ??
-    `🃏 ${opts.ownerName} jugó una carta`;
-  if (opts.blocked) return `${base} — ¡bloqueado por su Anulo mufa! 🛡️`;
-  if (opts.reflected) return `${base} — ¡el Espejito se lo devolvió! 🪞`;
+  const action = ACTION[opts.cardType]?.(opts.targetName ?? "nadie", opts.detail) ?? "jugó una carta";
+  const base = `${opts.emoji} ${opts.ownerName} jugó ${opts.name}: ${action}`;
+  if (opts.blocked) return `${base} — ¡bloqueado por su escudo! 🛡️`;
+  if (opts.reflected) return `${base} — ¡rebotó con el espejito! 🪞`;
   return base;
 }

@@ -9,7 +9,6 @@ import { useRouter } from "next/navigation";
 import confetti from "canvas-confetti";
 import { claimDailyCardAction, playCardAction } from "@/lib/actions";
 import {
-  CARD_CATALOG,
   RARITY_LABEL,
   MAX_APODO_CHARS,
   MAX_MENSAJE_CHARS,
@@ -78,6 +77,8 @@ function burst(rarity: CardRarity) {
 function feedText(f: FunFeedItem): string {
   return playText({
     cardType: f.cardType,
+    name: f.name,
+    emoji: f.emoji,
     ownerName: f.ownerName,
     targetName: f.targetName,
     detail: f.detail,
@@ -113,12 +114,12 @@ const fmtDay = (iso: string, today: string): string => {
 const fmtTime = (d: Date): string =>
   d.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false });
 
-// Qué hace cada carta "guardada" mientras espera gatillarse (para la colección).
-const STANDING_NOTE: Record<string, string> = {
-  escudo: "Bloquea el próximo ataque que te tiren.",
-  espejito: "Rebota el próximo ataque a quien lo mandó.",
-  aguante: "Te salva un próximo partido en 0 (racha).",
-  var: "+2 al próximo partido donde sumes.",
+// Qué hace cada defensa/buff del día mientras está activa (para la colección).
+const DAY_CARD_NOTE: Record<string, string> = {
+  escudo: "Bloquea todos los ataques que te tiren hoy.",
+  espejito: "Rebota todos los ataques de hoy a quien los mandó.",
+  aguante: "Tu racha aguanta los ceros de hoy.",
+  var: "+2 a todos tus partidos de hoy donde sumes.",
 };
 
 export default function FunZone({
@@ -260,15 +261,14 @@ export default function FunZone({
       (playing.def.input === "partido" && (!!matchId || matchOptions.length === 0))) &&
     (playing?.def.target !== "other" || !!targetId || rivals.length === 0);
 
-  // Tu colección: las cartas "que se guardan" (standing) que tenés activas
-  // esperando gatillarse — escudo, espejito, Fernet de Fernemo, VAR.
-  const collection = myInfo?.activeStandings ?? [];
+  // Tus defensas/buffs del día activos — escudo, espejito, Fernet de Fernemo, VAR
+  // — que valen para la jornada de hoy (o la próxima si los jugaste de noche).
+  const collection = myInfo?.activeDayCards ?? [];
 
   // Efectos pendientes en juego: buffs/ataques atados a un partido o al día.
   const activeChips: { key: string; text: string; hostile: boolean }[] = [];
   if (myInfo) {
     myInfo.pendingEffects.forEach((e, i) => {
-      const def = CARD_CATALOG[e.cardType];
       const where = e.matchId
         ? `partido ${e.matchId}`
         : e.day === state.today
@@ -276,7 +276,7 @@ export default function FunZone({
           : e.day;
       activeChips.push({
         key: `p-${i}`,
-        text: `${def?.emoji ?? "🃏"} ${def?.name ?? e.cardType}${e.fromName ? ` de ${e.fromName}` : ""} — ${where}`,
+        text: `${e.emoji} ${e.name}${e.fromName ? ` de ${e.fromName}` : ""} — ${where}`,
         hostile: !!e.fromName,
       });
     });
@@ -389,36 +389,34 @@ export default function FunZone({
         </div>
       </div>
 
-      {/* Tu colección: cartas guardadas (standing) esperando gatillarse */}
+      {/* Tus defensas/buffs del día activos */}
       {collection.length > 0 && (
         <div className="mt-5">
           <h3 className="mb-2 text-xs font-bold uppercase tracking-widest text-muted">
-            Tu colección 🎴{" "}
+            Activas hoy 🎴{" "}
             <span className="font-medium normal-case tracking-normal text-muted/70">
-              — cartas guardadas, listas para gatillarse
+              — defensas y buffs que valen esta jornada
             </span>
           </h3>
           <div className="flex flex-wrap gap-2">
             {collection.map((t) => {
-              const def = CARD_CATALOG[t];
-              if (!def) return null;
-              const st = RARITY_STYLE[def.rarity];
+              const st = RARITY_STYLE[t.rarity];
               return (
                 <div
-                  key={`col-${t}`}
+                  key={`col-${t.cardType}`}
                   className={`flex w-28 flex-col items-center rounded-2xl border-2 bg-background p-2 text-center ${st.ring} ${st.glow}`}
                 >
-                  <span className="text-3xl">{def.emoji}</span>
+                  <span className="text-3xl">{t.emoji}</span>
                   <span className="mt-1 text-xs font-black leading-tight text-foreground">
-                    {def.name}
+                    {t.name}
                   </span>
                   <span
                     className={`mt-0.5 text-[9px] font-bold uppercase tracking-wider ${st.text}`}
                   >
-                    {RARITY_LABEL[def.rarity]}
+                    {RARITY_LABEL[t.rarity]}
                   </span>
                   <span className="mt-1 text-[10px] leading-snug text-muted">
-                    {STANDING_NOTE[t] ?? def.description}
+                    {DAY_CARD_NOTE[t.cardType] ?? ""}
                   </span>
                 </div>
               );

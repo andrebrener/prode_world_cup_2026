@@ -55,7 +55,9 @@ describe("auditoría: las 28 cartas del catálogo", () => {
       // input "partido" (Honguito) es un buff que elige a qué partido se ata.
       if (def.input && def.input !== "partido") expect(def.kind, def.type).toBe("social");
       if (def.kind === "social") expect(def.blockable, def.type).toBe(true);
-      if (def.standing) expect(def.window, def.type).toBeNull();
+      // Las defensas (escudo/espejito) y la racha/VAR son del día: nada se "guarda".
+      if (def.type === "escudo" || def.type === "espejito" || def.type === "aguante")
+        expect(def.window, def.type).toBe("day");
       if (def.kind === "attack") expect(def.target, def.type).toBe("other");
     }
   });
@@ -276,10 +278,10 @@ describe("auditoría: escenarios cruzados", () => {
     expect(s.current).toBe(3); // M1, M2 (pisados) + M3 → racha de 3, sin protecciones
   });
 
-  it("dos escudos en cola: dos bloqueos (a nivel datos, el más viejo primero)", () => {
-    // resolvePlay recibe un solo shieldId (el más viejo): acá validamos que el
-    // segundo ataque con el segundo escudo también bloquea.
-    for (const shieldId of ["esc-1", "esc-2"]) {
+  it("un escudo del día frena todos los ataques: cada ataque con escudo activo bloquea", () => {
+    // El escudo es del día y no se consume (getPlayContext devuelve el mismo
+    // shieldId mientras siga activo): resolvePlay bloquea cada ataque que reciba.
+    for (const shieldId of ["esc-1", "esc-1"]) {
       const r = resolvePlay({
         cardType: "pedo",
         ownerId: "ana",

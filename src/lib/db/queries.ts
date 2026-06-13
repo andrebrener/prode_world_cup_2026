@@ -37,6 +37,7 @@ import {
 import {
   applyCardEffects,
   affectedIdOf,
+  bindDay,
   caldeadorScore,
   caldeadorKoPred,
   funToday,
@@ -201,10 +202,11 @@ export type FunLeaderboardInfo = {
   /** Partidos en 0 salvados (Fernet de Fernemo o cartas de día). */
   protectedMatchIds: string[];
   /**
-   * Standings activos del jugador (escudo / espejito / aguante / var sin consumir).
-   * Llevan el nombre/emoji del mazo del prode (re-skin), no los del catálogo.
+   * Defensas/buffs del día activos del jugador (escudo / espejito / aguante / var
+   * cuya jornada es hoy o futura). Llevan el nombre/emoji del mazo del prode
+   * (re-skin), no los del catálogo.
    */
-  activeStandings: { cardType: CardType; name: string; emoji: string; rarity: CardCosmetic["rarity"] }[];
+  activeDayCards: { cardType: CardType; name: string; emoji: string; rarity: CardCosmetic["rarity"] }[];
   /** Efectos pendientes: atados a un partido sin jugar o al día en curso. */
   pendingEffects: {
     cardType: CardType;
@@ -580,35 +582,39 @@ function resolveFun(
   }
 
   const infoByMember: FunResolution["infoByMember"] = {};
+  // Defensas/buffs del día (escudo, espejito, aguante, var): se muestran como
+  // "activos" mientras su jornada sea hoy o futura; nunca van a pendingEffects.
+  const dayDefenses = new Set<CardType>(["escudo", "espejito", "aguante", "var"]);
   for (const person of people) {
     const mine = played.filter((c) => c.participantId === person.id);
-    const aguantes = mine.filter((c) => c.cardType === "aguante").map((c) => c.playedAt!);
 
+    // El Fernet de Fernemo (aguante) protege la racha vía overrides de día
+    // (applyCardEffects → "protect"), no como protección suelta del próximo 0.
     const streak = computeStreak({
       points: effects.points[person.id] ?? {},
       matchOrder: resolvedIds,
       kickoffById,
-      protections: aguantes,
       overrides: effects.streakOverrides[person.id],
     });
 
-    const activeStandings: FunLeaderboardInfo["activeStandings"] = [];
-    const standingView = (type: CardType) => {
+    const activeDayCards: FunLeaderboardInfo["activeDayCards"] = [];
+    const dayCardView = (type: CardType) => {
       const card = mine.find((c) => c.cardType === type);
       const v = (card ? viewOf(card, defsById) : CARD_CATALOG[type]) ?? CARD_CATALOG[type];
       return { cardType: type, name: v?.name ?? type, emoji: v?.emoji ?? "🃏", rarity: v?.rarity ?? "comun" };
     };
-    if (mine.some((c) => c.cardType === "escudo")) activeStandings.push(standingView("escudo"));
-    if (mine.some((c) => c.cardType === "espejito")) activeStandings.push(standingView("espejito"));
-    if (aguantes.length > streak.protectionsUsed) activeStandings.push(standingView("aguante"));
-    const varsPlayed = mine.filter((c) => c.cardType === "var").length;
-    if (varsPlayed > (effects.varAppliedTo[person.id]?.length ?? 0))
-      activeStandings.push(standingView("var"));
+    const activeDay = (type: CardType) =>
+      mine.some((c) => c.cardType === type && c.effectDate != null && c.effectDate >= today);
+    if (activeDay("escudo")) activeDayCards.push(dayCardView("escudo"));
+    if (activeDay("espejito")) activeDayCards.push(dayCardView("espejito"));
+    if (activeDay("aguante")) activeDayCards.push(dayCardView("aguante"));
+    if (activeDay("var")) activeDayCards.push(dayCardView("var"));
 
     // Efectos pendientes que afectan a esta persona: atados a un partido sin
-    // resultado, o al día en curso.
+    // resultado, o al día en curso. Las defensas del día van en activeDayCards.
     const pendingEffects = playedEffects
       .filter((c) => {
+        if (dayDefenses.has(c.cardType)) return false;
         if (affectedIdOf(c) !== person.id) return false;
         if (c.effectMatchId) return !hasResult.has(c.effectMatchId);
         if (c.effectDate) return c.effectDate >= today;
@@ -636,7 +642,7 @@ function resolveFun(
       streakBest: streak.best,
       streakBonus: streak.bonus,
       protectedMatchIds: streak.protectedMatchIds,
-      activeStandings,
+      activeDayCards,
       pendingEffects,
       ...(overlayByMember[person.id] ? { overlay: overlayByMember[person.id] } : {}),
     };
@@ -763,11 +769,19 @@ export async function getPlayContext(
     getPoolMemberIds(pool.id),
   ]);
 
-  // Con varios escudos/espejitos activos, se consume el más viejo primero.
-  const activeStanding = (memberId: string, type: CardType) =>
+  // Las defensas son del día: un escudo/espejito protege contra los ataques de su
+  // misma jornada (effectDate === la jornada del ataque) y NO se consume, así que
+  // frena todos los del día. La jornada del ataque es la de jugarlo ahora.
+  const jornada = bindDay(new Date());
+  const dayShield = (memberId: string, type: CardType) =>
     cards
       .filter(
-        (c) => c.participantId === memberId && c.cardType === type && c.status === "played",
+        (c) =>
+          c.participantId === memberId &&
+          c.cardType === type &&
+          c.status === "played" &&
+          c.effectDate != null &&
+          c.effectDate === jornada,
       )
       .sort((a, b) => (a.playedAt?.getTime() ?? 0) - (b.playedAt?.getTime() ?? 0))[0]?.id ??
     null;
@@ -775,8 +789,8 @@ export async function getPlayContext(
   return {
     memberIds,
     rows,
-    targetShieldCardId: targetId ? activeStanding(targetId, "escudo") : null,
-    targetMirrorCardId: targetId ? activeStanding(targetId, "espejito") : null,
+    targetShieldCardId: targetId ? dayShield(targetId, "escudo") : null,
+    targetMirrorCardId: targetId ? dayShield(targetId, "espejito") : null,
   };
 }
 

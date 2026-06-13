@@ -1,9 +1,10 @@
 // Modo Diversión — rachas.
 //
 // Racha = partidos seguidos (con resultado, en orden de kickoff) en los que el
-// jugador sumó puntos (>0). Un partido en 0 la corta — salvo que tenga un
-// Aguante activo, que se consume y la racha sigue. Cada racha cobra cada hito
-// (3, 5, 8, 12) una sola vez; una racha nueva puede volver a cobrarlos.
+// jugador sumó puntos (>0). Un partido en 0 la corta — salvo que ese día esté
+// protegido (Fernet de Fernemo, que cubre TODA su jornada vía override
+// "protect"; ver applyCardEffects). Cada racha cobra cada hito (3, 5, 8, 12) una
+// sola vez; una racha nueva puede volver a cobrarlos.
 //
 // Se calcula al vuelo desde los resultados (sin estado), igual que el resto de
 // los puntos. Los puntos que se usan son los POST-cartas: una Mufa que te deja
@@ -21,10 +22,8 @@ export type StreakResult = {
   bonus: number;
   /** Hitos cobrados, en orden (puede repetir entre rachas). */
   milestones: number[];
-  /** Partidos en 0 salvados (por Fernet de Fernemo o por cartas de día). */
+  /** Partidos en 0 salvados por una carta de día (Fernet de Fernemo, caído). */
   protectedMatchIds: string[];
-  /** Cuántos Fernet de Fernemo se consumieron (para saber si queda uno activo). */
-  protectionsUsed: number;
 };
 
 export function computeStreak(opts: {
@@ -33,18 +32,13 @@ export function computeStreak(opts: {
   /** Partidos CON resultado, ordenados por kickoff. */
   matchOrder: string[];
   kickoffById: Record<string, string>;
-  /** playedAt de los Fernet de Fernemo jugados (cada uno protege un solo partido posterior). */
-  protections?: Date[];
   /**
    * Overrides por partido (de cartas de día):
-   * "protect" = un 0 no corta la racha (Se me cayó el Fernet) ·
+   * "protect" = un 0 no corta la racha (Fernet de Fernemo / Se me cayó el Fernet) ·
    * "skip" = el partido no cuenta ni a favor ni en contra (Filtro 5mm).
    */
   overrides?: Record<string, StreakOverride>;
 }): StreakResult {
-  const protections = [...(opts.protections ?? [])].sort((a, b) => a.getTime() - b.getTime());
-  const usedProtection = new Array(protections.length).fill(false);
-
   let run = 0;
   let best = 0;
   let bonus = 0;
@@ -73,17 +67,6 @@ export function computeStreak(opts: {
       continue;
     }
 
-    // Partido en 0: ¿hay un Fernet de Fernemo jugado antes del kickoff, sin usar?
-    const kickoff = opts.kickoffById[matchId];
-    const idx = protections.findIndex(
-      (p, i) => !usedProtection[i] && kickoff && p.getTime() < new Date(kickoff).getTime(),
-    );
-    if (idx >= 0) {
-      usedProtection[idx] = true;
-      protectedMatchIds.push(matchId);
-      // La racha no suma, pero sobrevive.
-      continue;
-    }
     run = 0;
   }
 
@@ -93,6 +76,5 @@ export function computeStreak(opts: {
     bonus,
     milestones,
     protectedMatchIds,
-    protectionsUsed: usedProtection.filter(Boolean).length,
   };
 }

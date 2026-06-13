@@ -21,6 +21,7 @@ export default function PullToRefresh({
   const [isPending, startTransition] = useTransition();
   const [pull, setPull] = useState(0);
   const [armed, setArmed] = useState(false); // pasó el umbral
+  const [dragging, setDragging] = useState(false); // dedo arrastrando (para el render)
   const pulling = useRef(false);
   const startY = useRef<number | null>(null);
   const dist = useRef(0);
@@ -32,6 +33,7 @@ export default function PullToRefresh({
       dist.current = 0;
       setPull(0);
       setArmed(false);
+      setDragging(false);
     };
 
     const onStart = (e: TouchEvent) => {
@@ -39,6 +41,7 @@ export default function PullToRefresh({
       if (window.scrollY > 0 || e.touches.length !== 1) return;
       startY.current = e.touches[0].clientY;
       pulling.current = true;
+      setDragging(true);
     };
 
     const onMove = (e: TouchEvent) => {
@@ -62,6 +65,7 @@ export default function PullToRefresh({
       pulling.current = false;
       startY.current = null;
       dist.current = 0;
+      setDragging(false);
       if (trigger) {
         setPull(TRIGGER); // mantenemos el spinner mientras refresca
         startTransition(() => router.refresh());
@@ -83,17 +87,20 @@ export default function PullToRefresh({
     };
   }, [router]);
 
-  // cuando el refresh termina, recogemos el indicador
+  // Cuando el refresh termina (isPending pasa a false), recogemos el indicador.
+  // Es justamente sincronizar UI local con el fin de una transición async: el
+  // setState-in-effect acá es intencional, no un cálculo derivable en render.
   useEffect(() => {
-    if (!isPending) {
-      setPull(0);
-      setArmed(false);
-    }
+    if (isPending) return;
+    /* eslint-disable react-hooks/set-state-in-effect */
+    setPull(0);
+    setArmed(false);
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, [isPending]);
 
   const active = pull > 0 || isPending;
   // transición suave salvo cuando el dedo está arrastrando en vivo
-  const smooth = !pulling.current;
+  const smooth = !dragging;
 
   return (
     <div className="relative">

@@ -357,7 +357,8 @@ export type PlayOutcome =
 
 // Sin regla de 1 efecto: los efectos STACKEAN en orden de jugada (los ceros
 // ganan siempre). Con jugada obligada y mazo random nadie arma pile-ons a
-// propósito. Los standings también se acumulan (dos escudos = dos bloqueos).
+// propósito. Las defensas son del día: un Anulo mufa cubre TODOS los ataques de
+// su jornada sin gastarse (no hace falta apilar escudos).
 export function resolvePlay(input: PlayInput): PlayOutcome {
   const def = CARD_CATALOG[input.cardType];
   if (!def) return { ok: false, error: "Carta desconocida." };
@@ -581,11 +582,19 @@ export function applyCardEffects(opts: {
         }
         break;
       }
+      case "streak_shield": {
+        // Fernet de Fernemo: tu racha aguanta los ceros de ese día entero. Marca
+        // cada partido del día como "protect"; computeStreak solo lo usa cuando
+        // el partido quedó en 0 (si sumaste, la racha corre normal). No se gasta.
+        for (const id of dayIds(card)) override(affected, id, "protect");
+        break;
+      }
       // var_bonus → pase 2. steal_day_points → pase 3. flat_points → pase 4.
-      // shield/streak_shield → se resuelven al jugarse el ataque.
-      // upstream_forecast (caldeador/piedrambre) → dan vuelta el pronóstico al
-      // armar la base (getLeaderboard). champion_points (saibamba) → en queries,
-      // vive en los extras. social_overlay/clear_social → no tocan puntos.
+      // shield (escudo/espejito) → se resuelve al jugarse el ataque (bloquea/rebota
+      // todos los del día, sin consumirse). upstream_forecast (caldeador/piedrambre)
+      // → dan vuelta el pronóstico al armar la base (getLeaderboard).
+      // champion_points (saibamba) → en queries, vive en los extras.
+      // social_overlay/clear_social → no tocan puntos.
       default:
         break;
     }
@@ -597,23 +606,18 @@ export function applyCardEffects(opts: {
     if (z.matchId in m) m[z.matchId] = 0;
   }
 
-  // ---- Pase 2: VAR (primer partido con puntos posterior a jugarlo; cada VAR
-  //      agarra un partido distinto si hay varios) ----
+  // ---- Pase 2: VAR (+amount a TODOS los partidos del día donde sumaste; varios
+  //      VAR el mismo día no apilan sobre el mismo partido) ----
   for (const card of cards) {
     const spec = CARD_CATALOG[card.cardType]?.spec;
     if (spec?.outcome !== "var_bonus") continue;
     const m = map(card.ownerId);
     const used = (varAppliedTo[card.ownerId] ??= []);
-    const playedAt = card.playedAt.getTime();
-    const hit = opts.matchOrder.find((id) => {
-      const k = opts.kickoffById[id];
-      return (
-        k && new Date(k).getTime() > playedAt && (m[id] ?? 0) > 0 && !used.includes(id)
-      );
-    });
-    if (hit) {
-      m[hit] += spec.amount;
-      used.push(hit);
+    for (const id of dayIds(card)) {
+      if ((m[id] ?? 0) > 0 && !used.includes(id)) {
+        m[id] += spec.amount;
+        used.push(id);
+      }
     }
   }
 

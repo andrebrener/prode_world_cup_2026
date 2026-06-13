@@ -26,12 +26,12 @@ function StreakFlame({ current }: { current: number }) {
   );
 }
 
-// Descripción del efecto de cada standing (el nombre lo pone el mazo del prode).
-const STANDING_DESC: Record<string, string> = {
-  escudo: "bloquea el próximo ataque",
-  espejito: "el próximo ataque rebota",
-  aguante: "la racha sobrevive un 0",
-  var: "+2 en su próximo partido con puntos",
+// Descripción del efecto de cada defensa/buff del día (el nombre lo pone el mazo).
+const DAY_CARD_DESC: Record<string, string> = {
+  escudo: "bloquea todos los ataques de hoy",
+  espejito: "todos los ataques de hoy rebotan",
+  aguante: "la racha aguanta los ceros de hoy",
+  var: "+2 a todos sus partidos de hoy con puntos",
 };
 
 /** Badges de efectos activos / pendientes de un jugador (modo Diversión). */
@@ -46,17 +46,17 @@ function FunBadges({ row }: { row: LeaderboardRow }) {
       </span>
     );
   });
-  const standings = row.fun.activeStandings.map((s) => (
+  const dayCards = row.fun.activeDayCards.map((s) => (
     <span
       key={s.cardType}
-      title={`${s.name} activo: ${STANDING_DESC[s.cardType] ?? ""}`}
+      title={`${s.name} activo: ${DAY_CARD_DESC[s.cardType] ?? ""}`}
       className="cursor-help"
     >
       {s.emoji}
     </span>
   ));
-  if (pending.length === 0 && standings.length === 0) return null;
-  return <span className="ml-1 inline-flex gap-0.5 text-xs">{standings}{pending}</span>;
+  if (pending.length === 0 && dayCards.length === 0) return null;
+  return <span className="ml-1 inline-flex gap-0.5 text-xs">{dayCards}{pending}</span>;
 }
 
 const fmtDelta = (n: number) =>

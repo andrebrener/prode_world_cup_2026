@@ -11,7 +11,9 @@
 // - kind "curse":   maldición — se aplica sola al reclamar la carta del día
 //                   (la timba del reclamo). Nunca pasa por la mano.
 // - blockable:      un Anulo mufa la bloquea / un Espejito rebotín la devuelve.
-// - standing:       queda activa hasta consumirse.
+//
+// No hay cartas "standing" (que se guarden hasta consumirse): TODAS son del día.
+// Hasta las defensas (escudo/espejito/aguante) y la VAR valen para su jornada.
 // - social:         no toca puntos; toca el ego (apodo, foto, mensaje). Dura
 //                   hasta que la víctima juegue Borrón y cuenta nueva.
 
@@ -42,7 +44,7 @@ export type CardType =
   | "pedo"
   // vidente
   | "saibamba"
-  // standings
+  // defensas del día
   | "escudo"
   | "aguante"
   | "espejito"
@@ -78,7 +80,7 @@ export type OutcomeSpec =
   | { outcome: "floor_match_points"; scope: "all_of_day" }
   /** 0 puntos en el día; `streak` controla qué pasa con la racha. */
   | { outcome: "zero_day"; streak: "protect_on_hit" | "skip" | "none" }
-  /** +`amount` al próximo partido con puntos posterior a jugarla (standing). */
+  /** +`amount` a todos los partidos del día donde sumes puntos. */
   | { outcome: "var_bonus"; amount: number }
   /** Roba todos los puntos del día de la víctima. */
   | { outcome: "steal_day_points" }
@@ -86,9 +88,9 @@ export type OutcomeSpec =
   | { outcome: "flat_points"; selfAmount: number; victimAmount?: number }
   /** Cobra los puntos del campeón (no se duplica si ya lo tenía). */
   | { outcome: "champion_points"; amount: number }
-  /** Defensa standing: bloquea o rebota el próximo ataque. */
+  /** Defensa del día: bloquea o rebota todos los ataques que te tiren ese día. */
   | { outcome: "shield"; mode: "block" | "reflect" }
-  /** La racha aguanta el próximo partido en cero (standing). */
+  /** La racha aguanta los ceros de ese día entero. */
   | { outcome: "streak_shield" }
   /** Reemplaza el pronóstico del día de la víctima (azar o invertido). Pre-base. */
   | { outcome: "upstream_forecast"; mode: "random" | "invert" }
@@ -111,8 +113,6 @@ export type CardDef = {
   /** self · other (elegís víctima) */
   target: "self" | "other";
   window: CardWindow;
-  /** efecto persistente hasta consumirse */
-  standing: boolean;
   /** un escudo la bloquea / un espejito la rebota */
   blockable: boolean;
   /** input extra que pide la UI al jugarla ("partido": elegís a qué partido se ata) */
@@ -139,7 +139,6 @@ export const CARD_CATALOG: Record<CardType, CardDef> = {
     kind: "buff",
     target: "self",
     window: "day",
-    standing: false,
     blockable: false,
     description: "Tu primer partido del día suma puntos dobles. No importa cuándo la juegues: siempre pega en el primer partido de la jornada.",
   }),
@@ -152,7 +151,6 @@ export const CARD_CATALOG: Record<CardType, CardDef> = {
     kind: "buff",
     target: "self",
     window: "match",
-    standing: false,
     blockable: false,
     input: "partido",
     description: "Le ponés un honguito al partido del día que vos elijas (de los que todavía no arrancaron): ahí tus puntos cuentan doble.",
@@ -166,7 +164,6 @@ export const CARD_CATALOG: Record<CardType, CardDef> = {
     kind: "buff",
     target: "self",
     window: "day",
-    standing: false,
     blockable: false,
     description: "Si sumás en el primer partido del día, te llevás +1 de yapa. Si no sumás, no hay yapa.",
   }),
@@ -179,7 +176,6 @@ export const CARD_CATALOG: Record<CardType, CardDef> = {
     kind: "attack",
     target: "other",
     window: "day",
-    standing: false,
     blockable: true,
     description: "El primer partido del día de tu víctima suma la mitad, redondeado para abajo (3 → 1).",
   }),
@@ -192,7 +188,6 @@ export const CARD_CATALOG: Record<CardType, CardDef> = {
     kind: "buff",
     target: "self",
     window: "day",
-    standing: false,
     blockable: false,
     description: "Tu primer partido del día suma triple. Barrilete cósmico, ¿de qué planeta viniste?",
   }),
@@ -204,10 +199,9 @@ export const CARD_CATALOG: Record<CardType, CardDef> = {
     rarity: "rara",
     kind: "buff",
     target: "self",
-    window: null,
-    standing: true,
+    window: "day",
     blockable: false,
-    description: "Queda activo: tu próximo partido donde sumes puntos recibe +2 del VAR. Revisalo, che.",
+    description: "Todos tus partidos del día donde sumes puntos reciben +2 del VAR. Revisalo, che.",
   }),
 
   // ---------- Buffs de día ----------
@@ -220,7 +214,6 @@ export const CARD_CATALOG: Record<CardType, CardDef> = {
     kind: "buff",
     target: "self",
     window: "day",
-    standing: false,
     blockable: false,
     description: "Desayunaste costillar a las 7 AM y estás imparable: hoy en cada partido sumás al menos lo de acertar el resultado (3 en grupos, 4 en eliminatoria), pegues o falles. Si acertás más, te quedás con lo tuyo. La racha del día queda blindada.",
   }),
@@ -233,7 +226,6 @@ export const CARD_CATALOG: Record<CardType, CardDef> = {
     kind: "buff",
     target: "self",
     window: "day",
-    standing: false,
     blockable: false,
     description: "El Echugo hizo la cábala y funcionó: hoy todos tus partidos suman puntos dobles.",
   }),
@@ -248,7 +240,6 @@ export const CARD_CATALOG: Record<CardType, CardDef> = {
     kind: "attack",
     target: "other",
     window: "day",
-    standing: false,
     blockable: true,
     description: "A tu víctima se le dan vuelta los pronósticos del día: el marcador que cargó cuenta al revés (jugó 2-1, le vale como 1-2). Que rece que igual le pegue.",
   }),
@@ -261,7 +252,6 @@ export const CARD_CATALOG: Record<CardType, CardDef> = {
     kind: "attack",
     target: "other",
     window: "day",
-    standing: false,
     blockable: true,
     description: "Se le cayó el fernet y está de luto: hoy no suma puntos, pero los partidos que igual acierte le mantienen la racha viva.",
   }),
@@ -274,7 +264,6 @@ export const CARD_CATALOG: Record<CardType, CardDef> = {
     kind: "attack",
     target: "other",
     window: "day",
-    standing: false,
     blockable: true,
     description: "Le afanás el filtro de 5mm: sin eso no arma nada y hoy no suma puntos. Su racha queda congelada (hoy no cuenta ni a favor ni en contra).",
   }),
@@ -289,7 +278,6 @@ export const CARD_CATALOG: Record<CardType, CardDef> = {
     kind: "attack",
     target: "other",
     window: "day",
-    standing: false,
     blockable: true,
     description: "Le vomitás los resultados encima: hoy sus pronósticos no valen — cada partido del día se le reemplaza por un resultado al azar, y con eso se le calculan los puntos. Puede pegarla de casualidad.",
   }),
@@ -304,7 +292,6 @@ export const CARD_CATALOG: Record<CardType, CardDef> = {
     kind: "attack",
     target: "other",
     window: "day",
-    standing: false,
     blockable: true,
     description: "Le afanás el matambre de la parrilla: elegís a alguien y te llevás todos los puntos que sumó hoy. Sus partidos del día quedan en 0 y esos puntos pasan a tu cuenta. Un espejito te lo devuelve.",
   }),
@@ -319,7 +306,6 @@ export const CARD_CATALOG: Record<CardType, CardDef> = {
     kind: "instant",
     target: "self",
     window: null,
-    standing: false,
     blockable: false,
     description: "Nico apareció con 18 papas y sobra felicidad: +5 puntos al contado.",
   }),
@@ -332,7 +318,6 @@ export const CARD_CATALOG: Record<CardType, CardDef> = {
     kind: "instant",
     target: "self",
     window: null,
-    standing: false,
     blockable: false,
     description: "Built for speed, nene: +2 puntos al toque.",
   }),
@@ -345,7 +330,6 @@ export const CARD_CATALOG: Record<CardType, CardDef> = {
     kind: "attack",
     target: "other",
     window: null,
-    standing: false,
     blockable: true,
     description: "Te le sentás en la cara y soltás: le robás 5 puntos y te los llevás puestos (vos +5, él -5).",
   }),
@@ -360,12 +344,11 @@ export const CARD_CATALOG: Record<CardType, CardDef> = {
     kind: "instant",
     target: "self",
     window: null,
-    standing: false,
     blockable: false,
     description: "Sai Bamba, el vidente, ya vio quién levanta la copa: cobrás los puntos del campeón (10) sí o sí, hayas puesto a quien hayas puesto. Si ya le habías pegado al campeón con tu pronóstico, no se duplica.",
   }),
 
-  // ---------- Standings ----------
+  // ---------- Defensas del día ----------
   escudo: c({
     type: "escudo",
     spec: { outcome: "shield", mode: "block" },
@@ -374,10 +357,9 @@ export const CARD_CATALOG: Record<CardType, CardDef> = {
     rarity: "comun",
     kind: "shield",
     target: "self",
-    window: null,
-    standing: true,
+    window: "day",
     blockable: false,
-    description: "Anulo mufa, beso: escudo activo que bloquea el próximo ataque que te tiren. Se consume solo.",
+    description: "Anulo mufa, beso: bloquea TODOS los ataques que te tiren ese día. No se consume.",
   }),
   aguante: c({
     type: "aguante",
@@ -387,10 +369,9 @@ export const CARD_CATALOG: Record<CardType, CardDef> = {
     rarity: "rara",
     kind: "buff",
     target: "self",
-    window: null,
-    standing: true,
+    window: "day",
     blockable: false,
-    description: "El Fernemo te sirvió uno de los buenos: tu racha aguanta el próximo partido en cero. Se consume solo.",
+    description: "El Fernemo te sirvió uno de los buenos: tu racha aguanta ese día entero aunque caigas en cero.",
   }),
   espejito: c({
     type: "espejito",
@@ -400,10 +381,9 @@ export const CARD_CATALOG: Record<CardType, CardDef> = {
     rarity: "legendaria",
     kind: "shield",
     target: "self",
-    window: null,
-    standing: true,
+    window: "day",
     blockable: false,
-    description: "Escudo con maldad: el próximo ataque que te tiren rebota y le pega al que lo mandó. Se consume solo.",
+    description: "Escudo con maldad: TODOS los ataques que te tiren ese día rebotan y le pegan al que los mandó.",
   }),
 
   // ---------- Maldiciones (se aplican solas al reclamar) ----------
@@ -416,7 +396,6 @@ export const CARD_CATALOG: Record<CardType, CardDef> = {
     kind: "curse",
     target: "self",
     window: "day",
-    standing: false,
     blockable: false,
     description: "Nemo durmió en tu cama y las sábanas quedaron pegajosas: hoy no sumás puntos.",
   }),
@@ -429,7 +408,6 @@ export const CARD_CATALOG: Record<CardType, CardDef> = {
     kind: "curse",
     target: "self",
     window: "day",
-    standing: false,
     blockable: false,
     description: "Había algo vivo al fondo de la heladera y te tocó a vos: perdés el día entero, 0 puntos.",
   }),
@@ -442,7 +420,6 @@ export const CARD_CATALOG: Record<CardType, CardDef> = {
     kind: "curse",
     target: "self",
     window: "day",
-    standing: false,
     blockable: false,
     description: "Te hiciste el canchero haciendo el matambrito de vaca delante de todos: te fue para el orto y hoy no sumás.",
   }),
@@ -455,7 +432,6 @@ export const CARD_CATALOG: Record<CardType, CardDef> = {
     kind: "curse",
     target: "self",
     window: null,
-    standing: false,
     blockable: false,
     description: "Le prestaste plata a un Ramirez. Despedite: -5 puntos que no vuelven más.",
   }),
@@ -470,7 +446,6 @@ export const CARD_CATALOG: Record<CardType, CardDef> = {
     kind: "social",
     target: "other",
     window: null,
-    standing: false,
     blockable: true,
     input: "apodo",
     description: "El Droco bautiza de nuevo: tu víctima pasa a llamarse Nombre «Apodo» en este prode, hasta que se lo saque con Borrón y cuenta nueva.",
@@ -484,7 +459,6 @@ export const CARD_CATALOG: Record<CardType, CardDef> = {
     kind: "social",
     target: "other",
     window: null,
-    standing: false,
     blockable: true,
     input: "imagen",
     description: "Le cambiás la foto de perfil de este prode por una que elijas vos, hasta que se la saque con Borrón y cuenta nueva. Puntos intactos, dignidad no.",
@@ -498,7 +472,6 @@ export const CARD_CATALOG: Record<CardType, CardDef> = {
     kind: "social",
     target: "other",
     window: null,
-    standing: false,
     blockable: true,
     input: "mensaje",
     description: "Fijás una declaración tuya (máx. 60 caracteres) al lado de su nombre en la tabla, hasta que se la saque con Borrón y cuenta nueva.",
@@ -512,7 +485,6 @@ export const CARD_CATALOG: Record<CardType, CardDef> = {
     kind: "buff",
     target: "self",
     window: null,
-    standing: false,
     blockable: false,
     description: "Te sacás de encima todos los apodos, fotos truchas y declaraciones que te colgaron. Volvés a ser vos.",
   }),

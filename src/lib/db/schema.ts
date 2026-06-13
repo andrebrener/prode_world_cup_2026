@@ -94,7 +94,7 @@ export const cardDefs = sqliteTable("card_defs", {
     .notNull()
     .references(() => pools.id, { onDelete: "cascade" }),
   // Slug de la mecánica de origen (un CardType del catálogo): de acá salen
-  // spec/kind/target/window/blockable/standing/input. Varias cartas del prode
+  // spec/kind/target/window/blockable/input. Varias cartas del prode
   // pueden compartir mechanic (mismo comportamiento, distinto nombre).
   mechanic: text("mechanic").notNull(),
   // Editables por los admins (re-skin cosmético + sorteo):
@@ -132,8 +132,10 @@ export const poolFunConfig = sqliteTable("pool_fun_config", {
 // Una fila por carta sorteada. El sorteo diario es determinístico
 // (pool, participante, fecha) → carta; reclamar solo persiste la fila.
 // status: held (en mano) | played (jugada, efecto vigente/resuelto) |
-//         consumed (standing gastado, ej. escudo que bloqueó) |
-//         blocked (ataque anulado por un escudo).
+//         consumed (overlay social borrado por un Borrón) |
+//         blocked (ataque anulado por un Anulo mufa del día).
+// Las defensas (escudo/espejito) ya NO pasan a consumed: son del día y frenan
+// todos los ataques de su jornada sin gastarse.
 export const funCards = sqliteTable(
   "fun_cards",
   {

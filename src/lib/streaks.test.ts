@@ -7,8 +7,8 @@ const KICKOFFS = Object.fromEntries(
   ORDER.map((id, i) => [id, `2026-06-${String(15 + i).padStart(2, "0")}T12:00:00-06:00`]),
 );
 
-const streak = (points: Record<string, number>, protections: Date[] = []) =>
-  computeStreak({ points, matchOrder: ORDER, kickoffById: KICKOFFS, protections });
+const streak = (points: Record<string, number>) =>
+  computeStreak({ points, matchOrder: ORDER, kickoffById: KICKOFFS });
 
 describe("computeStreak", () => {
   it("sin partidos → todo en cero", () => {
@@ -55,39 +55,6 @@ describe("computeStreak", () => {
     expect(r2.bonus).toBe(6);
   });
 
-  it("el aguante salva un 0 y la racha sigue", () => {
-    const r = streak(
-      { M1: 3, M2: 3, M3: 0, M4: 3, M5: 0, M6: 3 },
-      [new Date("2026-06-16T18:00:00-06:00")], // jugado antes del kickoff de M3
-    );
-    // M3 protegido → la racha 2 sigue y llega a 3 en M4 (hito).
-    expect(r.protectedMatchIds).toEqual(["M3"]);
-    expect(r.milestones).toEqual([3]);
-    // M5 en 0 sin protección restante → corta.
-    expect(r.current).toBe(1);
-  });
-
-  it("el aguante no protege partidos anteriores a jugarlo", () => {
-    const r = streak(
-      { M1: 0, M2: 3, M3: 3, M4: 3, M5: 3, M6: 3 },
-      [new Date("2026-06-16T18:00:00-06:00")], // post-kickoff M1
-    );
-    // M1 quedó en 0 antes de jugar el aguante: no se protege.
-    expect(r.protectedMatchIds).toEqual([]);
-    expect(r.current).toBe(5);
-  });
-
-  it("cada aguante protege un solo partido", () => {
-    const r = streak(
-      { M1: 3, M2: 0, M3: 0, M4: 3, M5: 3, M6: 3 },
-      [new Date("2026-06-14T12:00:00-06:00")],
-    );
-    // M2 protegido · M3 en 0 sin protección restante → corta.
-    expect(r.protectedMatchIds).toEqual(["M2"]);
-    expect(r.current).toBe(3); // M4-M6
-    expect(r.best).toBe(3);
-  });
-
   it("override 'protect' (caído): un 0 no corta", () => {
     const r = computeStreak({
       points: { M1: 3, M2: 3, M3: 0, M4: 3, M5: 3, M6: 0 },
@@ -116,10 +83,12 @@ describe("computeStreak", () => {
   });
 
   it("la racha no suma en el partido protegido (protege, no regala)", () => {
-    const r = streak(
-      { M1: 3, M2: 3, M3: 0, M4: 3, M5: 5, M6: 5 },
-      [new Date("2026-06-14T12:00:00-06:00")],
-    );
+    const r = computeStreak({
+      points: { M1: 3, M2: 3, M3: 0, M4: 3, M5: 5, M6: 5 },
+      matchOrder: ORDER,
+      kickoffById: KICKOFFS,
+      overrides: { M3: "protect" },
+    });
     // M1,M2 = 2 · M3 protegido (no suma) · M4 → 3 (hito) · M6 → 5 (hito)
     expect(r.protectedMatchIds).toEqual(["M3"]);
     expect(r.current).toBe(5);

@@ -21,7 +21,7 @@ and styled with **Tailwind CSS 4**. Installable as a **PWA**.
 
 > ⏰ **Deadline.** Predictions lock when the first match kicks off (Jun 11, 2026, 13:00 Mexico City time). After that they're frozen (a small name-based whitelist can still edit, for late joiners).
 
-> ⚠️ **No admin auth.** The results page (`/resultados`) is **open to anyone** — whoever has the link can load/edit official results and generate the bracket. Add access control before using this for a real pool.
+> ⚠️ **No admin auth.** The results page (`/resultados`), the bracket generator, and pool/card management are **open to anyone** with the link. Pool membership carries a role (`owner` / `admin` / `player`), but the role is **not enforced** — add access control before using this for a real pool.
 
 ## Pools
 
@@ -29,6 +29,7 @@ and styled with **Tailwind CSS 4**. Installable as a **PWA**.
 - **Invite code + slug** — every pool gets a short code (paste-to-join) and a shareable URL (`/p/[slug]`). A **Share** widget surfaces both inside the pool.
 - **Pool switcher** in the nav to jump between your pools; the home page lists *your* pools and other public ones.
 - **Normal or Fun mode** — picked at creation, fixed afterwards. Fun adds cards + streaks (see below).
+- **Roles** — each membership has a role (`owner` / `admin` / `player`); the creator is an `owner` and a pool can have several. Roles are not enforced (see the warning above).
 
 ## Profile & avatars
 
@@ -61,10 +62,20 @@ and styled with **Tailwind CSS 4**. Installable as a **PWA**.
 When creating a pool you can pick **Fun mode**: everything from a normal pool, plus cards and streaks. These are **scoped to that pool** — your predictions stay global, but the chaos only affects that table.
 
 - **Daily card, forced play.** Every player draws one surprise card per day. Cards come in rarities (common / rare / legendary / curse), and the draw is **deterministic** per (pool, player, date) — no cron needed. The card **plays itself on draw**: there's no stash and no take-backs.
-- **Card types.** Buffs (boost your own points), attacks (hit a rival), defenses (block or bounce back an incoming attack), social cards (no points — pure ego: nicknames, avatar swaps, pinned messages, all pool-scoped), and curses (just hit you). Effects also have a **window**: surgical *next-match* cards vs. *whole-day* cards (day effects only cover matches that haven't kicked off yet).
-- **Fairness.** Max one active effect per player per match; effects resolve at pool-scoring time and never touch the underlying predictions. Unclaimed cards expire at midnight (America/Mexico_City).
+- **Card types.** Buffs (boost your own points), attacks (hit a rival), defenses (block or bounce back incoming attacks), social cards (no points — pure ego: nicknames, avatar swaps, pinned messages, all pool-scoped), and curses (just hit you).
+- **Day-scoped, no standing cards.** Every effect resolves within its day — it covers that day's matches (the first one, a chosen one, or all of them). Defenses and buffs cover the whole day too; nothing persists across days waiting to trigger.
+- **Fairness.** Effects resolve at pool-scoring time and never touch the underlying predictions. Unclaimed cards expire at midnight (America/Mexico_City).
 - **Streaks.** Consecutive matches scoring >0 points pay milestone bonuses (3→+3, 5→+6, 8→+12, 12→+20). A 0-point match resets the streak (unless a protective card saves it).
-- Catalog (data-only, easy to tune) in [`src/lib/cardCatalog.ts`](src/lib/cardCatalog.ts); engine in [`src/lib/cards.ts`](src/lib/cards.ts) + [`src/lib/streaks.ts`](src/lib/streaks.ts) (pure + unit-tested); resolution happens inside `getLeaderboard`.
+
+### Data-driven cards: engine vs. deck 🎛️
+
+The card system is split in two so the **same mechanics can be re-skinned per pool** — different names/emojis for the same effect (e.g. one group's inside jokes vs. another's):
+
+- **The engine (code).** A closed set of reusable, parameterized **outcomes** — the *math* of a card — lives in [`src/lib/cards.ts`](src/lib/cards.ts): `multiply_match` (×2 / ×3 / ÷2 over the first match of the day, a chosen match, or the whole day), `flat_points`, `steal_day_points`, `var_bonus`, `zero_day`, `shield`, `upstream_forecast`, `social_overlay`, and more. Every card maps to one of these, so re-skinning a card **never** changes the scoring — the math always comes from here.
+- **The deck (data, per pool).** Each Fun pool owns a **deck** (`card_defs` table): one row per card, with the editable bits — **name, emoji, description, rarity, draw weight, enabled** — plus the `mechanic` it points at. A pool's deck is seeded from the **official deck** ([`DEFAULT_DECK`](src/lib/cardCatalog.ts), derived from `CARD_CATALOG`), and each pool renames, re-emojis, re-rarities, weights, or disables its cards independently. The draw and the whole UI (feed, badges, emails) render each pool's own names/emojis.
+- **Draw config, per pool.** `pool_fun_config` holds the odds: the **% of "no-effect" (ego) cards** (default `40`) and the **rarity weights** — common / rare / legendary / curse (default `50 / 26 / 9 / 15`).
+- **Editing.** Deck and config live at the data layer (Drizzle Studio / SQL); there is no in-app admin screen for them.
+- Card catalog + outcome registry (data + helpers) in [`src/lib/cardCatalog.ts`](src/lib/cardCatalog.ts); sorteo + effects engine in [`src/lib/cards.ts`](src/lib/cards.ts), streaks in [`src/lib/streaks.ts`](src/lib/streaks.ts) (pure + unit-tested); per-pool deck/roles helpers in [`src/lib/db/decks.ts`](src/lib/db/decks.ts); resolution happens inside `getLeaderboard`. Design notes: [`docs/cartas-data-driven.md`](docs/cartas-data-driven.md).
 
 ### Daily email digest (fun pools)
 
@@ -131,11 +142,15 @@ src/
     scoring.ts            # Points calculation (groups, knockout, extras)
     bracket.ts            # Knockout bracket builder
     standings.ts          # Group standings table
-    cards.ts / streaks.ts # Fun-mode engine
-    cardCatalog.ts        # Card catalog (data-only)
+    cards.ts / streaks.ts # Fun-mode engine: outcomes, sorteo, effects, streaks
+    cardCatalog.ts        # Card catalog + outcome specs + official deck (data-only)
+    funText.ts / funDigest.ts  # Feed/notification copy (generic per mechanic, re-skin-aware)
     session.ts            # Player cookie
     actions.ts            # Server Actions (pools, predictions, results, cards, ...)
-    db/                   # Drizzle schema and queries
+    db/                   # Drizzle schema, queries, and per-pool deck/roles helpers (decks.ts)
+  ...
+drizzle/                  # Generated SQL migrations (drizzle-kit)
+docs/                     # Design notes (cartas-data-driven.md)
 ```
 
 ## Getting started
@@ -167,6 +182,8 @@ TURSO_AUTH_TOKEN=eyJ...
 ```
 
 Create the database with the Turso CLI, then run `npm run db:push` pointing at those credentials.
+
+> **Migrations.** The schema includes the `card_defs` and `pool_fun_config` tables and the `pool_members.role` / `fun_cards.card_def_id` columns; generated SQL lives in [`drizzle/`](drizzle/). Apply the schema to prod (with a backup first) with `npm run db:push` against Turso or the generated SQL. Per-pool decks and draw config are **created lazily** the first time a Fun pool is used (idempotent, in [`src/lib/db/decks.ts`](src/lib/db/decks.ts)); pools without a `created_by` get no auto-`owner`, so set those by hand.
 
 ## Scripts
 
