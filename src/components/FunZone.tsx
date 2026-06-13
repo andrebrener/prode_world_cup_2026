@@ -21,6 +21,7 @@ import { fileToSquareDataUrl } from "@/lib/imageFile";
 import type { FunState, FunFeedItem, FunLeaderboardInfo } from "@/lib/db/queries";
 import Avatar from "./Avatar";
 import LottieFX from "./LottieFX";
+import ShareCardButton from "./ShareCardButton";
 
 export type FunMember = { id: string; name: string; avatar: string | null };
 
@@ -159,6 +160,7 @@ export default function FunZone({
   const [lastPlay, setLastPlay] = useState<{ text: string; bad: boolean } | null>(null);
 
   const rivals = members.filter((m) => m.id !== meId);
+  const myName = members.find((m) => m.id === meId)?.name ?? "";
 
   // Una carta pendiente (de un refresh / sesión anterior) reabre el modal sola:
   // derivado del estado del server, sin efectos.
@@ -345,6 +347,17 @@ export default function FunZone({
                 </p>
               )}
               <p className="fun-pop text-sm text-foreground">{revealed.def.description}</p>
+              <div className="fun-pop">
+                <ShareCardButton
+                  slug={slug}
+                  name={revealed.def.name}
+                  emoji={revealed.def.emoji}
+                  rarity={revealed.def.rarity}
+                  curse={revealed.curse}
+                  description={revealed.def.description}
+                  by={myName}
+                />
+              </div>
             </>
           ) : state.pending ? (
             <>
@@ -418,6 +431,15 @@ export default function FunZone({
                   <span className="mt-1 text-[10px] leading-snug text-muted">
                     {DAY_CARD_NOTE[t.cardType] ?? ""}
                   </span>
+                  <ShareCardButton
+                    slug={slug}
+                    name={t.name}
+                    emoji={t.emoji}
+                    rarity={t.rarity}
+                    description={DAY_CARD_NOTE[t.cardType] ?? ""}
+                    by={myName}
+                    variant="icon"
+                  />
                 </div>
               );
             })}
