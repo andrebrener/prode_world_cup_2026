@@ -130,9 +130,10 @@ export async function getPoolMembersWithRoles(
     .from(poolMembers)
     .innerJoin(participants, eq(participants.id, poolMembers.participantId))
     .where(eq(poolMembers.poolId, poolId));
+  const order: Record<PoolRole, number> = { owner: 0, admin: 1, player: 2 };
   return rows
     .map((r) => ({ id: r.id, name: r.name, role: (r.role as PoolRole) ?? "player" }))
-    .sort((a, b) => a.name.localeCompare(b.name, "es"));
+    .sort((a, b) => order[a.role] - order[b.role] || a.name.localeCompare(b.name, "es"));
 }
 
 export type PoolAdminData = {

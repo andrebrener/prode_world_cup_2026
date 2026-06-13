@@ -476,6 +476,23 @@ function Members({
   );
 }
 
+const ROLE_CHIP: Record<PoolRole, { label: string; cls: string }> = {
+  owner: { label: "Owner", cls: "border-gold/50 bg-gold/10 text-gold" },
+  admin: { label: "Admin", cls: "border-primary/50 bg-primary/10 text-primary" },
+  player: { label: "Jugador", cls: "border-border bg-background text-muted" },
+};
+
+function RoleChip({ role }: { role: PoolRole }) {
+  const c = ROLE_CHIP[role];
+  return (
+    <span
+      className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${c.cls}`}
+    >
+      {c.label}
+    </span>
+  );
+}
+
 function MemberRow({
   slug,
   member,
@@ -495,9 +512,12 @@ function MemberRow({
   const dirty = role !== member.role;
   return (
     <div className="flex items-center justify-between gap-2 py-2">
-      <span className="text-sm font-semibold text-foreground">
-        {member.name}
-        {isMe && <span className="ml-1 text-xs font-normal text-muted">(vos)</span>}
+      <span className="flex items-center gap-2 text-sm font-semibold text-foreground">
+        <span>
+          {member.name}
+          {isMe && <span className="ml-1 text-xs font-normal text-muted">(vos)</span>}
+        </span>
+        <RoleChip role={member.role} />
       </span>
       {canEdit ? (
         <div className="flex items-center gap-2">
@@ -518,11 +538,7 @@ function MemberRow({
             Guardar
           </button>
         </div>
-      ) : (
-        <span className="rounded-lg border border-border px-2 py-1 text-xs font-semibold capitalize text-muted">
-          {member.role}
-        </span>
-      )}
+      ) : null}
     </div>
   );
 }
