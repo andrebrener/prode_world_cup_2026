@@ -208,45 +208,138 @@ function Deck({
   busy: boolean;
   run: (fn: () => Promise<{ ok: boolean; error?: string }>, okText: string) => void;
 }) {
-  const [picked, setPicked] = useState<string>(mechanics[0]?.mechanic ?? "");
-
   return (
     <section className="rounded-2xl border border-border bg-surface p-5">
       <h2 className="wordmark text-2xl">Mazo ({deck.length})</h2>
       <p className="mt-1 text-sm text-muted">
-        Cada carta usa una mecánica fija (su efecto, a la derecha). Vos editás el nombre, emoji,
-        descripción, rareza y el peso, o la deshabilitás para que no salga.
+        Cada carta usa una mecánica fija (su efecto, abajo). Vos editás el nombre, emoji,
+        descripción y la rareza, o la deshabilitás para que no salga. Dentro de una rareza todas
+        salen con la misma chance.
       </p>
 
-      <div className="mt-4 flex flex-col gap-3">
-        {deck.map((card) => (
-          <CardRow key={card.id} slug={slug} card={card} busy={busy} run={run} />
-        ))}
-      </div>
+      {RARITIES.map((r) => {
+        const cards = deck.filter((c) => c.rarity === r);
+        return (
+          <div key={r} className="mt-5">
+            <h3 className="mb-2 text-xs font-bold uppercase tracking-widest text-muted">
+              {RARITY_LABEL[r]} <span className="font-medium text-muted/70">· {cards.length}</span>
+            </h3>
+            {cards.length === 0 ? (
+              <p className="text-xs text-muted/70">Sin cartas en esta rareza.</p>
+            ) : (
+              <div className="flex flex-col gap-3">
+                {cards.map((card) => (
+                  <CardRow key={card.id} slug={slug} card={card} busy={busy} run={run} />
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
 
-      {/* Agregar carta */}
-      <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-border pt-4">
-        <span className="text-sm font-semibold text-foreground">Agregar carta:</span>
+      {/* Agregar carta: mismo formato que una carta, en un recuadro punteado */}
+      <NewCardForm slug={slug} mechanics={mechanics} busy={busy} run={run} />
+    </section>
+  );
+}
+
+function NewCardForm({
+  slug,
+  mechanics,
+  busy,
+  run,
+}: {
+  slug: string;
+  mechanics: MechanicOption[];
+  busy: boolean;
+  run: (fn: () => Promise<{ ok: boolean; error?: string }>, okText: string) => void;
+}) {
+  const first = mechanics[0];
+  const [mech, setMech] = useState<string>(first?.mechanic ?? "");
+  const [draft, setDraft] = useState({
+    name: first?.defaultName ?? "",
+    emoji: first?.emoji ?? "🃏",
+    description: first?.description ?? "",
+    rarity: (first?.rarity ?? "comun") as CardRarity,
+  });
+
+  // Al elegir un reward, precargamos sus valores por defecto (después los editás).
+  const pick = (m: string) => {
+    setMech(m);
+    const opt = mechanics.find((o) => o.mechanic === m);
+    if (opt)
+      setDraft({
+        name: opt.defaultName,
+        emoji: opt.emoji,
+        description: opt.description,
+        rarity: opt.rarity,
+      });
+  };
+
+  return (
+    <div className="mt-6 rounded-xl border-2 border-dashed border-border/70 p-4">
+      <h3 className="mb-3 text-xs font-bold uppercase tracking-widest text-muted">+ Agregar carta</h3>
+
+      {/* Reward: qué hace la carta */}
+      <label className="mb-1 block text-xs font-semibold text-muted">Reward (qué hace)</label>
+      <select
+        value={mech}
+        onChange={(e) => pick(e.target.value)}
+        className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-sm"
+      >
+        {mechanics.map((m) => (
+          <option key={m.mechanic} value={m.mechanic}>
+            {m.emoji} {m.effect}
+          </option>
+        ))}
+      </select>
+
+      {/* Misma estructura que una carta: emoji + nombre + rareza, y descripción */}
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <input
+          value={draft.emoji}
+          onChange={(e) => setDraft({ ...draft, emoji: e.target.value })}
+          className="w-12 rounded-lg border border-border bg-surface px-2 py-1.5 text-center text-lg"
+          aria-label="Emoji"
+        />
+        <input
+          value={draft.name}
+          onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+          placeholder="Nombre"
+          className="min-w-[8rem] flex-1 rounded-lg border border-border bg-surface px-2 py-1.5 text-sm font-semibold"
+          aria-label="Nombre"
+        />
         <select
-          value={picked}
-          onChange={(e) => setPicked(e.target.value)}
-          className="rounded-lg border border-border bg-background px-2 py-1.5 text-sm"
+          value={draft.rarity}
+          onChange={(e) => setDraft({ ...draft, rarity: e.target.value as CardRarity })}
+          className="rounded-lg border border-border bg-surface px-2 py-1.5 text-sm"
+          aria-label="Rareza"
         >
-          {mechanics.map((m) => (
-            <option key={m.mechanic} value={m.mechanic}>
-              {m.emoji} {m.defaultName} — {m.effect}
+          {RARITIES.map((r) => (
+            <option key={r} value={r}>
+              {RARITY_LABEL[r]}
             </option>
           ))}
         </select>
+      </div>
+      <input
+        value={draft.description}
+        onChange={(e) => setDraft({ ...draft, description: e.target.value })}
+        placeholder="Descripción"
+        className="mt-2 w-full rounded-lg border border-border bg-surface px-2 py-1.5 text-xs"
+        aria-label="Descripción"
+      />
+
+      <div className="mt-3 flex justify-end">
         <button
-          disabled={busy || !picked}
-          onClick={() => run(() => addCardDefAction(slug, picked), "Carta agregada.")}
-          className="rounded-xl bg-primary px-3 py-1.5 text-sm font-bold text-primary-ink transition hover:brightness-110 disabled:opacity-50"
+          disabled={busy || !mech || !draft.name.trim()}
+          onClick={() => run(() => addCardDefAction(slug, mech, draft), "Carta agregada.")}
+          className="rounded-xl bg-primary px-4 py-2 text-sm font-bold text-primary-ink transition hover:brightness-110 disabled:opacity-50"
         >
-          + Agregar
+          + Agregar al mazo
         </button>
       </div>
-    </section>
+    </div>
   );
 }
 
@@ -266,14 +359,12 @@ function CardRow({
     emoji: card.emoji,
     description: card.description,
     rarity: card.rarity as CardRarity,
-    weight: card.weight,
   });
   const dirty =
     draft.name !== card.name ||
     draft.emoji !== card.emoji ||
     draft.description !== card.description ||
-    draft.rarity !== card.rarity ||
-    draft.weight !== card.weight;
+    draft.rarity !== card.rarity;
 
   const save = () => run(() => saveCardDefAction(slug, card.id, draft as CardDefPatch), "Carta guardada.");
   const toggle = () =>
@@ -311,16 +402,6 @@ function CardRow({
             </option>
           ))}
         </select>
-        <label className="flex items-center gap-1 text-xs text-muted">
-          peso
-          <input
-            type="number"
-            min={0}
-            value={draft.weight}
-            onChange={(e) => setDraft({ ...draft, weight: Math.max(0, Math.trunc(Number(e.target.value) || 0)) })}
-            className="w-14 rounded-lg border border-border bg-surface px-2 py-1.5 text-sm"
-          />
-        </label>
       </div>
 
       <input

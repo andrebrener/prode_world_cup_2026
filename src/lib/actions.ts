@@ -681,15 +681,24 @@ export async function saveCardDefAction(
   return { ok: true };
 }
 
-/** Agrega una carta al mazo, basada en una mecánica del catálogo (defaults editables). */
+/**
+ * Agrega una carta al mazo: elegís la mecánica (reward) y le ponés nombre, emoji,
+ * descripción y rareza. Lo que falte cae al default de esa mecánica.
+ */
 export async function addCardDefAction(
   slug: string,
   mechanic: string,
+  cosmetic?: { name?: string; emoji?: string; description?: string; rarity?: string },
 ): Promise<{ ok: boolean; error?: string; id?: string }> {
   const gate = await manageGate(slug);
   if ("error" in gate) return { ok: false, error: gate.error };
   const base = CARD_CATALOG[mechanic as CardType];
-  if (!base) return { ok: false, error: "Mecánica desconocida." };
+  if (!base) return { ok: false, error: "Elegí un reward válido." };
+
+  const name = (cosmetic?.name?.trim() || base.name).slice(0, 40);
+  const emoji = (cosmetic?.emoji?.trim() || base.emoji).slice(0, 8);
+  const description = (cosmetic?.description?.trim() || base.description).slice(0, 240);
+  const rarity = cosmetic?.rarity && RARITIES.has(cosmetic.rarity) ? cosmetic.rarity : base.rarity;
 
   const existing = await db
     .select({ sortOrder: cardDefs.sortOrder })
@@ -701,11 +710,11 @@ export async function addCardDefAction(
     id,
     poolId: gate.pool.id,
     mechanic: base.type,
-    name: base.name,
-    emoji: base.emoji,
-    description: base.description,
-    rarity: base.rarity,
-    weight: base.weight ?? 1,
+    name,
+    emoji,
+    description,
+    rarity,
+    weight: 1, // peso uniforme dentro de la rareza
     enabled: true,
     sortOrder: nextOrder,
     createdAt: new Date(),

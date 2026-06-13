@@ -648,7 +648,8 @@ export const DEFAULT_DECK: DeckEntry[] = ALL_CARDS.map((c, i) => ({
   emoji: c.emoji,
   description: c.description,
   rarity: c.rarity,
-  weight: c.weight ?? 1,
+  // Peso uniforme: dentro de una rareza, todas las cartas salen con la misma chance.
+  weight: 1,
   enabled: true,
   sortOrder: i,
 }));
