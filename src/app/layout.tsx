@@ -1,7 +1,8 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist } from "next/font/google";
 import SiteNav from "@/components/SiteNav";
 import WorldCupMark from "@/components/WorldCupMark";
+import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
 import { getParticipantId } from "@/lib/session";
 import { getParticipant, getUserPools } from "@/lib/db/queries";
 import "./globals.css";
@@ -17,6 +18,19 @@ export const metadata: Metadata = {
   title: "Prode Mundial 2026",
   description:
     "Prode del Mundial 2026. Creá tu prode con amigos: pronosticá la fase de grupos, el campeón, el goleador y la figura.",
+  applicationName: "Prode 2026",
+  icons: {
+    apple: "/apple-icon.png",
+  },
+  appleWebApp: {
+    capable: true,
+    title: "Prode 2026",
+    statusBarStyle: "black-translucent",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#0a0e0a",
 };
 
 export default async function RootLayout({
@@ -32,6 +46,7 @@ export default async function RootLayout({
   return (
     <html lang="es" className={`${geistSans.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col">
+        <ServiceWorkerRegister />
         {/* Cinta Mundial 2026 — paleta oficial */}
         <div className="fifa-gradient text-white">
           <div className="mx-auto flex max-w-3xl items-center justify-center gap-2 px-4 py-1 text-center text-[11px] font-bold uppercase tracking-wider drop-shadow-[0_1px_1px_rgba(0,0,0,0.45)]">
