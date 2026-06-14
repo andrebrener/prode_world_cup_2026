@@ -143,10 +143,15 @@ export default function PullToRefresh({
         </div>
       </div>
 
-      {/* Contenido: se desplaza con el tirón */}
+      {/* Contenido: se desplaza con el tirón.
+          OJO: en reposo NO seteamos transform. translateY(0px) igual cuenta como
+          transform != none y crea un containing block, lo que rompe el
+          position:fixed de TODOS los modales de adentro (caen "muy abajo" en vez
+          de centrarse en el viewport). Solo aplicamos el transform mientras se
+          tira (pull > 0), que es transitorio y sin modales abiertos. */}
       <div
         style={{
-          transform: `translateY(${pull}px)`,
+          transform: pull ? `translateY(${pull}px)` : undefined,
           transition: smooth ? "transform 200ms" : "none",
         }}
       >
