@@ -13,7 +13,7 @@ type Clause = (t: string, d: string | null) => string;
 const ACTION: Record<CardType, Clause> = {
   doblete: () => "dobla su primer partido del día",
   honguito: () => "dobla el partido que eligió",
-  yapa: () => "+1 si suma en el primer partido del día",
+  yapa: () => "+1 en el primer partido del día, solo si ahí suma",
   mufa: (t) => `le parte al medio el primer partido del día a ${t}`,
   diego: () => "triplica su primer partido del día",
   var: () => "+2 en su próximo partido con puntos",
