@@ -847,11 +847,13 @@ export async function getFunState(pool: Pool, viewerId: string): Promise<FunStat
 
   const today = funToday();
   const mine = cards.filter((c) => c.participantId === viewerId);
-  // Cartas pendientes de resolver (las "held" que quedaron de la era con mano
-  // también caen acá y se resuelven de a una).
+  // Carta pendiente de resolver: la "held" del DÍA (un ataque/social que pediste
+  // y no elegiste víctima/apodo todavía). Solo vive la jornada en que la sacaste:
+  // una held de un día anterior está vencida — ya pasó su día, no la podés jugar
+  // hoy (la ataría a la jornada de hoy, no a la suya) ni te bloquea el sorteo.
   const pending: HeldCard | null =
     mine
-      .filter((c) => c.status === "held" && CARD_CATALOG[c.cardType as CardType])
+      .filter((c) => c.status === "held" && c.drawDate === today && CARD_CATALOG[c.cardType as CardType])
       .sort((a, b) => a.drawnAt.getTime() - b.drawnAt.getTime())
       .map((c) => ({
         id: c.id,

@@ -1337,7 +1337,9 @@ export async function claimDailyCardAction(slug: string): Promise<DrawResult> {
   if ("error" in gate) return { ok: false, error: gate.error };
   const { id, pool } = gate;
 
-  // Una carta pendiente de resolver bloquea el sorteo (jugada obligada).
+  // Una carta pendiente de resolver bloquea el sorteo (jugada obligada). Solo la
+  // del DÍA: una held de un día anterior está vencida (ya pasó su jornada), no
+  // bloquea ni se puede jugar.
   const [pendingRow] = await db
     .select({ id: funCards.id })
     .from(funCards)
@@ -1346,6 +1348,7 @@ export async function claimDailyCardAction(slug: string): Promise<DrawResult> {
         eq(funCards.poolId, pool.id),
         eq(funCards.participantId, id),
         eq(funCards.status, "held"),
+        eq(funCards.drawDate, funToday()),
       ),
     )
     .limit(1);
@@ -1388,6 +1391,9 @@ export async function playCardAction(
     return { ok: false, error: "Esa carta no es tuya." };
   }
   if (row.status !== "held") return { ok: false, error: "Esa carta ya se jugó." };
+  // Una held solo se juega el día que se sacó: si quedó de un día anterior, venció.
+  if (row.drawDate !== funToday())
+    return { ok: false, error: "Esa carta venció: era de otro día." };
   const baseDef = CARD_CATALOG[row.cardType as CardType];
   if (!baseDef) return { ok: false, error: "Carta desconocida." };
   // Re-skin del prode: si la carta apunta a una def del mazo, usamos su nombre/
