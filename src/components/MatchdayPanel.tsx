@@ -392,21 +392,27 @@ export default function MatchdayPanel({
                                   🚫 0
                                 </span>
                               </span>
-                            ) : (
-                              pts !== null && (
-                                <span
-                                  className={`min-w-9 rounded-md px-2 py-0.5 text-center text-xs font-bold ${
-                                    pts === 5
-                                      ? "bg-primary/20 text-primary"
-                                      : pts === 3
-                                        ? "bg-gold/20 text-gold"
-                                        : "bg-background text-muted"
-                                  }`}
-                                >
-                                  +{pts}
-                                </span>
-                              )
-                            )}
+                            ) : pts !== null ? (
+                              <span
+                                className={`min-w-9 rounded-md px-2 py-0.5 text-center text-xs font-bold ${
+                                  pts === 5
+                                    ? "bg-primary/20 text-primary"
+                                    : pts === 3
+                                      ? "bg-gold/20 text-gold"
+                                      : "bg-background text-muted"
+                                }`}
+                              >
+                                +{pts}
+                              </span>
+                            ) : p.caldeado ? (
+                              // Sin resultado todavía: su pronóstico quedó anulado, se juega al azar.
+                              <span
+                                className="min-w-9 rounded-md bg-background px-2 py-0.5 text-center text-xs font-bold text-muted/70"
+                                title="Su pronóstico no cuenta: se puntúa el resultado al azar del Caldeador (puede pegarla de casualidad)"
+                              >
+                                🎲
+                              </span>
+                            ) : null}
                           </div>
                         </li>
                       );
