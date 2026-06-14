@@ -4,7 +4,8 @@
 // No hay mano: la carta se juega al salir. Si pide víctima/apodo/foto, el modal
 // se abre al toque y no se puede esquivar — hasta no resolverla no hay otro sorteo.
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import confetti from "canvas-confetti";
 import { claimDailyCardAction, playCardAction } from "@/lib/actions";
@@ -158,6 +159,15 @@ export default function FunZone({
   const [imagen, setImagen] = useState<string | null>(null);
   const [matchId, setMatchId] = useState<string | null>(null);
   const [lastPlay, setLastPlay] = useState<{ text: string; bad: boolean } | null>(null);
+
+  // El modal obligatorio va por portal a <body>: así su position:fixed es
+  // relativo al viewport real y no a la sección, y nunca queda fuera de pantalla.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    // diferido: evita el setState síncrono dentro del effect
+    const id = setTimeout(() => setMounted(true), 0);
+    return () => clearTimeout(id);
+  }, []);
 
   const rivals = members.filter((m) => m.id !== meId);
   const myName = members.find((m) => m.id === meId)?.name ?? "";
@@ -499,10 +509,14 @@ export default function FunZone({
         </div>
       )}
 
-      {/* Modal de resolución obligada (víctima / inputs) */}
-      {playing && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-          <div className="fun-mode fun-pop w-full max-w-sm rounded-3xl border border-border bg-surface p-6">
+      {/* Modal de resolución obligada (víctima / inputs). Va por portal a <body>
+          y con scroll: en mobile era más alto que la pantalla y quedaba fuera de
+          vista, bloqueando toda la página sin que se pudiera completar. */}
+      {playing &&
+        mounted &&
+        createPortal(
+          <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/70 p-4 sm:items-center">
+            <div className="fun-mode fun-pop my-auto w-full max-w-sm rounded-3xl border border-border bg-surface p-6">
             <h3 className="wordmark text-xl text-foreground">
               {playing.def.emoji} {playing.def.name}
             </h3>
@@ -636,9 +650,10 @@ export default function FunZone({
             >
               {pending ? "Jugando…" : `${playing.def.emoji} Jugarla`}
             </button>
-          </div>
-        </div>
-      )}
+            </div>
+          </div>,
+          document.body,
+        )}
 
       {/* Historial de jugadas, agrupado por día */}
       {feedByDay.length > 0 && (
