@@ -1019,21 +1019,21 @@ export type MatchPredictionRow = {
  */
 async function loadForecastOverrides(
   poolId: string,
-  results: Record<string, Score>,
   bracket: BracketState,
 ): Promise<{ caldeadoBy: Record<string, string>; flippedBy: Set<string> }> {
   const caldeadoBy: Record<string, string> = {};
   const flippedBy = new Set<string>();
   const cards = await db.select().from(funCards).where(eq(funCards.poolId, poolId));
+  // El Caldeador/Piedrambre pisa TODOS los partidos del día (jugados o no), para
+  // que el marcador al azar se vea también antes de que haya resultado.
   const dayMatchIds = (effectDate: string): string[] => {
     const ids: string[] = [];
-    for (const mid of Object.keys(results)) {
-      const k = KICKOFF_BY_ID[mid];
-      if (k && matchDay(k) === effectDate) ids.push(mid);
+    for (const [mid, k] of Object.entries(KICKOFF_BY_ID)) {
+      if (matchDay(k) === effectDate) ids.push(mid);
     }
     for (const km of bracket.matches) {
       const k = koKickoff(km.id);
-      if (km.result && k && matchDay(k) === effectDate) ids.push(km.id);
+      if (k && matchDay(k) === effectDate) ids.push(km.id);
     }
     return ids;
   };
@@ -1076,8 +1076,8 @@ export async function getPredictionsByMatch(
   }
   // Modo Diversión: pisar los pronósticos con el Caldeador / Piedrambre.
   if (isFun) {
-    const [results, bracket] = await Promise.all([getResultsMap(), getBracketState()]);
-    const { caldeadoBy, flippedBy } = await loadForecastOverrides(poolId, results, bracket);
+    const bracket = await getBracketState();
+    const { caldeadoBy, flippedBy } = await loadForecastOverrides(poolId, bracket);
     for (const [matchId, rows] of Object.entries(byMatch)) {
       for (const row of rows) {
         const cId = caldeadoBy[`${row.id}:${matchId}`];
@@ -1171,7 +1171,7 @@ export async function getParticipantDetail(
 
   // Cartas que le pisan los pronósticos a este jugador en este prode (modo Diversión).
   const { caldeadoBy, flippedBy } = poolId
-    ? await loadForecastOverrides(poolId, results, bracket)
+    ? await loadForecastOverrides(poolId, bracket)
     : { caldeadoBy: {} as Record<string, string>, flippedBy: new Set<string>() };
 
   const { MATCHES } = await import("../fixtures");
