@@ -85,7 +85,7 @@ export default async function PoolTabla({
       getLeaderboard(pool),
       getResultsMap(),
       getTournamentResult(),
-      getPredictionsByMatch(pool.id),
+      getPredictionsByMatch(pool.id, isFun),
       getBracketState(),
       isFun ? getFunState(pool, participant.id) : Promise.resolve(null),
     ]);
@@ -156,7 +156,7 @@ export default async function PoolTabla({
       )}
 
       {/* Leaderboard (filas clickeables → drawer con todos los pronósticos) */}
-      <Leaderboard rows={leaderboard} />
+      <Leaderboard rows={leaderboard} poolId={isFun ? pool.id : undefined} />
       {leaderboard.length > 0 && (
         <p className="-mt-5 text-xs text-muted">Tocá un jugador para ver todos sus pronósticos.</p>
       )}

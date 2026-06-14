@@ -47,6 +47,14 @@ const clamp = (s: string) => {
   return String(Math.min(n, 99));
 };
 
+// Pronóstico efectivo con el que se puntúa: el random del Caldeador (ya con el flip
+// de la Piedrambre aplicado), o el del jugador dado vuelta si solo lo flipearon.
+const effPred = (p: MatchPredictionRow): Result => {
+  if (p.caldeado) return { homeGoals: p.caldeado.homeGoals, awayGoals: p.caldeado.awayGoals };
+  if (p.flipped) return { homeGoals: p.awayGoals, awayGoals: p.homeGoals };
+  return { homeGoals: p.homeGoals, awayGoals: p.awayGoals };
+};
+
 export default function MatchdayPanel({
   predictionsByMatch,
   resultsByMatch,
@@ -124,7 +132,7 @@ export default function MatchdayPanel({
         const preds = predictionsByMatch[m.id] ?? [];
         const mine = preds.find((p) => p.id === c.id);
         if (!mine) continue;
-        const pred = { homeGoals: mine.homeGoals, awayGoals: mine.awayGoals };
+        const pred = effPred(mine);
         const official = resultsByMatch[m.id];
         const simRes = effResult(m.id);
         delta += matchPoints(pred, simRes) - matchPoints(pred, official);
@@ -327,12 +335,8 @@ export default function MatchdayPanel({
                 ) : (
                   <ul className="divide-y divide-border/60">
                     {preds.map((p) => {
-                      const pts = result
-                        ? matchPoints(
-                            { homeGoals: p.homeGoals, awayGoals: p.awayGoals },
-                            result,
-                          )
-                        : null;
+                      const eff = effPred(p);
+                      const pts = result ? matchPoints(eff, result) : null;
                       return (
                         <li
                           key={p.id}
@@ -340,8 +344,18 @@ export default function MatchdayPanel({
                         >
                           <span className="text-foreground">{p.name}</span>
                           <div className="flex items-center gap-3">
-                            <span className="font-mono text-muted">
-                              {p.homeGoals} - {p.awayGoals}
+                            <span
+                              className={`font-mono ${p.caldeado ? "text-danger" : "text-muted"}`}
+                              title={
+                                p.caldeado
+                                  ? `Caldeador de las tinieblas: le reemplazó el pronóstico (${p.homeGoals}-${p.awayGoals}) por un resultado al azar`
+                                  : p.flipped
+                                    ? `Piedrambre: pronóstico dado vuelta (era ${p.homeGoals}-${p.awayGoals})`
+                                    : undefined
+                              }
+                            >
+                              {p.caldeado ? "🤮 " : p.flipped ? "🪨 " : ""}
+                              {eff.homeGoals} - {eff.awayGoals}
                             </span>
                             {pts !== null && (
                               <span

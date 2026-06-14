@@ -700,8 +700,9 @@ export async function updateBracketAction(): Promise<{ ok: boolean; error?: stri
 /** Trae el detalle de pronósticos de un participante (para el drawer de la tabla). */
 export async function fetchParticipantDetailAction(
   id: string,
+  poolId?: string,
 ): Promise<ParticipantDetail | null> {
-  return getParticipantDetail(id);
+  return getParticipantDetail(id, poolId);
 }
 
 export type KoPredictionInput = {

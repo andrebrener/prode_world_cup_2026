@@ -1004,11 +1004,56 @@ export type MatchPredictionRow = {
   name: string;
   homeGoals: number;
   awayGoals: number;
+  // Caldeador: marcador al azar (ya con el flip de la Piedrambre aplicado si hubo) que
+  // le pisó el pronóstico. Presente solo si la víctima recibió la carta ese día.
+  caldeado?: { homeGoals: number; awayGoals: number };
+  // Piedrambre: su pronóstico se computa dado vuelta.
+  flipped?: boolean;
 };
+
+/**
+ * Cartas que pisan los pronósticos del día (modo Diversión), por (jugador, partido):
+ *  - caldeadoBy[`${pid}:${matchId}`] = id de la carta Caldeador (resultado al azar).
+ *  - flippedBy contiene `${pid}:${matchId}` si la Piedrambre lo dio vuelta.
+ * En prodes normales no hay funCards, así que devuelve mapas vacíos.
+ */
+async function loadForecastOverrides(
+  poolId: string,
+  results: Record<string, Score>,
+  bracket: BracketState,
+): Promise<{ caldeadoBy: Record<string, string>; flippedBy: Set<string> }> {
+  const caldeadoBy: Record<string, string> = {};
+  const flippedBy = new Set<string>();
+  const cards = await db.select().from(funCards).where(eq(funCards.poolId, poolId));
+  const dayMatchIds = (effectDate: string): string[] => {
+    const ids: string[] = [];
+    for (const mid of Object.keys(results)) {
+      const k = KICKOFF_BY_ID[mid];
+      if (k && matchDay(k) === effectDate) ids.push(mid);
+    }
+    for (const km of bracket.matches) {
+      const k = koKickoff(km.id);
+      if (km.result && k && matchDay(k) === effectDate) ids.push(km.id);
+    }
+    return ids;
+  };
+  for (const c of cards) {
+    if (c.status !== "played" || !c.playedAt || !c.effectDate) continue;
+    if (c.cardType === "caldeador") {
+      const affected = c.reflected ? c.participantId : c.targetParticipantId;
+      if (!affected) continue;
+      for (const mid of dayMatchIds(c.effectDate)) caldeadoBy[`${affected}:${mid}`] = c.id;
+    } else if (c.cardType === "piedrambre") {
+      for (const mid of dayMatchIds(c.effectDate)) flippedBy.add(`${c.participantId}:${mid}`);
+    }
+  }
+  return { caldeadoBy, flippedBy };
+}
 
 /** Pronósticos de los miembros del prode agrupados por partido (matchId → filas). */
 export async function getPredictionsByMatch(
   poolId: string,
+  isFun = false,
 ): Promise<Record<string, MatchPredictionRow[]>> {
   const memberIds = await getPoolMemberIds(poolId);
   if (memberIds.length === 0) return {};
@@ -1028,6 +1073,24 @@ export async function getPredictionsByMatch(
       homeGoals: p.homeGoals,
       awayGoals: p.awayGoals,
     });
+  }
+  // Modo Diversión: pisar los pronósticos con el Caldeador / Piedrambre.
+  if (isFun) {
+    const [results, bracket] = await Promise.all([getResultsMap(), getBracketState()]);
+    const { caldeadoBy, flippedBy } = await loadForecastOverrides(poolId, results, bracket);
+    for (const [matchId, rows] of Object.entries(byMatch)) {
+      for (const row of rows) {
+        const cId = caldeadoBy[`${row.id}:${matchId}`];
+        const flip = flippedBy.has(`${row.id}:${matchId}`);
+        if (!cId && !flip) continue;
+        let eff: Score = cId
+          ? caldeadorScore(cId, matchId)
+          : { homeGoals: row.homeGoals, awayGoals: row.awayGoals };
+        if (flip) eff = { homeGoals: eff.awayGoals, awayGoals: eff.homeGoals };
+        if (cId) row.caldeado = { homeGoals: eff.homeGoals, awayGoals: eff.awayGoals };
+        if (flip) row.flipped = true;
+      }
+    }
   }
   for (const rows of Object.values(byMatch)) {
     rows.sort((a, b) => a.name.localeCompare(b.name, "es"));
@@ -1055,6 +1118,10 @@ export type MatchDetail = {
   pred: { home: number; away: number } | null;
   real: { home: number; away: number } | null;
   points: number;
+  // Caldeador: marcador al azar que le reemplazó el pronóstico (con eso se puntúa).
+  caldeado?: { home: number; away: number };
+  // Piedrambre: su pronóstico se computó dado vuelta.
+  flipped?: boolean;
 };
 
 export type KoDetail = {
@@ -1068,6 +1135,8 @@ export type KoDetail = {
   real: { home: number; away: number; penalties: boolean } | null;
   winner: string | null;
   points: number;
+  caldeado?: { home: number; away: number; advance: string };
+  flipped?: boolean;
 };
 
 export type ParticipantDetail = {
@@ -1079,8 +1148,15 @@ export type ParticipantDetail = {
   bracketGenerated: boolean;
 };
 
-/** Detalle completo de pronósticos de un participante (para el drawer de la tabla). */
-export async function getParticipantDetail(id: string): Promise<ParticipantDetail | null> {
+/**
+ * Detalle completo de pronósticos de un participante (para el drawer de la tabla).
+ * Con `poolId` (modo Diversión) aplica el Caldeador y la Piedrambre: muestra el
+ * marcador al azar que le vomitaron y puntúa como en la tabla.
+ */
+export async function getParticipantDetail(
+  id: string,
+  poolId?: string,
+): Promise<ParticipantDetail | null> {
   const person = await getParticipant(id);
   if (!person) return null;
 
@@ -1093,10 +1169,21 @@ export async function getParticipantDetail(id: string): Promise<ParticipantDetai
     getBracketState(),
   ]);
 
+  // Cartas que le pisan los pronósticos a este jugador en este prode (modo Diversión).
+  const { caldeadoBy, flippedBy } = poolId
+    ? await loadForecastOverrides(poolId, results, bracket)
+    : { caldeadoBy: {} as Record<string, string>, flippedBy: new Set<string>() };
+
   const { MATCHES } = await import("../fixtures");
   const matches: MatchDetail[] = MATCHES.map((m) => {
     const p = preds[m.id];
     const r = results[m.id];
+    const cId = caldeadoBy[`${id}:${m.id}`];
+    const flip = flippedBy.has(`${id}:${m.id}`);
+    // Pronóstico efectivo: el random del Caldeador (si hay), luego dado vuelta por
+    // la Piedrambre (si aplica). Mismo orden que la tabla.
+    let eff: Score | undefined = cId ? caldeadorScore(cId, m.id) : p;
+    if (eff && flip) eff = { homeGoals: eff.awayGoals, awayGoals: eff.homeGoals };
     return {
       id: m.id,
       group: m.group,
@@ -1105,15 +1192,22 @@ export async function getParticipantDetail(id: string): Promise<ParticipantDetai
       date: m.date,
       pred: p ? { home: p.homeGoals, away: p.awayGoals } : null,
       real: r ? { home: r.homeGoals, away: r.awayGoals } : null,
-      points: matchPoints(p, r),
+      points: cId || flip ? matchPoints(eff, r) : matchPoints(p, r),
+      ...(cId && eff ? { caldeado: { home: eff.homeGoals, away: eff.awayGoals } } : {}),
+      ...(flip ? { flipped: true } : {}),
     };
   });
 
   const ko: KoDetail[] = bracket.matches.map((m) => {
     const p = koPreds[m.id];
+    const cId = caldeadoBy[`${id}:${m.id}`];
+    const flip = flippedBy.has(`${id}:${m.id}`);
+    let eff =
+      cId && m.home && m.away ? caldeadorKoPred(cId, m.id, m.home, m.away) : p;
+    if (eff && flip) eff = { ...eff, homeGoals: eff.awayGoals, awayGoals: eff.homeGoals };
     const pts =
-      p && m.result && m.home && m.away
-        ? knockoutPoints(p, m.result as KoReal, m.home, m.away)
+      eff && m.result && m.home && m.away
+        ? knockoutPoints(eff, m.result as KoReal, m.home, m.away)
         : 0;
     return {
       id: m.id,
@@ -1128,6 +1222,10 @@ export async function getParticipantDetail(id: string): Promise<ParticipantDetai
         : null,
       winner: m.winner,
       points: pts,
+      ...(cId && eff
+        ? { caldeado: { home: eff.homeGoals, away: eff.awayGoals, advance: eff.advance } }
+        : {}),
+      ...(flip ? { flipped: true } : {}),
     };
   });
 

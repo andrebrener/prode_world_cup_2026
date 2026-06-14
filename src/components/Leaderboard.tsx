@@ -62,7 +62,13 @@ function FunBadges({ row }: { row: LeaderboardRow }) {
 const fmtDelta = (n: number) =>
   n > 0 ? `+${n}` : `${n}`;
 
-export default function Leaderboard({ rows }: { rows: LeaderboardRow[] }) {
+export default function Leaderboard({
+  rows,
+  poolId,
+}: {
+  rows: LeaderboardRow[];
+  poolId?: string;
+}) {
   const fun = rows.some((r) => r.fun);
   const [openRow, setOpenRow] = useState<LeaderboardRow | null>(null);
   // Lightbox: click en una foto la abre a tamaño real (sin abrir el drawer).
@@ -74,7 +80,7 @@ export default function Leaderboard({ rows }: { rows: LeaderboardRow[] }) {
     setOpenRow(row);
     setDetail(null);
     start(async () => {
-      const d = await fetchParticipantDetailAction(row.id);
+      const d = await fetchParticipantDetailAction(row.id, poolId);
       setDetail(d);
     });
   }
@@ -380,9 +386,11 @@ function GroupList({ detail, group }: { detail: ParticipantDetail; group: string
           <span className="flex-1 truncate text-right">
             {teamName(m.homeCode)} {teamFlag(m.homeCode)}
           </span>
-          <span className="shrink-0 rounded-md bg-surface px-2 py-0.5 font-mono font-bold">
-            {m.pred ? `${m.pred.home}-${m.pred.away}` : "—"}
-          </span>
+          <PredScore
+            pred={m.pred}
+            caldeado={m.caldeado}
+            flipped={m.flipped}
+          />
           <span className="flex-1 truncate">
             {teamFlag(m.awayCode)} {teamName(m.awayCode)}
           </span>
@@ -409,9 +417,11 @@ function KoList({ detail }: { detail: ParticipantDetail }) {
                     <span className="flex-1 truncate text-right">
                       {m.home ? `${teamName(m.home)} ${teamFlag(m.home)}` : m.homeLabel}
                     </span>
-                    <span className="shrink-0 rounded-md bg-surface px-2 py-0.5 font-mono font-bold">
-                      {m.pred ? `${m.pred.home}-${m.pred.away}` : "—"}
-                    </span>
+                    <PredScore
+                      pred={m.pred}
+                      caldeado={m.caldeado}
+                      flipped={m.flipped}
+                    />
                     <span className="flex-1 truncate">
                       {m.away ? `${teamFlag(m.away)} ${teamName(m.away)}` : m.awayLabel}
                     </span>
@@ -421,9 +431,9 @@ function KoList({ detail }: { detail: ParticipantDetail }) {
                       hasPred={!!m.pred}
                     />
                   </div>
-                  {m.pred && (
+                  {(m.caldeado ?? m.pred) && (
                     <p className="mt-0.5 pr-1 text-right text-[11px] text-muted">
-                      pasa: {teamName(m.pred.advance)}
+                      pasa: {teamName((m.caldeado ?? m.pred)!.advance)}
                       {m.winner ? ` · real: ${teamName(m.winner)}` : ""}
                     </p>
                   )}
@@ -434,6 +444,50 @@ function KoList({ detail }: { detail: ParticipantDetail }) {
         );
       })}
     </div>
+  );
+}
+
+/**
+ * Marcador pronosticado en el drawer. Si el Caldeador lo pisó, muestra el
+ * resultado al azar (🤮) en vez del pronóstico real; la Piedrambre lo da vuelta (🪨).
+ */
+function PredScore({
+  pred,
+  caldeado,
+  flipped,
+}: {
+  pred: { home: number; away: number } | null;
+  caldeado?: { home: number; away: number };
+  flipped?: boolean;
+}) {
+  if (caldeado) {
+    return (
+      <span
+        className="flex shrink-0 flex-col items-center"
+        title={`Caldeador de las tinieblas: le reemplazó el pronóstico${
+          pred ? ` (${pred.home}-${pred.away})` : ""
+        } por un resultado al azar`}
+      >
+        <span className="rounded-md bg-danger/15 px-2 py-0.5 font-mono font-bold text-danger">
+          🤮 {caldeado.home}-{caldeado.away}
+        </span>
+        <span className="text-[9px] leading-tight text-muted">al azar</span>
+      </span>
+    );
+  }
+  // Piedrambre da vuelta el pronóstico: se muestra (y puntúa) invertido.
+  const shown = pred && flipped ? { home: pred.away, away: pred.home } : pred;
+  return (
+    <span
+      className="shrink-0 rounded-md bg-surface px-2 py-0.5 font-mono font-bold"
+      title={
+        flipped && pred
+          ? `Piedrambre: pronóstico dado vuelta (era ${pred.home}-${pred.away})`
+          : undefined
+      }
+    >
+      {shown ? `${flipped ? "🪨 " : ""}${shown.home}-${shown.away}` : "—"}
+    </span>
   );
 }
 
