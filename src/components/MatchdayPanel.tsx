@@ -59,10 +59,15 @@ export default function MatchdayPanel({
   predictionsByMatch,
   resultsByMatch,
   leaderboard = [],
+  resolvedPoints,
 }: {
   predictionsByMatch: Record<string, MatchPredictionRow[]>;
   resultsByMatch: Record<string, Result>;
   leaderboard?: LbRow[];
+  // Modo Diversión: puntos reales por (jugador → partido) DESPUÉS de las cartas
+  // (bloqueos, robos, multiplicadores). El badge los usa fuera del simulador para
+  // no mostrar puntos que en realidad una carta anuló. Ausente en modo clásico.
+  resolvedPoints?: Record<string, Record<string, number>>;
 }) {
   const today = todayISO();
   // Si hoy no hay partidos, arranca en el día más cercano dentro del torneo.
@@ -336,7 +341,15 @@ export default function MatchdayPanel({
                   <ul className="divide-y divide-border/60">
                     {preds.map((p) => {
                       const eff = effPred(p);
-                      const pts = result ? matchPoints(eff, result) : null;
+                      // Lo que valdría el pronóstico contra el resultado (sin cartas de bloqueo/robo).
+                      const wouldBe = result ? matchPoints(eff, result) : null;
+                      // Fuera del simulador usamos los puntos REALES post-cartas si los tenemos.
+                      const real =
+                        !simMode && result ? resolvedPoints?.[p.id]?.[m.id] : undefined;
+                      const pts = real ?? wouldBe;
+                      // Una carta le anuló los puntos de la fecha (bloqueo/robo): valía algo, quedó en 0.
+                      const annulled =
+                        real !== undefined && wouldBe !== null && wouldBe > 0 && real === 0;
                       return (
                         <li
                           key={p.id}
@@ -344,31 +357,55 @@ export default function MatchdayPanel({
                         >
                           <span className="text-foreground">{p.name}</span>
                           <div className="flex items-center gap-3">
-                            <span
-                              className={`font-mono ${p.caldeado ? "text-danger" : "text-muted"}`}
-                              title={
-                                p.caldeado
-                                  ? `Caldeador de las tinieblas: le reemplazó el pronóstico (${p.homeGoals}-${p.awayGoals}) por un resultado al azar`
-                                  : p.flipped
-                                    ? `Piedrambre: pronóstico dado vuelta (era ${p.homeGoals}-${p.awayGoals})`
-                                    : undefined
-                              }
-                            >
-                              {p.caldeado ? "🤮 " : p.flipped ? "🪨 " : ""}
-                              {eff.homeGoals} - {eff.awayGoals}
-                            </span>
-                            {pts !== null && (
+                            {p.caldeado || p.flipped ? (
                               <span
-                                className={`min-w-9 rounded-md px-2 py-0.5 text-center text-xs font-bold ${
-                                  pts === 5
-                                    ? "bg-primary/20 text-primary"
-                                    : pts === 3
-                                      ? "bg-gold/20 text-gold"
-                                      : "bg-background text-muted"
-                                }`}
+                                className="flex items-center gap-1.5 font-mono"
+                                title={
+                                  p.caldeado
+                                    ? `Caldeador de las tinieblas: puso ${p.homeGoals}-${p.awayGoals}, pero se le cuenta un resultado al azar`
+                                    : `Piedrambre: puso ${p.homeGoals}-${p.awayGoals}, se le cuenta dado vuelta`
+                                }
                               >
-                                +{pts}
+                                <span className="text-muted/50 line-through">
+                                  {p.homeGoals}-{p.awayGoals}
+                                </span>
+                                <span className="text-muted/50">→</span>
+                                <span className={p.caldeado ? "text-danger" : "text-muted"}>
+                                  {p.caldeado ? "🤮 " : "🪨 "}
+                                  {eff.homeGoals}-{eff.awayGoals}
+                                </span>
                               </span>
+                            ) : (
+                              <span className="font-mono text-muted">
+                                {eff.homeGoals} - {eff.awayGoals}
+                              </span>
+                            )}
+                            {annulled ? (
+                              <span
+                                className="flex items-center gap-1 text-xs font-bold"
+                                title="Una carta le anuló los puntos de esta fecha (bloqueo o robo)"
+                              >
+                                <span className="font-mono text-muted/50 line-through">
+                                  +{wouldBe}
+                                </span>
+                                <span className="min-w-9 rounded-md bg-background px-2 py-0.5 text-center text-muted">
+                                  🚫 0
+                                </span>
+                              </span>
+                            ) : (
+                              pts !== null && (
+                                <span
+                                  className={`min-w-9 rounded-md px-2 py-0.5 text-center text-xs font-bold ${
+                                    pts === 5
+                                      ? "bg-primary/20 text-primary"
+                                      : pts === 3
+                                        ? "bg-gold/20 text-gold"
+                                        : "bg-background text-muted"
+                                  }`}
+                                >
+                                  +{pts}
+                                </span>
+                              )
                             )}
                           </div>
                         </li>

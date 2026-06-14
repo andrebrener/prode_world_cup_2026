@@ -5,6 +5,7 @@ import {
   getResultsMap,
   getTournamentResult,
   getPredictionsByMatch,
+  getResolvedMatchPoints,
   getBracketState,
   getPoolBySlug,
   isPoolMember,
@@ -80,7 +81,7 @@ export default async function PoolTabla({
   const canManage = role === "owner" || role === "admin";
 
   const isFun = pool.mode === "fun";
-  const [leaderboard, results, tourney, predictionsByMatch, bracket, funState] =
+  const [leaderboard, results, tourney, predictionsByMatch, bracket, funState, resolvedPts] =
     await Promise.all([
       getLeaderboard(pool),
       getResultsMap(),
@@ -88,6 +89,9 @@ export default async function PoolTabla({
       getPredictionsByMatch(pool.id, isFun),
       getBracketState(),
       isFun ? getFunState(pool, participant.id) : Promise.resolve(null),
+      // Puntos reales post-cartas (con bloqueos/robos/multiplicadores aplicados):
+      // el panel de partidos los usa para no mostrar un "+3" que en realidad no se sumó.
+      isFun ? getResolvedMatchPoints(pool) : Promise.resolve(null),
     ]);
   const standings = allGroupStandings(results);
   const hasResults = Object.keys(results).length > 0;
@@ -179,6 +183,7 @@ export default async function PoolTabla({
         predictionsByMatch={predictionsByMatch}
         resultsByMatch={results}
         leaderboard={leaderboard.map((r) => ({ id: r.id, name: r.name, total: r.total }))}
+        resolvedPoints={resolvedPts?.resolved}
       />
 
       {/* Cuadro de llaves */}
