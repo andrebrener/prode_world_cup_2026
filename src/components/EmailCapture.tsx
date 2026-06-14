@@ -13,15 +13,32 @@ import { saveEmailAction } from "@/lib/actions";
 const DISMISS_KEY = "fun-email-later";
 const listeners = new Set<() => void>();
 
+// Respaldo en memoria: si el storage está bloqueado (Safari modo privado,
+// bloqueadores, "bloquear todas las cookies"), sessionStorage TIRA al leer. Como
+// esto corre en el getSnapshot (durante el render), una excepción acá rompe la
+// hidratación de TODA la página y deja todo sin responder. Por eso va con try/catch
+// y un flag en memoria que mantiene el "Después" andando aunque no se pueda persistir.
+let dismissedMem = false;
+
 function subscribe(cb: () => void) {
   listeners.add(cb);
   return () => listeners.delete(cb);
 }
 function isDismissed() {
-  return sessionStorage.getItem(DISMISS_KEY) === "1";
+  if (dismissedMem) return true;
+  try {
+    return sessionStorage.getItem(DISMISS_KEY) === "1";
+  } catch {
+    return false;
+  }
 }
 function dismissForSession() {
-  sessionStorage.setItem(DISMISS_KEY, "1");
+  dismissedMem = true;
+  try {
+    sessionStorage.setItem(DISMISS_KEY, "1");
+  } catch {
+    /* sin persistencia: igual lo escondemos por la sesión vía dismissedMem */
+  }
   listeners.forEach((l) => l());
 }
 
