@@ -60,6 +60,7 @@ export default function MatchdayPanel({
   resultsByMatch,
   leaderboard = [],
   resolvedPoints,
+  annulledMatches,
 }: {
   predictionsByMatch: Record<string, MatchPredictionRow[]>;
   resultsByMatch: Record<string, Result>;
@@ -68,6 +69,9 @@ export default function MatchdayPanel({
   // (bloqueos, robos, multiplicadores). El badge los usa fuera del simulador para
   // no mostrar puntos que en realidad una carta anuló. Ausente en modo clásico.
   resolvedPoints?: Record<string, Record<string, number>>;
+  // `${jugadorId}:${matchId}` de los partidos con puntos anulados por un bloqueo/robo
+  // de día. Incluye los partidos del día SIN resultado, para avisar "no suma" antes.
+  annulledMatches?: Record<string, true>;
 }) {
   const today = todayISO();
   // Si hoy no hay partidos, arranca en el día más cercano dentro del torneo.
@@ -347,9 +351,9 @@ export default function MatchdayPanel({
                       const real =
                         !simMode && result ? resolvedPoints?.[p.id]?.[m.id] : undefined;
                       const pts = real ?? wouldBe;
-                      // Una carta le anuló los puntos de la fecha (bloqueo/robo): valía algo, quedó en 0.
-                      const annulled =
-                        real !== undefined && wouldBe !== null && wouldBe > 0 && real === 0;
+                      // Una carta le anula los puntos de la fecha (bloqueo/robo): aplica a todo
+                      // el día, incluso a los partidos que todavía no se jugaron.
+                      const annulled = !simMode && !!annulledMatches?.[`${p.id}:${m.id}`];
                       return (
                         <li
                           key={p.id}
@@ -385,34 +389,30 @@ export default function MatchdayPanel({
                                 className="flex items-center gap-1 text-xs font-bold"
                                 title="Una carta le anuló los puntos de esta fecha (bloqueo o robo)"
                               >
-                                <span className="font-mono text-muted/50 line-through">
-                                  +{wouldBe}
-                                </span>
+                                {wouldBe !== null && wouldBe > 0 && (
+                                  <span className="font-mono text-muted/50 line-through">
+                                    +{wouldBe}
+                                  </span>
+                                )}
                                 <span className="min-w-9 rounded-md bg-background px-2 py-0.5 text-center text-muted">
                                   🚫 0
                                 </span>
                               </span>
-                            ) : pts !== null ? (
-                              <span
-                                className={`min-w-9 rounded-md px-2 py-0.5 text-center text-xs font-bold ${
-                                  pts === 5
-                                    ? "bg-primary/20 text-primary"
-                                    : pts === 3
-                                      ? "bg-gold/20 text-gold"
-                                      : "bg-background text-muted"
-                                }`}
-                              >
-                                +{pts}
-                              </span>
-                            ) : p.caldeado ? (
-                              // Sin resultado todavía: su pronóstico quedó anulado, se juega al azar.
-                              <span
-                                className="min-w-9 rounded-md bg-background px-2 py-0.5 text-center text-xs font-bold text-muted/70"
-                                title="Su pronóstico no cuenta: se puntúa el resultado al azar del Caldeador (puede pegarla de casualidad)"
-                              >
-                                🎲
-                              </span>
-                            ) : null}
+                            ) : (
+                              pts !== null && (
+                                <span
+                                  className={`min-w-9 rounded-md px-2 py-0.5 text-center text-xs font-bold ${
+                                    pts === 5
+                                      ? "bg-primary/20 text-primary"
+                                      : pts === 3
+                                        ? "bg-gold/20 text-gold"
+                                        : "bg-background text-muted"
+                                  }`}
+                                >
+                                  +{pts}
+                                </span>
+                              )
+                            )}
                           </div>
                         </li>
                       );

@@ -489,20 +489,59 @@ async function computePoolScores(pool: Pool) {
   };
 }
 
+/** Todos los partidos (grupos + llaves) de una fecha, jugados o no. */
+function matchIdsOnDay(effectDate: string, bracket: BracketState): string[] {
+  const ids: string[] = [];
+  for (const [mid, k] of Object.entries(KICKOFF_BY_ID)) {
+    if (matchDay(k) === effectDate) ids.push(mid);
+  }
+  for (const km of bracket.matches) {
+    const k = koKickoff(km.id);
+    if (k && matchDay(k) === effectDate) ids.push(km.id);
+  }
+  return ids;
+}
+
+/**
+ * Partidos cuyos puntos quedan anulados para un jugador por un bloqueo/robo que le
+ * pega TODO el día (zero_day / robo del día): `${pid}:${matchId}` para cada partido
+ * de la jornada, jugado o no. Sirve para avisar "no suma" antes de que haya resultado.
+ * Las cartas bloqueadas no entran (status !== "played").
+ */
+function computeAnnulledMatches(
+  funCardRows: FunCardRow[],
+  bracket: BracketState,
+): Record<string, true> {
+  const annulled: Record<string, true> = {};
+  for (const c of funCardRows) {
+    if (c.status !== "played" || !c.playedAt || !c.effectDate) continue;
+    const spec = CARD_CATALOG[c.cardType as CardType]?.spec;
+    if (spec?.outcome !== "zero_day" && spec?.outcome !== "steal_day_points") continue;
+    const affected = affectedIdOf(toEffect(c));
+    if (!affected) continue;
+    for (const mid of matchIdsOnDay(c.effectDate, bracket)) annulled[`${affected}:${mid}`] = true;
+  }
+  return annulled;
+}
+
 /**
  * Puntos por partido por miembro DESPUÉS de aplicar las cartas (`resolved`), más
  * la base sin cartas (`base`). Lo usa el push de resultados para avisar lo que
  * REALMENTE sumaste en este prode (multiplicadores, VAR, robos, ceros, etc.).
+ * `annulled` marca los partidos del día con puntos anulados (bloqueo/robo), incluso
+ * sin resultado todavía, para mostrar el "no suma" de antemano.
  */
 export async function getResolvedMatchPoints(pool: Pool): Promise<{
   base: Record<string, MatchPointsMap>;
   resolved: Record<string, MatchPointsMap>;
+  annulled: Record<string, true>;
 }> {
-  const s = await computePoolScores(pool);
+  const [s, bracket] = await Promise.all([computePoolScores(pool), getBracketState()]);
   const resolved: Record<string, MatchPointsMap> = {};
   for (const p of s.people)
     resolved[p.id] = s.fun?.effects.points[p.id] ?? s.ptsByMember[p.id] ?? {};
-  return { base: s.ptsByMember, resolved };
+  const annulled = computeAnnulledMatches(s.funCardRows, bracket);
+  return { base: s.ptsByMember, resolved, annulled };
 }
 
 /** Tabla de un prode: calcula puntos de cada miembro contra los resultados reales. */
@@ -1026,25 +1065,14 @@ async function loadForecastOverrides(
   const cards = await db.select().from(funCards).where(eq(funCards.poolId, poolId));
   // El Caldeador/Piedrambre pisa TODOS los partidos del día (jugados o no), para
   // que el marcador al azar se vea también antes de que haya resultado.
-  const dayMatchIds = (effectDate: string): string[] => {
-    const ids: string[] = [];
-    for (const [mid, k] of Object.entries(KICKOFF_BY_ID)) {
-      if (matchDay(k) === effectDate) ids.push(mid);
-    }
-    for (const km of bracket.matches) {
-      const k = koKickoff(km.id);
-      if (k && matchDay(k) === effectDate) ids.push(km.id);
-    }
-    return ids;
-  };
   for (const c of cards) {
     if (c.status !== "played" || !c.playedAt || !c.effectDate) continue;
     if (c.cardType === "caldeador") {
       const affected = c.reflected ? c.participantId : c.targetParticipantId;
       if (!affected) continue;
-      for (const mid of dayMatchIds(c.effectDate)) caldeadoBy[`${affected}:${mid}`] = c.id;
+      for (const mid of matchIdsOnDay(c.effectDate, bracket)) caldeadoBy[`${affected}:${mid}`] = c.id;
     } else if (c.cardType === "piedrambre") {
-      for (const mid of dayMatchIds(c.effectDate)) flippedBy.add(`${c.participantId}:${mid}`);
+      for (const mid of matchIdsOnDay(c.effectDate, bracket)) flippedBy.add(`${c.participantId}:${mid}`);
     }
   }
   return { caldeadoBy, flippedBy };
