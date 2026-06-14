@@ -1,5 +1,7 @@
 import ResultsEditor from "@/components/ResultsEditor";
 import KnockoutResultsSection from "@/components/KnockoutResultsSection";
+import ResultadosTabs from "@/components/ResultadosTabs";
+import GroupStandings from "@/components/GroupStandings";
 import { getParticipantId } from "@/lib/session";
 import {
   getParticipant,
@@ -7,6 +9,7 @@ import {
   getTournamentResult,
   getBracketState,
 } from "@/lib/db/queries";
+import { allGroupStandings } from "@/lib/standings";
 import { MATCHES } from "@/lib/fixtures";
 
 export const dynamic = "force-dynamic";
@@ -19,21 +22,27 @@ export default async function ResultadosPage() {
     getTournamentResult(),
     getBracketState(),
   ]);
+  const standings = allGroupStandings(results);
 
   return (
-    <div className="flex flex-col gap-6">
-      <ResultsEditor
-        canEdit={!!participant}
-        initialResults={results}
-        initialTournament={tournament}
-      />
-      <KnockoutResultsSection
-        canEdit={!!participant}
-        groupResultsCount={Object.keys(results).length}
-        groupTotal={MATCHES.length}
-        generated={bracket.generated}
-        matches={bracket.matches}
-      />
-    </div>
+    <ResultadosTabs
+      resultados={
+        <>
+          <ResultsEditor
+            canEdit={!!participant}
+            initialResults={results}
+            initialTournament={tournament}
+          />
+          <KnockoutResultsSection
+            canEdit={!!participant}
+            groupResultsCount={Object.keys(results).length}
+            groupTotal={MATCHES.length}
+            generated={bracket.generated}
+            matches={bracket.matches}
+          />
+        </>
+      }
+      posiciones={<GroupStandings standings={standings} />}
+    />
   );
 }

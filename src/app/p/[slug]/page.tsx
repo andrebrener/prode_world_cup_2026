@@ -17,8 +17,7 @@ import FunZone from "@/components/FunZone";
 import EmailCapture from "@/components/EmailCapture";
 import { getParticipantId } from "@/lib/session";
 import { getParticipant } from "@/lib/db/queries";
-import { allGroupStandings } from "@/lib/standings";
-import { GROUPS, teamName, teamFlag } from "@/lib/fixtures";
+import { teamName, teamFlag } from "@/lib/fixtures";
 import { ROUND_LABEL, type KoRound } from "@/lib/bracket";
 import { pickableMatches } from "@/lib/cards";
 import MatchdayPanel from "@/components/MatchdayPanel";
@@ -93,7 +92,6 @@ export default async function PoolTabla({
       // el panel de partidos los usa para no mostrar un "+3" que en realidad no se sumó.
       isFun ? getResolvedMatchPoints(pool) : Promise.resolve(null),
     ]);
-  const standings = allGroupStandings(results);
   const hasResults = Object.keys(results).length > 0;
 
   return (
@@ -232,59 +230,6 @@ export default async function PoolTabla({
           </div>
         </section>
       )}
-
-      {/* Posiciones de grupos */}
-      <section>
-        <h2 className="mb-3 wordmark text-2xl">Posiciones por grupo</h2>
-        <p className="mb-4 text-sm text-muted">
-          Según los resultados cargados. Es la base de las llaves.
-        </p>
-        <div className="grid gap-3 sm:grid-cols-2">
-          {GROUPS.map((g) => {
-            const rows = standings[g.letter];
-            return (
-              <div
-                key={g.letter}
-                className="overflow-hidden rounded-2xl border border-border bg-surface"
-              >
-                <div className="border-b border-border px-4 py-2 font-bold">
-                  Grupo {g.letter}
-                </div>
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="text-left text-muted">
-                      <th className="px-3 py-1.5 font-medium">Equipo</th>
-                      <th className="px-1 py-1.5 text-center font-medium">PJ</th>
-                      <th className="px-1 py-1.5 text-center font-medium">DG</th>
-                      <th className="px-3 py-1.5 text-center font-medium">Pts</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rows.map((r, i) => (
-                      <tr
-                        key={r.code}
-                        className={`border-t border-border/60 ${i < 2 ? "bg-primary/5" : ""}`}
-                      >
-                        <td className="px-3 py-1.5">
-                          <span className="mr-1">{teamFlag(r.code)}</span>
-                          {teamName(r.code)}
-                        </td>
-                        <td className="px-1 py-1.5 text-center text-muted">{r.played}</td>
-                        <td className="px-1 py-1.5 text-center text-muted">
-                          {r.goalDiff > 0 ? `+${r.goalDiff}` : r.goalDiff}
-                        </td>
-                        <td className="px-3 py-1.5 text-center font-bold text-foreground">
-                          {r.points}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            );
-          })}
-        </div>
-      </section>
 
       {/* Salir del prode (discreto, al final) */}
       <LeavePoolButton slug={pool.slug} poolName={pool.name} />

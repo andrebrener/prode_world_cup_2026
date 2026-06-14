@@ -460,33 +460,42 @@ function PredScore({
   caldeado?: { home: number; away: number };
   flipped?: boolean;
 }) {
-  if (caldeado) {
+  // Caldeador (o Piedrambre): mostramos lo que PUSO tachado y, al lado, el que CUENTA.
+  if (caldeado || (flipped && pred)) {
+    const shown = caldeado
+      ? { home: caldeado.home, away: caldeado.away }
+      : { home: pred!.away, away: pred!.home }; // flip
     return (
       <span
-        className="flex shrink-0 flex-col items-center"
-        title={`Caldeador de las tinieblas: le reemplazó el pronóstico${
-          pred ? ` (${pred.home}-${pred.away})` : ""
-        } por un resultado al azar`}
+        className="flex shrink-0 items-center gap-1 font-mono"
+        title={
+          caldeado
+            ? `Caldeador de las tinieblas: puso ${
+                pred ? `${pred.home}-${pred.away}` : "—"
+              }, se le cuenta un resultado al azar`
+            : `Piedrambre: puso ${pred!.home}-${pred!.away}, se le cuenta dado vuelta`
+        }
       >
-        <span className="rounded-md bg-danger/15 px-2 py-0.5 font-mono font-bold text-danger">
-          🤮 {caldeado.home}-{caldeado.away}
+        {pred && (
+          <span className="text-[11px] text-muted/50 line-through">
+            {pred.home}-{pred.away}
+          </span>
+        )}
+        <span className="text-muted/50">→</span>
+        <span
+          className={`rounded-md px-2 py-0.5 font-bold ${
+            caldeado ? "bg-danger/15 text-danger" : "bg-surface"
+          }`}
+        >
+          {caldeado ? "🤮 " : "🪨 "}
+          {shown.home}-{shown.away}
         </span>
-        <span className="text-[9px] leading-tight text-muted">al azar</span>
       </span>
     );
   }
-  // Piedrambre da vuelta el pronóstico: se muestra (y puntúa) invertido.
-  const shown = pred && flipped ? { home: pred.away, away: pred.home } : pred;
   return (
-    <span
-      className="shrink-0 rounded-md bg-surface px-2 py-0.5 font-mono font-bold"
-      title={
-        flipped && pred
-          ? `Piedrambre: pronóstico dado vuelta (era ${pred.home}-${pred.away})`
-          : undefined
-      }
-    >
-      {shown ? `${flipped ? "🪨 " : ""}${shown.home}-${shown.away}` : "—"}
+    <span className="shrink-0 rounded-md bg-surface px-2 py-0.5 font-mono font-bold">
+      {pred ? `${pred.home}-${pred.away}` : "—"}
     </span>
   );
 }
