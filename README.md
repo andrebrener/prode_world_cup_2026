@@ -73,8 +73,9 @@ The card system is split in two so the **same mechanics can be re-skinned per po
 
 - **The engine (code).** A closed set of reusable, parameterized **outcomes** — the *math* of a card — lives in [`src/lib/cards.ts`](src/lib/cards.ts): `multiply_match` (×2 / ×3 / ÷2 over the first match of the day, a chosen match, or the whole day), `flat_points`, `steal_day_points`, `var_bonus`, `zero_day`, `shield`, `upstream_forecast`, `social_overlay`, and more. Every card maps to one of these, so re-skinning a card **never** changes the scoring — the math always comes from here.
 - **The deck (data, per pool).** Each Fun pool owns a **deck** (`card_defs` table): one row per card, with the editable bits — **name, emoji, description, rarity, enabled** — plus the `mechanic` it points at. A pool's deck is seeded from the **official deck** ([`DEFAULT_DECK`](src/lib/cardCatalog.ts), derived from `CARD_CATALOG`), and each pool renames, re-emojis, re-rarities, or disables its cards independently. Within a rarity every card has the same draw chance. The draw and the whole UI (feed, badges, emails) render each pool's own names/emojis.
-- **Draw config, per pool.** `pool_fun_config` holds the odds: the **% of "no-effect" (ego) cards** (default `40`) and the **rarity weights** — common / rare / legendary / curse (default `50 / 26 / 9 / 15`).
-- **Editing.** Owners/admins manage the deck and draw config from the pool's admin screen (`/p/[slug]/admin`), with cards grouped by rarity: rename / re-emoji / re-rarity / enable each card, add or remove cards (pick a mechanic), and tune the draw odds — the two-level breakdown (no-effect % first, then rarity split) is shown live.
+- **Draw config, per pool.** `pool_fun_config` holds the odds: the **rarity weights** — common / rare / legendary / curse (default `50 / 26 / 9 / 15`). The draw is a single level by rarity (social/ego cards are just common cards — no separate "no-effect" tier).
+- **Karma de tabla (optional).** A rubber-band toggle (off by default): when on, the daily draw's rarity weights are **biased by table position** — the leader gets more curse chance (and less legendary/common-rare), the last place the reverse, the middle unchanged (so a leader's curse odds jump from ~28% to ~44% with the default weights). It uses the position **at the start of the day** — a snapshot frozen on the pool's first claim that day (`pool_day_rank` table), order-independent and excluding the claimer's own card. Logic in [`karmaWeights`](src/lib/cards.ts).
+- **Editing.** Owners/admins manage the deck and draw config from the pool's admin screen (`/p/[slug]/admin`), with cards grouped by rarity: rename / re-emoji / re-rarity / enable each card, add or remove cards (pick a mechanic), tune the per-rarity draw weights, and toggle Karma de tabla.
 - Card catalog + outcome registry (data + helpers) in [`src/lib/cardCatalog.ts`](src/lib/cardCatalog.ts); sorteo + effects engine in [`src/lib/cards.ts`](src/lib/cards.ts), streaks in [`src/lib/streaks.ts`](src/lib/streaks.ts) (pure + unit-tested); per-pool deck/roles helpers in [`src/lib/db/decks.ts`](src/lib/db/decks.ts); resolution happens inside `getLeaderboard`. Design notes: [`docs/cartas-data-driven.md`](docs/cartas-data-driven.md).
 
 ### Daily email digest (fun pools)
@@ -182,8 +183,6 @@ TURSO_AUTH_TOKEN=eyJ...
 ```
 
 Create the database with the Turso CLI, then run `npm run db:push` pointing at those credentials.
-
-> **Migrations.** The schema includes the `card_defs` and `pool_fun_config` tables and the `pool_members.role` / `fun_cards.card_def_id` columns; generated SQL lives in [`drizzle/`](drizzle/). Apply the schema to prod (with a backup first) with `npm run db:push` against Turso or the generated SQL. Per-pool decks and draw config are **created lazily** the first time a Fun pool is used (idempotent, in [`src/lib/db/decks.ts`](src/lib/db/decks.ts)); pools without a `created_by` get no auto-`owner`, so set those by hand.
 
 ## Scripts
 
