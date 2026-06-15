@@ -104,7 +104,6 @@ export default function Leaderboard({
             <tr className="border-b border-border text-left text-xs uppercase text-muted">
               <th className="w-12 px-0 py-3 sm:w-14" aria-label="Foto y posición"></th>
               <th className="px-2 py-3">Jugador</th>
-              <th className="hidden px-2 py-3 text-center sm:table-cell" title="Resultados exactos">🎯</th>
               <th className="hidden px-2 py-3 text-right sm:table-cell">Grupos</th>
               <th className="hidden px-2 py-3 text-right sm:table-cell">Llaves</th>
               <th className="hidden px-2 py-3 text-right sm:table-cell">Extras</th>
@@ -115,9 +114,15 @@ export default function Leaderboard({
                   </th>
                   <th
                     className="hidden px-2 py-3 text-right sm:table-cell"
-                    title="Puntos por cartas + hitos de racha"
+                    title="Puntos ganados/perdidos por cartas"
                   >
                     🃏
+                  </th>
+                  <th
+                    className="hidden px-2 py-3 text-right sm:table-cell"
+                    title="Puntos por hitos de racha"
+                  >
+                    ⚡
                   </th>
                   <th
                     className="hidden px-2 py-3 text-right sm:table-cell"
@@ -189,12 +194,13 @@ export default function Leaderboard({
                       )}
                       {/* Desglose en móvil (las columnas se ocultan en pantallas chicas) */}
                       <span className="mt-0.5 block text-[11px] font-normal text-muted sm:hidden">
-                        🎯 {row.exactCount} · G {row.matchPoints} · Ll {row.koPoints} · Ex{" "}
+                        G {row.matchPoints} · Ll {row.koPoints} · Ex{" "}
                         {row.extraPoints}
                         {row.fun && (
                           <>
                             {" "}
-                            · 🃏 {fmtDelta(row.fun.cardDelta + row.fun.streakBonus)} · Puro{" "}
+                            · 🃏 {fmtDelta(row.fun.cardDelta)}
+                            {row.fun.streakBonus ? ` · ⚡ +${row.fun.streakBonus}` : ""} · Puro{" "}
                             {row.fun.pureTotal}
                           </>
                         )}
@@ -202,7 +208,6 @@ export default function Leaderboard({
                     </span>
                   </span>
                 </td>
-                <td className="hidden px-2 py-3 text-center text-muted sm:table-cell">{row.exactCount}</td>
                 <td className="hidden px-2 py-3 text-right text-muted sm:table-cell">{row.matchPoints}</td>
                 <td className="hidden px-2 py-3 text-right text-muted sm:table-cell">{row.koPoints}</td>
                 <td className="hidden px-2 py-3 text-right text-muted sm:table-cell">{row.extraPoints}</td>
@@ -213,17 +218,17 @@ export default function Leaderboard({
                     </td>
                     <td
                       className={`hidden px-2 py-3 text-right font-bold sm:table-cell ${
-                        (row.fun?.cardDelta ?? 0) + (row.fun?.streakBonus ?? 0) < 0
-                          ? "text-danger"
-                          : "text-muted"
+                        (row.fun?.cardDelta ?? 0) < 0 ? "text-danger" : "text-muted"
                       }`}
-                      title={
-                        row.fun
-                          ? `Cartas ${fmtDelta(row.fun.cardDelta)} · Hitos de racha +${row.fun.streakBonus}`
-                          : undefined
-                      }
+                      title="Puntos ganados/perdidos por cartas"
                     >
-                      {fmtDelta((row.fun?.cardDelta ?? 0) + (row.fun?.streakBonus ?? 0))}
+                      {fmtDelta(row.fun?.cardDelta ?? 0)}
+                    </td>
+                    <td
+                      className="hidden px-2 py-3 text-right font-bold text-gold sm:table-cell"
+                      title="Puntos por hitos de racha"
+                    >
+                      {row.fun?.streakBonus ? `+${row.fun.streakBonus}` : "—"}
                     </td>
                     <td
                       className="hidden px-2 py-3 text-right text-muted sm:table-cell"
@@ -241,6 +246,16 @@ export default function Leaderboard({
           </tbody>
         </table>
       </div>
+
+      {/* Leyenda de columnas (los headers son emojis: en touch no hay tooltip). */}
+      {fun && (
+        <ul className="mt-2 flex flex-wrap gap-x-3 gap-y-1 px-1 text-[11px] text-muted">
+          <li>🔥 racha de partidos sumando</li>
+          <li>🃏 puntos por cartas</li>
+          <li>⚡ puntos por hitos de racha</li>
+          <li>Puro: total sin cartas ni rachas</li>
+        </ul>
+      )}
 
       {/* Lightbox de foto a tamaño real */}
       {photo && (
