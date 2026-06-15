@@ -122,6 +122,7 @@ function SorteoConfig({
     legendaria: config.weightLegendaria,
     maldicion: config.weightMaldicion,
   });
+  const [karma, setKarma] = useState(config.karmaTabla);
 
   const sum = w.comun + w.rara + w.legendaria + w.maldicion;
   const effectShare = Math.max(0, 100 - noEffect);
@@ -194,6 +195,26 @@ function SorteoConfig({
         Los pesos son relativos (no hace falta que sumen 100): cuentan en proporción al total ({sum}).
       </p>
 
+      {/* Karma de tabla: sesgo por posición */}
+      <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-xl border border-border bg-background p-3">
+        <input
+          type="checkbox"
+          checked={karma}
+          onChange={(e) => setKarma(e.target.checked)}
+          className="mt-0.5 h-4 w-4 accent-[var(--color-primary,#8b3cff)]"
+        />
+        <span className="text-sm">
+          <span className="font-semibold text-foreground">Karma de tabla ⚖️</span>
+          <span className="block text-xs text-muted">
+            Sesga el sorteo según la posición: el <strong>1ro</strong> tiene más chance de{" "}
+            <strong>maldición</strong> y casi nada de legendaria; el <strong>último</strong> al
+            revés; los del medio casi sin cambios. Se calcula con la tabla del momento en que cada
+            uno reclama su carta. No toca el {effectShare}% con efecto, solo cómo se reparte por
+            rareza.
+          </span>
+        </span>
+      </label>
+
       <button
         disabled={busy}
         onClick={() =>
@@ -205,6 +226,7 @@ function SorteoConfig({
                 weightRara: w.rara,
                 weightLegendaria: w.legendaria,
                 weightMaldicion: w.maldicion,
+                karmaTabla: karma,
               }),
             "Sorteo guardado.",
           )

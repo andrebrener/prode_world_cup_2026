@@ -87,6 +87,7 @@ export async function getPoolFunConfig(poolId: string, db: Db = defaultDb): Prom
       legendaria: row.weightLegendaria,
       maldicion: row.weightMaldicion,
     },
+    karmaTabla: row.karmaTabla,
   };
 }
 

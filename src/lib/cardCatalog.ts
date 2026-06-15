@@ -658,12 +658,15 @@ export const DEFAULT_DECK: DeckEntry[] = ALL_CARDS.map((c, i) => ({
 export type FunConfig = {
   noEffectShare: number;
   weights: Record<CardRarity, number>;
+  // Karma de tabla: sesga los pesos de rareza por posición en la tabla.
+  karmaTabla: boolean;
 };
 
 /** Config de sorteo default (los valores oficiales). */
 export const DEFAULT_FUN_CONFIG: FunConfig = {
   noEffectShare: NO_EFFECT_SHARE,
   weights: { ...RARITY_WEIGHTS },
+  karmaTabla: false,
 };
 
 /** Máximo de cartas en mano por prode: con la mano llena no se puede reclamar la del día. */

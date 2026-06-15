@@ -109,16 +109,54 @@ export function resolveDeck(rows: DeckRow[]): DrawnCard[] {
 const RARITY_ORDER: CardRarity[] = ["comun", "rara", "legendaria", "maldicion"];
 
 /**
+ * Cuánto encogen las rarezas neutrales (común/rara) hacia los extremos de la tabla,
+ * para hacerle lugar al boost de maldición/legendaria. 0 = no se tocan (el sesgo
+ * vive solo en leg/mal y casi no se siente porque común domina); 1 = se anulan en
+ * el extremo. 0.5: el líder pasa de ~28% a ~44% de maldición con los pesos default.
+ */
+const KARMA_NEUTRAL_SHRINK = 0.5;
+
+/**
+ * Karma de tabla: sesga los pesos de rareza por posición. `rank` es 0-based
+ * (0 = 1ro de la tabla) sobre `total` jugadores. Gradiente parejo: hacia el líder
+ * sube maldición y bajan legendaria + las neutrales (común/rara); hacia el último
+ * sube legendaria y bajan maldición + las neutrales; el medio queda igual. Achicar
+ * las neutrales es lo que hace que el sesgo se sienta (si no, común se come casi
+ * toda la probabilidad). Con 1 jugador no hay sesgo.
+ */
+export function karmaWeights(
+  weights: Record<CardRarity, number>,
+  rank: number,
+  total: number,
+): Record<CardRarity, number> {
+  if (total <= 1) return weights;
+  const t = Math.max(0, Math.min(1, rank / (total - 1))); // 0 = arriba, 1 = abajo
+  const s = 1 - 2 * t; // +1 líder, -1 último, 0 medio
+  const shrink = 1 - KARMA_NEUTRAL_SHRINK * Math.abs(s); // neutrales hacia los extremos
+  return {
+    comun: Math.max(0, weights.comun * shrink),
+    rara: Math.max(0, weights.rara * shrink),
+    legendaria: Math.max(0, weights.legendaria * (1 - s)),
+    maldicion: Math.max(0, weights.maldicion * (1 + s)),
+  };
+}
+
+/**
  * Sorteo diario sobre el mazo de un prode. Determinístico por (pool, jugador, fecha).
  * Respeta el enable/disable (el deck ya viene filtrado), los pesos por carta y la
  * config (noEffectShare + pesos de rareza). Tolera baldes vacíos (un prode puede
  * deshabilitar todas las sin-efecto, o toda una rareza). Devuelve null si el mazo
  * quedó vacío. Con el mazo y la config default, reproduce el sorteo histórico.
+ *
+ * Si `config.karmaTabla` está prendido y se pasa `pos` (posición en la tabla), los
+ * pesos de rareza se sesgan por posición (ver karmaWeights). Sin `pos`, o con el
+ * karma apagado, usa los pesos tal cual.
  */
 export function pickDailyCard(
   seed: { poolId: string; participantId: string; date: string },
   deck: DrawnCard[],
   config: FunConfig,
+  pos?: { rank: number; total: number },
 ): DrawnCard | null {
   if (deck.length === 0) return null;
   const parts = [seed.poolId, seed.participantId, seed.date];
@@ -133,15 +171,19 @@ export function pickDailyCard(
   // Nivel 2: tramo con efecto. Si no quedó ninguna con efecto, cae a las sin efecto.
   if (effect.length === 0) return noEffect.length ? pickFrom(noEffect) : null;
 
+  // Pesos de rareza: con karma prendido y posición conocida, sesgados por la tabla.
+  const weights =
+    config.karmaTabla && pos ? karmaWeights(config.weights, pos.rank, pos.total) : config.weights;
+
   // Sorteo por rareza, solo entre las rarezas presentes y con sus pesos de config.
   const present = RARITY_ORDER.filter((r) => effect.some((c) => c.rarity === r));
-  const total = present.reduce((a, r) => a + (config.weights[r] ?? 0), 0);
+  const total = present.reduce((a, r) => a + (weights[r] ?? 0), 0);
   let rarity: CardRarity;
   if (total > 0) {
     let acc = roll([...parts, "rareza"], total);
     rarity = present[present.length - 1];
     for (const r of present) {
-      acc -= config.weights[r] ?? 0;
+      acc -= weights[r] ?? 0;
       if (acc < 0) {
         rarity = r;
         break;

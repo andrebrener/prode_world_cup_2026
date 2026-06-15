@@ -13,6 +13,7 @@ import {
   funCards,
   cardDefs,
   poolFunConfig,
+  poolDayRank,
 } from "./schema";
 import { eq, and, inArray, sql } from "drizzle-orm";
 import {
@@ -154,6 +155,7 @@ export type PoolAdminData = {
     weightRara: number;
     weightLegendaria: number;
     weightMaldicion: number;
+    karmaTabla: boolean;
   };
   members: { id: string; name: string; role: PoolRole }[];
 };
@@ -186,6 +188,7 @@ export async function getPoolAdmin(poolId: string): Promise<PoolAdminData> {
       weightRara: cfg?.weightRara ?? DEFAULT_FUN_CONFIG.weights.rara,
       weightLegendaria: cfg?.weightLegendaria ?? DEFAULT_FUN_CONFIG.weights.legendaria,
       weightMaldicion: cfg?.weightMaldicion ?? DEFAULT_FUN_CONFIG.weights.maldicion,
+      karmaTabla: cfg?.karmaTabla ?? DEFAULT_FUN_CONFIG.karmaTabla,
     },
     members,
   };
@@ -608,6 +611,48 @@ export async function getLeaderboard(pool: Pool): Promise<LeaderboardRow[]> {
   });
 
   return rows.sort((a, b) => b.total - a.total || b.exactCount - a.exactCount || a.name.localeCompare(b.name));
+}
+
+/**
+ * Posición de cada jugador AL ARRANQUE del día (para el karma de tabla). Se congela
+ * una sola vez por (prode, fecha): la primera llamada del día calcula la tabla
+ * actual y la persiste; las siguientes (de cualquier jugador) reusan ese snapshot.
+ * Así el sesgo por posición no depende de quién reclamó primero ni de la propia
+ * carta del que reclama (pickDailyCard corre antes de jugarla). Devuelve un mapa
+ * participantId → { rank (0-based), total }.
+ */
+export async function getDayRankSnapshot(
+  pool: Pool,
+  date: string,
+): Promise<Map<string, { rank: number; total: number }>> {
+  const read = async () =>
+    db
+      .select({ participantId: poolDayRank.participantId, rank: poolDayRank.rank, total: poolDayRank.total })
+      .from(poolDayRank)
+      .where(and(eq(poolDayRank.poolId, pool.id), eq(poolDayRank.date, date)));
+
+  let snap = await read();
+  if (snap.length === 0) {
+    // Primer reclamo del día en este prode: congelá la tabla actual.
+    const rows = await getLeaderboard(pool);
+    if (rows.length > 0) {
+      await db
+        .insert(poolDayRank)
+        .values(
+          rows.map((r, i) => ({
+            poolId: pool.id,
+            date,
+            participantId: r.id,
+            rank: i,
+            total: rows.length,
+          })),
+        )
+        .onConflictDoNothing();
+    }
+    // Releé: si otro reclamo ganó la carrera, mandan sus filas (mismo día).
+    snap = await read();
+  }
+  return new Map(snap.map((r) => [r.participantId, { rank: r.rank, total: r.total }]));
 }
 
 // ---------- Modo Diversión ----------

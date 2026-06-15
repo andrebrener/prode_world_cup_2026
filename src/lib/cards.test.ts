@@ -15,6 +15,7 @@ import {
   applyCardEffects,
   resolveDeck,
   pickDailyCard,
+  karmaWeights,
   type PlayedCardEffect,
   type PlayInput,
   type RetroAttackRow,
@@ -645,6 +646,7 @@ describe("resolveDeck / pickDailyCard (sorteo por prode)", () => {
     const d = pickDailyCard({ poolId: "p", participantId: "x", date: "d" }, deck, {
       noEffectShare: 0,
       weights: DEFAULT_FUN_CONFIG.weights,
+      karmaTabla: false,
     });
     expect(d?.type).toBe("doblete");
     expect(d?.name).toBe("La Tractora");
@@ -653,5 +655,51 @@ describe("resolveDeck / pickDailyCard (sorteo por prode)", () => {
 
   it("mazo vacío → null (todo deshabilitado)", () => {
     expect(pickDailyCard({ poolId: "p", participantId: "x", date: "d" }, [], DEFAULT_FUN_CONFIG)).toBeNull();
+  });
+});
+
+describe("karmaWeights (sesgo por posición)", () => {
+  const base = { comun: 50, rara: 26, legendaria: 10, maldicion: 10 };
+
+  it("1 jugador → sin sesgo", () => {
+    expect(karmaWeights(base, 0, 1)).toEqual(base);
+  });
+
+  it("líder (rank 0) → dobla maldición, anula legendaria, achica neutrales", () => {
+    const w = karmaWeights(base, 0, 5);
+    expect(w.maldicion).toBe(20); // ×(1+1)
+    expect(w.legendaria).toBe(0); // ×(1-1)
+    expect(w.comun).toBe(25); // ×(1-0.5)
+    expect(w.rara).toBe(13); // ×(1-0.5)
+  });
+
+  it("último (rank N-1) → dobla legendaria, anula maldición, achica neutrales", () => {
+    const w = karmaWeights(base, 4, 5);
+    expect(w.legendaria).toBe(20);
+    expect(w.maldicion).toBe(0);
+    expect(w.comun).toBe(25);
+    expect(w.rara).toBe(13);
+  });
+
+  it("medio → sin cambios", () => {
+    const w = karmaWeights(base, 2, 5);
+    expect(w.maldicion).toBe(10);
+    expect(w.legendaria).toBe(10);
+    expect(w.comun).toBe(50);
+    expect(w.rara).toBe(26);
+  });
+
+  it("el karma cambia el resultado del sorteo según posición", () => {
+    const deck = resolveDeck([
+      { id: "leg", mechanic: "saibamba", name: "Leg", emoji: "🔮", description: "", rarity: "legendaria" },
+      { id: "mal", mechanic: "nemo", name: "Mal", emoji: "🛏️", description: "", rarity: "maldicion" },
+    ]);
+    const cfg = { noEffectShare: 0, weights: base, karmaTabla: true };
+    const lider = pickDailyCard({ poolId: "p", participantId: "x", date: "d" }, deck, cfg, { rank: 0, total: 5 });
+    const ultimo = pickDailyCard({ poolId: "p", participantId: "x", date: "d" }, deck, cfg, { rank: 4, total: 5 });
+    // Mismo seed, distinta posición: el líder solo puede caer en maldición
+    // (legendaria pesa 0) y el último solo en legendaria (maldición pesa 0).
+    expect(lider?.rarity).toBe("maldicion");
+    expect(ultimo?.rarity).toBe("legendaria");
   });
 });

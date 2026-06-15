@@ -1,0 +1,1 @@
+ALTER TABLE `pool_fun_config` ADD `karma_tabla` integer DEFAULT false NOT NULL;

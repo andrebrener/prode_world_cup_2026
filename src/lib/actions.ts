@@ -34,6 +34,7 @@ import {
   getPoolByCode,
   isPoolMember,
   getPlayContext,
+  getDayRankSnapshot,
   canManagePool,
   getPoolRole,
   type ParticipantDetail,
@@ -925,6 +926,7 @@ export type FunConfigPatch = {
   weightRara: number;
   weightLegendaria: number;
   weightMaldicion: number;
+  karmaTabla: boolean;
 };
 
 /** Edita la config de sorteo del prode (% sin efecto + pesos de rareza). */
@@ -942,6 +944,7 @@ export async function updateFunConfigAction(
     weightRara: clamp(cfg.weightRara, 1000),
     weightLegendaria: clamp(cfg.weightLegendaria, 1000),
     weightMaldicion: clamp(cfg.weightMaldicion, 1000),
+    karmaTabla: Boolean(cfg.karmaTabla),
   };
   await db
     .insert(poolFunConfig)
@@ -1366,7 +1369,15 @@ export async function claimDailyCardAction(slug: string): Promise<DrawResult> {
   ]);
   const deck = resolveDeck(deckRows);
   const today = funToday();
-  const drawn = pickDailyCard({ poolId: pool.id, participantId: id, date: today }, deck, config);
+  // Karma de tabla: si está prendido, el sesgo por rareza usa la posición CON LA
+  // QUE EMPEZÓ EL DÍA (snapshot congelado el primer reclamo del prode ese día),
+  // no la del momento de reclamar — así tu propia carta no te mueve la posición.
+  let pos: { rank: number; total: number } | undefined;
+  if (config.karmaTabla) {
+    const snap = await getDayRankSnapshot(pool, today);
+    pos = snap.get(id);
+  }
+  const drawn = pickDailyCard({ poolId: pool.id, participantId: id, date: today }, deck, config, pos);
   if (!drawn) {
     return { ok: false, error: "Este prode no tiene cartas habilitadas." };
   }

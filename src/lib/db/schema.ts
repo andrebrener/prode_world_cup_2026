@@ -141,7 +141,32 @@ export const poolFunConfig = sqliteTable("pool_fun_config", {
   weightRara: integer("weight_rara").notNull().default(26),
   weightLegendaria: integer("weight_legendaria").notNull().default(9),
   weightMaldicion: integer("weight_maldicion").notNull().default(15),
+  // Karma de tabla: si está prendido, el sorteo sesga los pesos de rareza por
+  // posición (1ro → más maldición / menos legendaria; último al revés). Off por
+  // defecto: cada prode mantiene los pesos fijos hasta que el admin lo prenda.
+  karmaTabla: integer("karma_tabla", { mode: "boolean" }).notNull().default(false),
 });
+
+// Snapshot del ranking al arranque del día (para el "karma de tabla"). El sesgo
+// por posición tiene que usar la posición CON LA QUE EMPEZÓ EL DÍA, no la del
+// momento de reclamar: si no, tu propia carta (o el orden en que reclaman los
+// demás) te movería la posición. Se congela la primera vez que alguien del prode
+// reclama ese día (antes de jugar su carta) y todos lo reusan → order-independent.
+export const poolDayRank = sqliteTable(
+  "pool_day_rank",
+  {
+    poolId: text("pool_id")
+      .notNull()
+      .references(() => pools.id, { onDelete: "cascade" }),
+    date: text("date").notNull(), // yyyy-mm-dd (zona del prode)
+    participantId: text("participant_id")
+      .notNull()
+      .references(() => participants.id, { onDelete: "cascade" }),
+    rank: integer("rank").notNull(), // 0-based: 0 = 1ro de la tabla
+    total: integer("total").notNull(), // cuántos jugadores había en el snapshot
+  },
+  (t) => [primaryKey({ columns: [t.poolId, t.date, t.participantId] })],
+);
 
 // ---------- Modo Diversión: cartas ----------
 
