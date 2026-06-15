@@ -133,13 +133,12 @@ export default async function PoolTabla({
           >
             Jugar →
           </Link>
+          {/* Salir del prode: una acción más, al lado de "Jugar" */}
+          <LeavePoolButton slug={pool.slug} poolName={pool.name} variant="action" />
         </div>
       </header>
 
       <ShareCode code={pool.code} slug={pool.slug} />
-
-      {/* Salir del prode (cerca de invitar amigos) */}
-      <LeavePoolButton slug={pool.slug} poolName={pool.name} />
 
       {/* En el navegador: ofrecer instalar la app. Ya en la PWA: empujar las notis. */}
       <InstallAppBanner />

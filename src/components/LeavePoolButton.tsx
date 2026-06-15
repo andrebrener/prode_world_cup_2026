@@ -13,7 +13,8 @@ export default function LeavePoolButton({
   poolName: string;
   // "footer": link discreto al pie de la tabla del prode (manda al home al salir).
   // "inline": botón compacto para el listado de "Mis prodes" (se queda en el home).
-  variant?: "footer" | "inline";
+  // "action": botón en la fila de acciones del prode, al lado de "Jugar" (manda al home).
+  variant?: "footer" | "inline" | "action";
 }) {
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -28,7 +29,7 @@ export default function LeavePoolButton({
         setError(res.error ?? "No se pudo salir.");
         setConfirming(false);
       } else {
-        if (variant === "footer") router.push("/");
+        if (variant === "footer" || variant === "action") router.push("/");
         router.refresh();
       }
     });
@@ -62,6 +63,41 @@ export default function LeavePoolButton({
           onClick={() => setConfirming(false)}
           disabled={pending}
           className="rounded-lg border border-border px-2 py-1 font-bold transition hover:bg-border/30 disabled:opacity-60"
+        >
+          No
+        </button>
+      </div>
+    );
+  }
+
+  if (variant === "action") {
+    if (!confirming) {
+      return (
+        <button
+          type="button"
+          onClick={() => setConfirming(true)}
+          className="rounded-xl border border-border bg-surface px-4 py-2 text-sm font-bold text-muted transition hover:border-danger/50 hover:bg-danger/10 hover:text-danger"
+        >
+          Salir
+        </button>
+      );
+    }
+    return (
+      <div className="flex items-center gap-2 text-sm">
+        <span className="text-muted">¿Salir?</span>
+        <button
+          type="button"
+          onClick={leave}
+          disabled={pending}
+          className="rounded-xl bg-danger px-3 py-2 font-bold text-white transition hover:brightness-110 disabled:opacity-60"
+        >
+          {pending ? "…" : "Sí, salir"}
+        </button>
+        <button
+          type="button"
+          onClick={() => setConfirming(false)}
+          disabled={pending}
+          className="rounded-xl border border-border px-3 py-2 font-bold transition hover:bg-border/30 disabled:opacity-60"
         >
           No
         </button>
