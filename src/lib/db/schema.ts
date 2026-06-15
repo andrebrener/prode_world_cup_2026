@@ -124,19 +124,15 @@ export const deckTombstones = sqliteTable(
   (t) => [primaryKey({ columns: [t.poolId, t.mechanic] })],
 );
 
-// Config del SORTEO diario por prode (editable por los admins). El sorteo tiene
-// dos niveles:
-//   1) noEffectShare% de las tiradas → carta "sin efecto" (puro ego: apodo/foto/…).
-//   2) el resto (100 − noEffectShare)% → carta con efecto, repartida por rareza
-//      según los pesos (weightComun + weightRara + weightLegendaria + weightMaldicion).
-// La UI de admin muestra los dos niveles por separado para que quede claro qué
-// porción es "sin efecto" y, dentro del resto, cuánto pesa cada rareza.
-// Una fila por prode; si falta, se usan los defaults oficiales (40 / 50·26·9·15).
+// Config del SORTEO diario por prode (editable por los admins). El sorteo es de un
+// solo nivel: cada carta se sortea por su rareza según los pesos (weightComun +
+// weightRara + weightLegendaria + weightMaldicion). Las sociales (apodo/foto/…) son
+// comunes más — no tienen tramo aparte. Una fila por prode; si falta, se usan los
+// defaults oficiales (50·26·9·15).
 export const poolFunConfig = sqliteTable("pool_fun_config", {
   poolId: text("pool_id")
     .primaryKey()
     .references(() => pools.id, { onDelete: "cascade" }),
-  noEffectShare: integer("no_effect_share").notNull().default(40),
   weightComun: integer("weight_comun").notNull().default(50),
   weightRara: integer("weight_rara").notNull().default(26),
   weightLegendaria: integer("weight_legendaria").notNull().default(9),

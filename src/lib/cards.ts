@@ -20,11 +20,8 @@ import {
   CARD_CATALOG,
   RARITY_WEIGHTS,
   ALL_CARDS,
-  NO_EFFECT_CARDS,
-  NO_EFFECT_SHARE,
   DEFAULT_DECK,
   DEFAULT_FUN_CONFIG,
-  isNoEffect,
   type CardDef,
   type CardRarity,
   type CardType,
@@ -58,11 +55,6 @@ function roll(parts: string[], max: number): number {
   // 32 bits alcanzan: el sesgo de módulo es despreciable para max chicos.
   return h.readUInt32BE(0) % max;
 }
-
-// Partición del mazo (catálogo) para cardOdds: las "sin efecto" (puro ego) y el resto.
-const NO_EFFECT_SET = new Set(NO_EFFECT_CARDS);
-const NO_EFFECT_OPTIONS = ALL_CARDS.filter((c) => NO_EFFECT_SET.has(c.type));
-const EFFECT_OPTIONS = ALL_CARDS.filter((c) => !NO_EFFECT_SET.has(c.type));
 
 /** Elige un elemento de un balde de forma uniforme (todas las cartas, misma chance). */
 function pickFromBucket<T>(options: T[], parts: string[]): T {
@@ -143,10 +135,11 @@ export function karmaWeights(
 
 /**
  * Sorteo diario sobre el mazo de un prode. Determinístico por (pool, jugador, fecha).
- * Respeta el enable/disable (el deck ya viene filtrado), los pesos por carta y la
- * config (noEffectShare + pesos de rareza). Tolera baldes vacíos (un prode puede
- * deshabilitar todas las sin-efecto, o toda una rareza). Devuelve null si el mazo
- * quedó vacío. Con el mazo y la config default, reproduce el sorteo histórico.
+ * Un solo nivel: sortea una rareza según los pesos de config y después una carta
+ * uniforme dentro de esa rareza. Las sociales (apodo/foto/mensaje/borrón) NO tienen
+ * tramo aparte: son cartas comunes más, se sortean por su rareza como cualquier otra.
+ * Respeta el enable/disable (el deck ya viene filtrado) y tolera baldes vacíos (un
+ * prode puede deshabilitar toda una rareza). Devuelve null si el mazo quedó vacío.
  *
  * Si `config.karmaTabla` está prendido y se pasa `pos` (posición en la tabla), los
  * pesos de rareza se sesgan por posición (ver karmaWeights). Sin `pos`, o con el
@@ -160,23 +153,15 @@ export function pickDailyCard(
 ): DrawnCard | null {
   if (deck.length === 0) return null;
   const parts = [seed.poolId, seed.participantId, seed.date];
-  const noEffect = deck.filter((c) => isNoEffect(c));
-  const effect = deck.filter((c) => !isNoEffect(c));
   const pickFrom = (opts: DrawnCard[]) => pickFromBucket(opts, parts);
-
-  // Nivel 1: tramo sin efecto (solo si hay cartas sin efecto habilitadas).
-  if (noEffect.length > 0 && roll([...parts, "sinEfecto"], 100) < config.noEffectShare) {
-    return pickFrom(noEffect);
-  }
-  // Nivel 2: tramo con efecto. Si no quedó ninguna con efecto, cae a las sin efecto.
-  if (effect.length === 0) return noEffect.length ? pickFrom(noEffect) : null;
 
   // Pesos de rareza: con karma prendido y posición conocida, sesgados por la tabla.
   const weights =
     config.karmaTabla && pos ? karmaWeights(config.weights, pos.rank, pos.total) : config.weights;
 
   // Sorteo por rareza, solo entre las rarezas presentes y con sus pesos de config.
-  const present = RARITY_ORDER.filter((r) => effect.some((c) => c.rarity === r));
+  const present = RARITY_ORDER.filter((r) => deck.some((c) => c.rarity === r));
+  if (present.length === 0) return null;
   const total = present.reduce((a, r) => a + (weights[r] ?? 0), 0);
   let rarity: CardRarity;
   if (total > 0) {
@@ -193,7 +178,7 @@ export function pickDailyCard(
     // Todos los pesos presentes en 0: repartí parejo entre las rarezas presentes.
     rarity = present[roll([...parts, "rareza"], present.length)];
   }
-  return pickFrom(effect.filter((c) => c.rarity === rarity));
+  return pickFrom(deck.filter((c) => c.rarity === rarity));
 }
 
 /** Mazo oficial ya resuelto (para el wrapper de back-compat y los tests). */
@@ -213,17 +198,12 @@ export function dailyCard(poolId: string, participantId: string, date: string): 
 export function cardOdds(): Record<CardType, number> {
   const odds = {} as Record<CardType, number>;
 
-  // Tramo sin efecto: NO_EFFECT_SHARE repartido en partes iguales entre las sociales.
-  for (const c of NO_EFFECT_OPTIONS) {
-    odds[c.type] = NO_EFFECT_SHARE / NO_EFFECT_OPTIONS.length;
-  }
-
-  // Tramo con efecto: el resto (100 - NO_EFFECT_SHARE) por rareza, uniforme dentro de cada una.
-  const effectShare = 100 - NO_EFFECT_SHARE;
+  // Un solo nivel: cada rareza pesa weight/total y se reparte uniforme entre sus cartas.
+  const totalWeight = Object.values(RARITY_WEIGHTS).reduce((a, b) => a + b, 0);
   for (const rarity of Object.keys(RARITY_WEIGHTS) as CardRarity[]) {
-    const options = EFFECT_OPTIONS.filter((c) => c.rarity === rarity);
+    const options = ALL_CARDS.filter((c) => c.rarity === rarity);
     for (const c of options) {
-      odds[c.type] = (effectShare * RARITY_WEIGHTS[rarity]) / (100 * options.length);
+      odds[c.type] = (100 * RARITY_WEIGHTS[rarity]) / (totalWeight * options.length);
     }
   }
   return odds;

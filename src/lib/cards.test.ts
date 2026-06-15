@@ -97,32 +97,29 @@ describe("dailyCard (sorteo diario, 4 baldes)", () => {
     );
   });
 
-  it("el 40% de las tiradas son cartas sin efecto (puro ego)", () => {
-    const noEffect = new Set<CardType>(NO_EFFECT_CARDS);
-    let sinEfecto = 0;
+  it("la distribución por rareza respeta los pesos (50/26/9/15)", () => {
+    const counts = { comun: 0, rara: 0, legendaria: 0, maldicion: 0 };
     const N = 4000;
     for (let i = 0; i < N; i++) {
-      if (noEffect.has(dailyCard("pool1", `jugador-${i}`, "2026-06-15").type)) sinEfecto++;
+      counts[dailyCard("pool1", `jugador-${i}`, "2026-06-15").rarity]++;
     }
-    expect(sinEfecto / N).toBeGreaterThan(0.35);
-    expect(sinEfecto / N).toBeLessThan(0.45);
+    expect(counts.comun / N).toBeGreaterThan(0.42);
+    expect(counts.comun / N).toBeLessThan(0.58);
+    expect(counts.maldicion / N).toBeGreaterThan(0.1);
+    expect(counts.maldicion / N).toBeLessThan(0.2);
+    expect(counts.legendaria / N).toBeGreaterThan(0.05);
   });
 
-  it("dentro del tramo con efecto respeta los baldes (50/26/9/15)", () => {
-    const noEffect = new Set<CardType>(NO_EFFECT_CARDS);
-    const counts = { comun: 0, rara: 0, legendaria: 0, maldicion: 0 };
-    let conEfecto = 0;
-    for (let i = 0; i < 4000; i++) {
-      const card = dailyCard("pool1", `jugador-${i}`, "2026-06-15");
-      if (noEffect.has(card.type)) continue;
-      counts[card.rarity]++;
-      conEfecto++;
+  it("las sociales se sortean como comunes (sin tramo aparte)", () => {
+    const social = new Set<CardType>(NO_EFFECT_CARDS);
+    let count = 0;
+    const N = 4000;
+    for (let i = 0; i < N; i++) {
+      if (social.has(dailyCard("pool1", `jugador-${i}`, "2026-06-15").type)) count++;
     }
-    expect(counts.comun / conEfecto).toBeGreaterThan(0.42);
-    expect(counts.comun / conEfecto).toBeLessThan(0.58);
-    expect(counts.maldicion / conEfecto).toBeGreaterThan(0.1);
-    expect(counts.maldicion / conEfecto).toBeLessThan(0.2);
-    expect(counts.legendaria / conEfecto).toBeGreaterThan(0.05);
+    // Son 4 cartas dentro del balde común: salen, pero mucho menos que el viejo 40%.
+    expect(count).toBeGreaterThan(0);
+    expect(count / N).toBeLessThan(0.35);
   });
 
   it("los pesos de rareza suman 100 y toda rareza tiene cartas", () => {
@@ -644,7 +641,6 @@ describe("resolveDeck / pickDailyCard (sorteo por prode)", () => {
       allRows.filter((r) => r.mechanic === "doblete").map((r) => ({ ...r, name: "La Tractora" })),
     );
     const d = pickDailyCard({ poolId: "p", participantId: "x", date: "d" }, deck, {
-      noEffectShare: 0,
       weights: DEFAULT_FUN_CONFIG.weights,
       karmaTabla: false,
     });
@@ -694,7 +690,7 @@ describe("karmaWeights (sesgo por posición)", () => {
       { id: "leg", mechanic: "saibamba", name: "Leg", emoji: "🔮", description: "", rarity: "legendaria" },
       { id: "mal", mechanic: "nemo", name: "Mal", emoji: "🛏️", description: "", rarity: "maldicion" },
     ]);
-    const cfg = { noEffectShare: 0, weights: base, karmaTabla: true };
+    const cfg = { weights: base, karmaTabla: true };
     const lider = pickDailyCard({ poolId: "p", participantId: "x", date: "d" }, deck, cfg, { rank: 0, total: 5 });
     const ultimo = pickDailyCard({ poolId: "p", participantId: "x", date: "d" }, deck, cfg, { rank: 4, total: 5 });
     // Mismo seed, distinta posición: el líder solo puede caer en maldición

@@ -921,7 +921,6 @@ export async function deleteCardDefAction(
 }
 
 export type FunConfigPatch = {
-  noEffectShare: number;
   weightComun: number;
   weightRara: number;
   weightLegendaria: number;
@@ -939,7 +938,6 @@ export async function updateFunConfigAction(
   const clamp = (n: number, max: number) => Math.max(0, Math.min(max, Math.trunc(Number(n) || 0)));
   const values = {
     poolId: gate.pool.id,
-    noEffectShare: clamp(cfg.noEffectShare, 100),
     weightComun: clamp(cfg.weightComun, 1000),
     weightRara: clamp(cfg.weightRara, 1000),
     weightLegendaria: clamp(cfg.weightLegendaria, 1000),

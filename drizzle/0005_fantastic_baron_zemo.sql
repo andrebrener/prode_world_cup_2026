@@ -1,0 +1,1 @@
+ALTER TABLE `pool_fun_config` DROP COLUMN `no_effect_share`;

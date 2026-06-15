@@ -18,7 +18,6 @@ type Db = typeof defaultDb;
 
 /** Columnas de config en la DB derivadas del default (FunConfig → fila plana). */
 const DEFAULT_CONFIG_ROW = {
-  noEffectShare: DEFAULT_FUN_CONFIG.noEffectShare,
   weightComun: DEFAULT_FUN_CONFIG.weights.comun,
   weightRara: DEFAULT_FUN_CONFIG.weights.rara,
   weightLegendaria: DEFAULT_FUN_CONFIG.weights.legendaria,
@@ -80,7 +79,6 @@ export async function getPoolFunConfig(poolId: string, db: Db = defaultDb): Prom
   const [row] = await db.select().from(poolFunConfig).where(eq(poolFunConfig.poolId, poolId));
   if (!row) return DEFAULT_FUN_CONFIG;
   return {
-    noEffectShare: row.noEffectShare,
     weights: {
       comun: row.weightComun,
       rara: row.weightRara,

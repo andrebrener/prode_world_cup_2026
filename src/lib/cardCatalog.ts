@@ -449,7 +449,7 @@ export const CARD_CATALOG: Record<CardType, CardDef> = {
     spec: { outcome: "social_overlay", kind: "foto" },
     name: "Foto trucha",
     emoji: "📸",
-    rarity: "rara",
+    rarity: "comun",
     kind: "social",
     target: "other",
     window: null,
@@ -488,15 +488,12 @@ export const ALL_CARDS: CardDef[] = Object.values(CARD_CATALOG);
 
 /**
  * Cartas que NO tocan los puntos: puro ego (apodo, foto, mensaje) o limpieza.
- * El sorteo diario las saca el 40% de las veces (ver NO_EFFECT_SHARE): primero
- * tira si toca una de estas, y solo si no, va al sorteo por rareza con el resto.
+ * Se sortean como cualquier otra carta según su rareza (todas en común); no tienen
+ * un tramo aparte. La lista sigue marcando cuáles no suman puntos (para la UI).
  */
 export const NO_EFFECT_CARDS: CardType[] = ["apodo", "foto", "microfono", "borron"];
 
-/** Probabilidad de que el sorteo diario saque una carta sin efecto (sobre 100). */
-export const NO_EFFECT_SHARE = 40;
-
-/** Probabilidad de cada rareza DENTRO del sorteo con efecto (sobre 100). */
+/** Probabilidad de cada rareza en el sorteo diario (sobre 100). */
 export const RARITY_WEIGHTS: Record<CardRarity, number> = {
   comun: 50,
   rara: 26,
@@ -654,9 +651,8 @@ export const DEFAULT_DECK: DeckEntry[] = ALL_CARDS.map((c, i) => ({
   sortOrder: i,
 }));
 
-/** Config de sorteo por prode (el 40% sin efecto + los pesos de rareza). */
+/** Config de sorteo por prode (los pesos de rareza + el karma de tabla). */
 export type FunConfig = {
-  noEffectShare: number;
   weights: Record<CardRarity, number>;
   // Karma de tabla: sesga los pesos de rareza por posición en la tabla.
   karmaTabla: boolean;
@@ -664,7 +660,6 @@ export type FunConfig = {
 
 /** Config de sorteo default (los valores oficiales). */
 export const DEFAULT_FUN_CONFIG: FunConfig = {
-  noEffectShare: NO_EFFECT_SHARE,
   weights: { ...RARITY_WEIGHTS },
   karmaTabla: false,
 };

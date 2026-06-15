@@ -150,7 +150,6 @@ export type PoolAdminData = {
     effect: string;
   }[];
   config: {
-    noEffectShare: number;
     weightComun: number;
     weightRara: number;
     weightLegendaria: number;
@@ -183,7 +182,6 @@ export async function getPoolAdmin(poolId: string): Promise<PoolAdminData> {
         : "—",
     })),
     config: {
-      noEffectShare: cfg?.noEffectShare ?? DEFAULT_FUN_CONFIG.noEffectShare,
       weightComun: cfg?.weightComun ?? DEFAULT_FUN_CONFIG.weights.comun,
       weightRara: cfg?.weightRara ?? DEFAULT_FUN_CONFIG.weights.rara,
       weightLegendaria: cfg?.weightLegendaria ?? DEFAULT_FUN_CONFIG.weights.legendaria,

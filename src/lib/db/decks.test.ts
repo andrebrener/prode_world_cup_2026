@@ -74,7 +74,7 @@ describe("ensureFunPool", () => {
     expect(defs.length).toBe(DEFAULT_DECK.length);
 
     const [cfg] = await db.select().from(poolFunConfig).where(eq(poolFunConfig.poolId, "pool1"));
-    expect(cfg.noEffectShare).toBe(DEFAULT_FUN_CONFIG.noEffectShare);
+    expect(cfg.weightComun).toBe(DEFAULT_FUN_CONFIG.weights.comun);
     expect(cfg.weightLegendaria).toBe(DEFAULT_FUN_CONFIG.weights.legendaria);
 
     const members = await db.select().from(poolMembers).where(eq(poolMembers.poolId, "pool1"));
