@@ -88,7 +88,10 @@ export default function MatchdayPanel({
   const [sim, setSim] = useState<Record<string, SimScore>>({});
 
   const dayMatches = useMemo(
-    () => MATCHES.filter((m) => m.date === date).sort((a, b) => a.id.localeCompare(b.id)),
+    () =>
+      MATCHES.filter((m) => m.date === date).sort(
+        (a, b) => a.kickoff.localeCompare(b.kickoff) || a.id.localeCompare(b.id),
+      ),
     [date],
   );
 
