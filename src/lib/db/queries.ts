@@ -176,7 +176,9 @@ export async function getPoolAdmin(poolId: string): Promise<PoolAdminData> {
       rarity: d.rarity,
       enabled: d.enabled,
       sortOrder: d.sortOrder,
-      effect: CARD_CATALOG[d.mechanic as CardType] ? outcomeLabel(CARD_CATALOG[d.mechanic as CardType].spec) : "—",
+      effect: CARD_CATALOG[d.mechanic as CardType]
+        ? outcomeLabel(CARD_CATALOG[d.mechanic as CardType].spec, CARD_CATALOG[d.mechanic as CardType].target)
+        : "—",
     })),
     config: {
       noEffectShare: cfg?.noEffectShare ?? DEFAULT_FUN_CONFIG.noEffectShare,

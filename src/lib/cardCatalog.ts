@@ -228,14 +228,14 @@ export const CARD_CATALOG: Record<CardType, CardDef> = {
   caido: c({
     type: "caido",
     spec: { outcome: "zero_day", streak: "protect_on_hit" },
-    name: "Se me cayó el Fernet",
+    name: "Le tirás a otro para que no sume",
     emoji: "😭",
     rarity: "rara",
     kind: "attack",
     target: "other",
     window: "day",
     blockable: true,
-    description: "Se le cayó el fernet y está de luto: hoy no suma puntos, pero los partidos que igual acierte le mantienen la racha viva.",
+    description: "Se la tirás a otro para que no sume: hoy no suma puntos, pero los partidos que igual acierte le mantienen la racha viva.",
   }),
   filtro: c({
     type: "filtro",
@@ -517,7 +517,7 @@ export function isNoEffect(def: Pick<CardDef, "spec">): boolean {
 }
 
 /** Resumen neutro (sin el nombre) de qué hace una mecánica — para la UI de admin. */
-export function outcomeLabel(spec: OutcomeSpec): string {
+export function outcomeLabel(spec: OutcomeSpec, target: CardDef["target"] = "self"): string {
   switch (spec.outcome) {
     case "multiply_match": {
       const scope =
@@ -534,6 +534,13 @@ export function outcomeLabel(spec: OutcomeSpec): string {
     case "floor_match_points":
       return "Piso de puntos en cada partido del día";
     case "zero_day":
+      if (target === "other") {
+        return spec.streak === "skip"
+          ? "Le tirás a otro para que no sume (no le cuenta para la racha)"
+          : spec.streak === "protect_on_hit"
+            ? "Le tirás a otro para que no sume (le banca la racha)"
+            : "Le tirás a otro para que no sume";
+      }
       return spec.streak === "skip"
         ? "0 puntos en el día (no cuenta para la racha)"
         : spec.streak === "protect_on_hit"
@@ -587,7 +594,7 @@ export const MECHANIC_OPTIONS: MechanicOption[] = ALL_CARDS.map((card) => ({
   emoji: card.emoji,
   description: card.description,
   rarity: card.rarity,
-  effect: outcomeLabel(card.spec),
+  effect: outcomeLabel(card.spec, card.target),
   kind: card.kind,
 }));
 

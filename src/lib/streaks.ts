@@ -34,7 +34,7 @@ export function computeStreak(opts: {
   kickoffById: Record<string, string>;
   /**
    * Overrides por partido (de cartas de día):
-   * "protect" = un 0 no corta la racha (Fernet de Fernemo / Se me cayó el Fernet) ·
+   * "protect" = un 0 no corta la racha (Fernet de Fernemo / "Le tirás a otro para que no sume") ·
    * "skip" = el partido no cuenta ni a favor ni en contra (Filtro 5mm).
    */
   overrides?: Record<string, StreakOverride>;
