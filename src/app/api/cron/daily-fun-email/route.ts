@@ -11,7 +11,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { eq, isNotNull, and } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { pools, poolMembers, participants } from "@/lib/db/schema";
-import { buildPoolDigest, renderDigestEmail } from "@/lib/funDigest";
+import { buildPoolDigest, funYesterday, renderDigestEmail } from "@/lib/funDigest";
+import { autoCurseUnclaimed } from "@/lib/funSweep";
 import { sendEmails, type Mail } from "@/lib/mailer";
 import { sendPushToParticipants } from "@/lib/push";
 import type { Pool } from "@/lib/db/queries";
@@ -41,6 +42,11 @@ export async function GET(req: NextRequest) {
   // sendPushToParticipants ya filtra a los que activaron notificaciones.
   const pushJobs: { pool: Pool; memberIds: string[] }[] = [];
 
+  // Día que recién cerró (huso MX): a las 07:00 MX que corre el cron, "ayer" ya
+  // terminó. Es el día que barremos para auto-maldecir a los que no sacaron carta.
+  const yesterday = funYesterday();
+  let cursed = 0;
+
   for (const poolRow of funPools) {
     const pool: Pool = {
       id: poolRow.id,
@@ -56,8 +62,16 @@ export async function GET(req: NextRequest) {
       .select({ id: poolMembers.participantId })
       .from(poolMembers)
       .where(eq(poolMembers.poolId, pool.id));
-    if (allMembers.length > 0) {
-      pushJobs.push({ pool, memberIds: allMembers.map((m) => m.id) });
+    const memberIds = allMembers.map((m) => m.id);
+    if (memberIds.length > 0) {
+      pushJobs.push({ pool, memberIds });
+    }
+
+    // Auto-maldición de los que no sacaron carta ayer (antes del digest, para que
+    // el resumen ya refleje las maldiciones aplicadas). Solo aplica en prodes con
+    // Karma de Tabla; el resto no se toca. En debug no mutamos la BD.
+    if (!debug) {
+      cursed += await autoCurseUnclaimed(pool, yesterday, memberIds);
     }
 
     // Miembros con mail cargado.
@@ -107,5 +121,6 @@ export async function GET(req: NextRequest) {
     failed,
     errors,
     pushSent,
+    cursed,
   });
 }

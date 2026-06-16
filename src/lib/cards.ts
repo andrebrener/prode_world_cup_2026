@@ -104,17 +104,30 @@ const RARITY_ORDER: CardRarity[] = ["comun", "rara", "legendaria", "maldicion"];
  * Cuánto encogen las rarezas neutrales (común/rara) hacia los extremos de la tabla,
  * para hacerle lugar al boost de maldición/legendaria. 0 = no se tocan (el sesgo
  * vive solo en leg/mal y casi no se siente porque común domina); 1 = se anulan en
- * el extremo. 0.5: el líder pasa de ~28% a ~44% de maldición con los pesos default.
+ * el extremo.
  */
-const KARMA_NEUTRAL_SHRINK = 0.5;
+const KARMA_NEUTRAL_SHRINK = 0.25;
+
+/**
+ * Cuánto se inclina el eje legendaria/maldición por posición. 1 = el viejo
+ * comportamiento brutal (líder: maldición ×2 y legendaria ANULADA del todo); 0 =
+ * sin sesgo en ese eje. Lo bajamos a 0.5 porque anularle la legendaria al líder
+ * hacía que sacar carta fuera -EV puro (todo downside, nada que ganar) y convenía
+ * NO jugar para no comerte la maldición. Con 0.5 el líder conserva un tiro a
+ * legendaria (~5%) y la maldición sube con tope (~27%, no ~30%+): sacar carta
+ * vuelve a ser una apuesta, no un autocastigo. (La otra mitad del arreglo es el
+ * auto-maldición de los que no sacan, ver funSweep.ts.)
+ */
+const KARMA_LEGMAL_STRENGTH = 0.5;
 
 /**
  * Karma de tabla: sesga los pesos de rareza por posición. `rank` es 0-based
  * (0 = 1ro de la tabla) sobre `total` jugadores. Gradiente parejo: hacia el líder
- * sube maldición y bajan legendaria + las neutrales (común/rara); hacia el último
- * sube legendaria y bajan maldición + las neutrales; el medio queda igual. Achicar
- * las neutrales es lo que hace que el sesgo se sienta (si no, común se come casi
- * toda la probabilidad). Con 1 jugador no hay sesgo.
+ * sube maldición y baja legendaria; hacia el último sube legendaria y baja
+ * maldición; el medio queda igual. Las neutrales (común/rara) se achican hacia los
+ * extremos para que el sesgo se sienta (si no, común se come casi toda la
+ * probabilidad). El eje leg/mal va atenuado por KARMA_LEGMAL_STRENGTH para que el
+ * líder no quede con puro downside. Con 1 jugador no hay sesgo.
  */
 export function karmaWeights(
   weights: Record<CardRarity, number>,
@@ -125,11 +138,12 @@ export function karmaWeights(
   const t = Math.max(0, Math.min(1, rank / (total - 1))); // 0 = arriba, 1 = abajo
   const s = 1 - 2 * t; // +1 líder, -1 último, 0 medio
   const shrink = 1 - KARMA_NEUTRAL_SHRINK * Math.abs(s); // neutrales hacia los extremos
+  const tilt = s * KARMA_LEGMAL_STRENGTH; // eje leg/mal atenuado
   return {
     comun: Math.max(0, weights.comun * shrink),
     rara: Math.max(0, weights.rara * shrink),
-    legendaria: Math.max(0, weights.legendaria * (1 - s)),
-    maldicion: Math.max(0, weights.maldicion * (1 + s)),
+    legendaria: Math.max(0, weights.legendaria * (1 - tilt)),
+    maldicion: Math.max(0, weights.maldicion * (1 + tilt)),
   };
 }
 

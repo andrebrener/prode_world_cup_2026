@@ -661,20 +661,20 @@ describe("karmaWeights (sesgo por posición)", () => {
     expect(karmaWeights(base, 0, 1)).toEqual(base);
   });
 
-  it("líder (rank 0) → dobla maldición, anula legendaria, achica neutrales", () => {
+  it("líder (rank 0) → sube maldición y baja legendaria (atenuado), achica neutrales", () => {
     const w = karmaWeights(base, 0, 5);
-    expect(w.maldicion).toBe(20); // ×(1+1)
-    expect(w.legendaria).toBe(0); // ×(1-1)
-    expect(w.comun).toBe(25); // ×(1-0.5)
-    expect(w.rara).toBe(13); // ×(1-0.5)
+    expect(w.maldicion).toBe(15); // ×(1 + 0.5) — sube pero con tope
+    expect(w.legendaria).toBe(5); // ×(1 - 0.5) — baja pero NO se anula (sigue habiendo upside)
+    expect(w.comun).toBe(37.5); // ×(1 - 0.25)
+    expect(w.rara).toBe(19.5); // ×(1 - 0.25)
   });
 
-  it("último (rank N-1) → dobla legendaria, anula maldición, achica neutrales", () => {
+  it("último (rank N-1) → sube legendaria y baja maldición (atenuado), achica neutrales", () => {
     const w = karmaWeights(base, 4, 5);
-    expect(w.legendaria).toBe(20);
-    expect(w.maldicion).toBe(0);
-    expect(w.comun).toBe(25);
-    expect(w.rara).toBe(13);
+    expect(w.legendaria).toBe(15);
+    expect(w.maldicion).toBe(5);
+    expect(w.comun).toBe(37.5);
+    expect(w.rara).toBe(19.5);
   });
 
   it("medio → sin cambios", () => {
@@ -685,17 +685,23 @@ describe("karmaWeights (sesgo por posición)", () => {
     expect(w.rara).toBe(26);
   });
 
-  it("el karma cambia el resultado del sorteo según posición", () => {
+  it("el karma sesga el sorteo según posición", () => {
     const deck = resolveDeck([
       { id: "leg", mechanic: "saibamba", name: "Leg", emoji: "🔮", description: "", rarity: "legendaria" },
       { id: "mal", mechanic: "nemo", name: "Mal", emoji: "🛏️", description: "", rarity: "maldicion" },
     ]);
     const cfg = { weights: base, karmaTabla: true };
-    const lider = pickDailyCard({ poolId: "p", participantId: "x", date: "d" }, deck, cfg, { rank: 0, total: 5 });
-    const ultimo = pickDailyCard({ poolId: "p", participantId: "x", date: "d" }, deck, cfg, { rank: 4, total: 5 });
-    // Mismo seed, distinta posición: el líder solo puede caer en maldición
-    // (legendaria pesa 0) y el último solo en legendaria (maldición pesa 0).
-    expect(lider?.rarity).toBe("maldicion");
-    expect(ultimo?.rarity).toBe("legendaria");
+    // Ya ninguna rareza pesa 0 (el líder conserva su tiro a legendaria), así que el
+    // sesgo se ve en frecuencia: muestreamos muchos seeds y comparamos.
+    const N = 400;
+    let liderMal = 0;
+    let ultimoMal = 0;
+    for (let i = 0; i < N; i++) {
+      const seed = { poolId: "p", participantId: `x${i}`, date: "d" };
+      if (pickDailyCard(seed, deck, cfg, { rank: 0, total: 5 })?.rarity === "maldicion") liderMal++;
+      if (pickDailyCard(seed, deck, cfg, { rank: 4, total: 5 })?.rarity === "maldicion") ultimoMal++;
+    }
+    // El líder cae en maldición bastante más seguido que el último.
+    expect(liderMal).toBeGreaterThan(ultimoMal);
   });
 });
