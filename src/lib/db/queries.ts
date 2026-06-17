@@ -950,6 +950,12 @@ export type FunFeedItem = {
   curse: boolean;
   /** Detalle social (el apodo puesto, el mensaje fijado). */
   detail: string | null;
+  /**
+   * Solo para el dueño de una defensa secreta: la carta real que está detrás del
+   * señuelo. El resto (y un screenshot) ve la legendaria falsa; el dueño ve una
+   * nota privada con la verdadera.
+   */
+  secretReal?: { name: string; emoji: string };
 };
 
 export type FunState = {
@@ -1017,13 +1023,13 @@ export async function getFunState(pool: Pool, viewerId: string): Promise<FunStat
       }
     : null;
 
-  // Las defensas (escudo/espejito) son SECRETAS mientras dura su jornada: para el
-  // resto se muestran con un SEÑUELO — una legendaria auto-buff del mazo, con su
-  // efecto y todo, indistinguible de una jugada real — así no se nota el hueco ni
-  // se sabe quién está protegido. El dueño ve la real (para que no piense que es un
-  // error). Cuando un ataque la dispara, el rebote/bloqueo del ATAQUE sí aparece en
-  // el acto (eso revela que la tenía); y recién al día siguiente aparece "la
-  // original" en el libro de pases.
+  // Las defensas (escudo/espejito) son SECRETAS mientras dura su jornada: para
+  // TODOS (también el dueño, por si saca un screenshot) se muestran con un SEÑUELO
+  // — una legendaria auto-buff del mazo, con su efecto y todo, indistinguible de
+  // una jugada real — así no se nota el hueco ni se sabe quién está protegido. Al
+  // dueño le sumamos una nota privada con la carta real (para que no se confunda).
+  // Cuando un ataque la dispara, el rebote/bloqueo del ATAQUE sí aparece en el acto
+  // (eso revela que la tenía); y recién al día siguiente aparece "la original".
   const jornada = bindDay(new Date());
   const feed: FunFeedItem[] = cards
     .filter((c) => c.status !== "held" && c.playedAt)
@@ -1031,18 +1037,15 @@ export async function getFunState(pool: Pool, viewerId: string): Promise<FunStat
     .slice(0, FEED_LIMIT)
     .map((c) => {
       const isDefense = c.cardType === "escudo" || c.cardType === "espejito";
-      const secretToday =
-        isDefense &&
-        jornada != null &&
-        c.effectDate === jornada &&
-        c.participantId !== viewerId;
+      const secretToday = isDefense && jornada != null && c.effectDate === jornada;
 
       const ownerName = nameById[c.participantId] ?? "—";
 
       // Señuelo: mostramos una legendaria falsa (cosmético del mazo), nunca la
-      // defensa real. No mandamos cuál es ni la víctima.
+      // defensa real. Al dueño le adjuntamos la real como nota privada.
       if (secretToday) {
         const decoy = decoyCard(c.id, deckByMechanic);
+        const real = viewOf(c, defsById) ?? CARD_CATALOG[c.cardType as CardType];
         return {
           id: c.id,
           at: c.playedAt!,
@@ -1056,6 +1059,9 @@ export async function getFunState(pool: Pool, viewerId: string): Promise<FunStat
           reflected: false,
           curse: false,
           detail: null,
+          ...(c.participantId === viewerId && real
+            ? { secretReal: { name: real.name, emoji: real.emoji } }
+            : {}),
         };
       }
 

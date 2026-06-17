@@ -662,6 +662,11 @@ export default function FunZone({
                             — ¡el Espejito se lo devolvió! 🪞
                           </span>
                         )}
+                        {f.secretReal && (
+                          <span className="ml-1 rounded bg-primary/15 px-1.5 py-0.5 text-[10px] font-bold text-primary">
+                            🤫 solo vos: en realidad es tu {f.secretReal.emoji} {f.secretReal.name}
+                          </span>
+                        )}
                       </span>
                       <span className="ml-auto flex shrink-0 items-baseline gap-1.5">
                         <span className="rounded-full bg-foreground/5 px-1.5 py-0.5 text-[10px] font-medium text-muted">
