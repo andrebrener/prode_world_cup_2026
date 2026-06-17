@@ -238,13 +238,15 @@ export default function FunZone({
       setResolvedId(id);
       setLocalPlaying(null);
       if (res.reflected) {
+        const quien = res.targetName ?? "Ese";
         setLastPlay({
-          text: `🪞 ¡Tenía un espejito escondido! Tu ${def.name} rebotó y te volvió en la cara.`,
+          text: `🪞 Aaaah… ¡te agarré! ${quien} tenía un espejito escondido y tu ${def.name} te volvió de lleno a la cara. 😈`,
           bad: true,
         });
       } else if (res.blocked) {
+        const quien = res.targetName ?? "Ese";
         setLastPlay({
-          text: `🛡️ ¡Tenía un escudo escondido! Tu ${def.name} no le hizo ni cosquillas.`,
+          text: `🛡️ Aaaah… ¡te agarré! ${quien} tenía un escudo escondido y tu ${def.name} no le hizo ni cosquillas. 😏`,
           bad: true,
         });
       } else if (def.kind === "shield" && res.retro && res.retro > 0) {

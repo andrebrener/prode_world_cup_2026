@@ -30,6 +30,8 @@ import { allGroupStandings } from "../standings";
 import { MATCHES } from "../fixtures";
 import {
   CARD_CATALOG,
+  ALL_CARDS,
+  RARITY_WEIGHTS,
   cardView,
   outcomeLabel,
   DEFAULT_FUN_CONFIG,
@@ -719,10 +721,13 @@ async function loadDeckByMechanic(poolId: string): Promise<DeckByMechanic> {
   return new Map(rows.map((r) => [r.mechanic, { name: r.name, emoji: r.emoji, enabled: r.enabled }]));
 }
 
-// Legendarias auto-buff (sin víctima) que sirven de señuelo para una defensa
-// secreta: en el libro de pases se ve como que el dueño "sacó" una de estas, con
-// su efecto y todo — indistinguible de una jugada real.
-const DECOY_LEGENDARIES: CardType[] = ["diego", "costillar", "cabala", "saibamba"];
+// Cartas que pueden ser señuelo de una defensa secreta: cualquier carta que se
+// juega sola y SIN víctima (auto-target), así el feed la muestra como una jugada
+// normal. Excluye las defensas reales (escudo/espejito) para no delatarse. Incluye
+// buffs, instantáneas y maldiciones — para que la mezcla se vea natural.
+const DECOY_POOL: CardType[] = ALL_CARDS.filter(
+  (c) => c.target === "self" && c.type !== "escudo" && c.type !== "espejito",
+).map((c) => c.type);
 
 // Hash determinístico de un id → el mismo señuelo siempre (no cambia al refrescar,
 // y varía por carta para que no sea siempre la misma = un soplo de que es defensa).
@@ -732,17 +737,34 @@ function hashId(id: string): number {
   return h;
 }
 
-/** Señuelo estable para una defensa secreta: una legendaria del mazo, fija por carta. */
+/**
+ * Señuelo estable para una defensa secreta: cualquier carta del mazo, fija por
+ * carta. Pesa por rareza (pesos normales del juego) para que la mezcla se vea
+ * natural — no es el sorteo exacto, pero alcanza para que no cante.
+ */
 function decoyCard(
   cardId: string,
   deck: DeckByMechanic,
 ): { cardType: CardType; name: string; emoji: string } {
-  const candidates = DECOY_LEGENDARIES.filter((m) => {
+  const candidates = DECOY_POOL.filter((m) => {
     const d = deck.get(m);
     return d ? d.enabled : true; // mazo viejo sin def del prode: cae al catálogo
   });
-  const pool = candidates.length ? candidates : DECOY_LEGENDARIES;
-  const m = pool[hashId(cardId) % pool.length];
+  const pool = candidates.length ? candidates : DECOY_POOL;
+
+  // Tirada determinística pesada por rareza.
+  const weightOf = (m: CardType) => RARITY_WEIGHTS[CARD_CATALOG[m].rarity] ?? 1;
+  const total = pool.reduce((a, m) => a + weightOf(m), 0);
+  let acc = hashId(cardId) % total;
+  let m = pool[pool.length - 1];
+  for (const cand of pool) {
+    acc -= weightOf(cand);
+    if (acc < 0) {
+      m = cand;
+      break;
+    }
+  }
+
   const cos = deck.get(m);
   return {
     cardType: m,
@@ -1041,8 +1063,8 @@ export async function getFunState(pool: Pool, viewerId: string): Promise<FunStat
 
       const ownerName = nameById[c.participantId] ?? "—";
 
-      // Señuelo: mostramos una legendaria falsa (cosmético del mazo), nunca la
-      // defensa real. Al dueño le adjuntamos la real como nota privada.
+      // Señuelo: mostramos una carta falsa (cosmético del mazo), nunca la defensa
+      // real. Al dueño le adjuntamos la real como nota privada.
       if (secretToday) {
         const decoy = decoyCard(c.id, deckByMechanic);
         const real = viewOf(c, defsById) ?? CARD_CATALOG[c.cardType as CardType];
@@ -1057,7 +1079,8 @@ export async function getFunState(pool: Pool, viewerId: string): Promise<FunStat
           emoji: decoy.emoji,
           blocked: false,
           reflected: false,
-          curse: false,
+          // Si el señuelo cayó en una maldición, que se pinte como tal (verde).
+          curse: CARD_CATALOG[decoy.cardType]?.kind === "curse",
           detail: null,
           ...(c.participantId === viewerId && real
             ? { secretReal: { name: real.name, emoji: real.emoji } }
