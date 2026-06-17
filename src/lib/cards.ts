@@ -374,6 +374,10 @@ export type PlayOutcome =
       ok: true;
       effectMatchId: string | null;
       effectDate: string | null;
+      /** El ataque dio contra un Anulo mufa secreto de la víctima: se anula. */
+      blocked: boolean;
+      /** El ataque dio contra un Espejito secreto: rebota al que lo tiró. */
+      reflected: boolean;
     }
   | { ok: false; error: string };
 
@@ -396,23 +400,28 @@ export function resolvePlay(input: PlayInput): PlayOutcome {
     return { ok: false, error: "Esta carta no lleva víctima." };
   }
 
-  // No le podés tirar nada a alguien que ya tiene la defensa puesta hoy: si tiene
-  // un escudo/espejito activo de esta jornada, queda intocable y el ataque ni
-  // sale. (Las sociales —apodo/foto/micrófono— no son ataques: la defensa no las
-  // frena, así que igual se pueden jugar contra un defendido.) La defensa que te
-  // salva de un ataque YA recibido es retroactiva y se resuelve al jugar la
-  // defensa (executePlay), no acá.
+  // Las defensas son SECRETAS: a alguien con escudo/espejito puesto hoy igual le
+  // podés tirar (no figura como intocable). El ataque SALE y se resuelve en el
+  // acto contra su defensa — un espejito lo rebota al que lo tiró, un escudo lo
+  // anula. El que tira se entera recién al tirarla; el grupo, cuando ve el rebote
+  // en el libro de pases. (Las sociales —apodo/foto/micrófono— no son ataques: la
+  // defensa no las toca.) La defensa retroactiva (ataques YA recibidos) se sigue
+  // resolviendo al jugar la defensa, en executePlay.
+  let blocked = false;
+  let reflected = false;
   if (
     def.kind === "attack" &&
     def.blockable &&
     input.targetId &&
-    input.targetId !== input.ownerId &&
-    (input.targetShieldCardId || input.targetMirrorCardId)
+    input.targetId !== input.ownerId
   ) {
-    return { ok: false, error: "Está defendido hoy: no le podés tirar nada." };
+    if (input.targetMirrorCardId) reflected = true;
+    else if (input.targetShieldCardId) blocked = true;
   }
 
-  return bindWindow(def, input);
+  const bound = bindWindow(def, input);
+  if (!bound.ok) return bound;
+  return { ok: true, effectMatchId: bound.effectMatchId, effectDate: bound.effectDate, blocked, reflected };
 }
 
 /** Tipos de ataque bloqueables: contra estos saltan escudo y espejito. */

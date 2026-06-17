@@ -237,9 +237,14 @@ export default function FunZone({
       }
       setResolvedId(id);
       setLocalPlaying(null);
-      if (res.allDefended) {
+      if (res.reflected) {
         setLastPlay({
-          text: `🛡️ Estaban todos defendidos hoy: tu ${def.name} se fue al vacío.`,
+          text: `🪞 ¡Tenía un espejito escondido! Tu ${def.name} rebotó y te volvió en la cara.`,
+          bad: true,
+        });
+      } else if (res.blocked) {
+        setLastPlay({
+          text: `🛡️ ¡Tenía un escudo escondido! Tu ${def.name} no le hizo ni cosquillas.`,
           bad: true,
         });
       } else if (def.kind === "shield" && res.retro && res.retro > 0) {
@@ -258,20 +263,13 @@ export default function FunZone({
     });
   }
 
-  // Ataque bloqueable con TODOS los rivales defendidos hoy: no hay a quién
-  // tirarle (a un defendido no le entra nada), así que la carta se juega al vacío
-  // y el modal igual se puede confirmar (la jugada es obligada).
-  const attackCard = playing?.def.kind === "attack" && !!playing.def.blockable;
-  const allRivalsDefended =
-    attackCard && rivals.length > 0 && rivals.every((m) => state.defendedIds.includes(m.id));
-
   const modalReady =
     (!playing?.def.input ||
       (playing.def.input === "apodo" && apodo.trim().length >= 2) ||
       (playing.def.input === "mensaje" && mensaje.trim().length >= 2) ||
       (playing.def.input === "imagen" && !!imagen) ||
       (playing.def.input === "partido" && (!!matchId || matchOptions.length === 0))) &&
-    (playing?.def.target !== "other" || !!targetId || rivals.length === 0 || allRivalsDefended);
+    (playing?.def.target !== "other" || !!targetId || rivals.length === 0);
 
   // Tus defensas/buffs del día activos — escudo, espejito, Fernet de Fernemo, VAR
   // — que valen para la jornada de hoy (o la próxima si los jugaste de noche).
@@ -518,37 +516,22 @@ export default function FunZone({
                     No hay rivales todavía: la carta se va a jugar al vacío 🫥
                   </p>
                 )}
-                {allRivalsDefended && (
-                  <p className="text-sm text-muted">
-                    🛡️ Están todos defendidos hoy: no le entra a nadie. La carta se va a jugar al
-                    vacío 🫥
-                  </p>
-                )}
                 {rivals.map((m) => {
-                  // A un defendido (escudo/espejito de hoy) no le podés tirar un
-                  // ataque bloqueable: queda visible pero deshabilitado. Las
-                  // sociales no son ataques, así que igual se le pueden jugar.
-                  const locked =
-                    playing.def.kind === "attack" &&
-                    playing.def.blockable &&
-                    state.defendedIds.includes(m.id);
+                  // Las defensas son secretas: a cualquiera le podés tirar. Si tenía
+                  // escudo/espejito puesto, te enterás recién al tirarla.
                   return (
                     <button
                       key={m.id}
-                      disabled={locked}
-                      onClick={() => !locked && setTargetId(m.id)}
+                      onClick={() => setTargetId(m.id)}
                       className={`flex items-center gap-3 rounded-xl border px-3 py-2 text-left transition ${
-                        locked
-                          ? "cursor-not-allowed border-border bg-background/30 opacity-50"
-                          : targetId === m.id
-                            ? "border-primary bg-background"
-                            : "border-border bg-background/50 hover:border-primary/50"
+                        targetId === m.id
+                          ? "border-primary bg-background"
+                          : "border-border bg-background/50 hover:border-primary/50"
                       }`}
                     >
                       <Avatar name={m.name} avatar={m.avatar} size={32} />
                       <span className="font-bold text-foreground">{m.name}</span>
-                      {locked && <span className="ml-auto text-xs text-muted">🛡️ defendido</span>}
-                      {!locked && targetId === m.id && <span className="ml-auto">🎯</span>}
+                      {targetId === m.id && <span className="ml-auto">🎯</span>}
                     </button>
                   );
                 })}

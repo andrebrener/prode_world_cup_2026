@@ -135,10 +135,12 @@ export default async function ComoFunciona() {
           <div className="rounded-2xl border border-border bg-surface p-4 text-sm text-muted">
             <h3 className="mb-2 font-bold text-foreground">😈 Buffs, mufas y traiciones</h3>
             Dobles y triples, días enteros mufados, matambres de cerdo robados, robos de
-            puntos y el vidente Sai Bamba. Escudos que bloquean y espejitos
-            que devuelven — los efectos se acumulan en orden de jugada. Y las sociales:
-            apodos, fotos truchas y declaraciones fijadas, hasta que la víctima juegue
-            Borrón y cuenta nueva 🧽.
+            puntos y el vidente Sai Bamba. Escudos que bloquean y espejitos que devuelven —
+            y son <strong className="text-foreground">secretos</strong>: nadie sabe quién
+            está protegido hasta que le tira y la carta rebota. Si nadie ataca, recién al
+            otro día aparece en el libro de pases. Los efectos se acumulan en orden de
+            jugada. Y las sociales: apodos, fotos truchas y declaraciones fijadas, hasta que
+            la víctima juegue Borrón y cuenta nueva 🧽.
           </div>
           <div className="rounded-2xl border border-border bg-surface p-4 text-sm text-muted">
             <h3 className="mb-2 font-bold text-foreground">🔥 Rachas</h3>

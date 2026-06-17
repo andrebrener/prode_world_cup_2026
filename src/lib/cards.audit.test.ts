@@ -87,7 +87,7 @@ describe("auditoría: las 28 cartas del catálogo", () => {
     }
   });
 
-  it("a un defendido (escudo o espejito) no le podés tirar ningún ataque bloqueable", () => {
+  it("a un defendido (escudo o espejito) el ataque bloqueable IGUAL le sale, pero se anula/rebota", () => {
     for (const def of ALL_CARDS) {
       if (!def.blockable || def.kind !== "attack") continue;
       const base = {
@@ -99,15 +99,17 @@ describe("auditoría: las 28 cartas del catálogo", () => {
         targetMirrorCardId: null,
         schedule: SCHEDULE,
       };
+      // Escudo secreto: el ataque sale (ok) pero queda anulado.
       const conEscudo = resolvePlay({ ...base, targetShieldCardId: "esc" });
-      expect(conEscudo, def.type).toMatchObject({ ok: false });
+      expect(conEscudo, def.type).toMatchObject({ ok: true, blocked: true, reflected: false });
 
+      // Espejito secreto: el ataque sale (ok) pero rebota al que lo tiró.
       const conEspejito = resolvePlay({
         ...base,
         targetShieldCardId: null,
         targetMirrorCardId: "esp",
       });
-      expect(conEspejito, def.type).toMatchObject({ ok: false });
+      expect(conEspejito, def.type).toMatchObject({ ok: true, blocked: false, reflected: true });
     }
   });
 
@@ -270,9 +272,9 @@ describe("auditoría: escenarios cruzados", () => {
     expect(s.current).toBe(3); // M1, M2 (pisados) + M3 → racha de 3, sin protecciones
   });
 
-  it("un escudo del día vuelve intocable a la víctima: ningún ataque le entra", () => {
+  it("un escudo del día (secreto, no se consume) anula cada ataque que reciba", () => {
     // El escudo es del día y no se consume (getPlayContext devuelve el mismo
-    // shieldId mientras siga activo): resolvePlay rechaza cada ataque que reciba.
+    // shieldId mientras siga activo): cada ataque sale pero queda anulado.
     for (const shieldId of ["esc-1", "esc-1"]) {
       const r = resolvePlay({
         cardType: "pedo",
@@ -284,7 +286,7 @@ describe("auditoría: escenarios cruzados", () => {
         targetMirrorCardId: null,
         schedule: SCHEDULE,
       });
-      expect(r).toMatchObject({ ok: false });
+      expect(r).toMatchObject({ ok: true, blocked: true });
     }
   });
 

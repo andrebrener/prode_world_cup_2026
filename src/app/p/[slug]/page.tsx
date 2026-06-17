@@ -82,7 +82,7 @@ export default async function PoolTabla({
   const isFun = pool.mode === "fun";
   const [leaderboard, results, tourney, predictionsByMatch, bracket, funState, resolvedPts] =
     await Promise.all([
-      getLeaderboard(pool),
+      getLeaderboard(pool, participant.id),
       getResultsMap(),
       getTournamentResult(),
       getPredictionsByMatch(pool.id, isFun),

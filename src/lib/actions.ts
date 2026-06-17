@@ -1011,8 +1011,6 @@ type PlayResult = {
   targetName?: string;
   /** Ataques de hoy que la defensa recién jugada anuló/rebotó retroactivamente. */
   retro?: number;
-  /** El ataque se jugó al vacío porque todos los rivales estaban defendidos hoy. */
-  allDefended?: boolean;
 };
 
 /**
@@ -1175,22 +1173,6 @@ async function executePlay(
     return { ok: true };
   }
 
-  // Ataque bloqueable con TODOS los rivales defendidos hoy: no hay a quién
-  // tirarle (a un defendido no le entra nada), así que con la jugada obligada la
-  // carta se va al vacío en vez de dejar el modal trabado.
-  if (def.kind === "attack" && def.blockable && def.target === "other") {
-    const attackables = ctx.memberIds.filter(
-      (id) => id !== ownerId && !ctx.defendedIds.includes(id),
-    );
-    if (attackables.length === 0) {
-      await db
-        .update(funCards)
-        .set({ status: "played", playedAt: new Date(), targetParticipantId: null })
-        .where(eq(funCards.id, cardId));
-      return { ok: true, allDefended: true };
-    }
-  }
-
   const outcome = resolvePlay({
     cardType: def.type,
     ownerId,
@@ -1211,13 +1193,15 @@ async function executePlay(
   await db
     .update(funCards)
     .set({
-      status: "played",
+      // Si dio contra una defensa secreta de la víctima: el escudo lo anula
+      // (status "blocked") y el espejito lo rebota al que lo tiró (reflected).
+      status: outcome.blocked ? "blocked" : "played",
       playedAt: now,
       targetParticipantId: finalTargetId,
       effectMatchId: outcome.effectMatchId,
       effectDate: outcome.effectDate,
       payload: Object.keys(payload).length ? JSON.stringify(payload) : null,
-      reflected: false,
+      reflected: outcome.reflected,
     })
     .where(eq(funCards.id, cardId));
 
@@ -1248,8 +1232,8 @@ async function executePlay(
           : typeof payload.mensaje === "string"
             ? payload.mensaje
             : null,
-      blocked: false,
-      reflected: false,
+      blocked: outcome.blocked,
+      reflected: outcome.reflected,
     });
   }
 
@@ -1269,7 +1253,7 @@ async function executePlay(
       );
   }
 
-  return { ok: true, blocked: false, reflected: false, targetName, retro };
+  return { ok: true, blocked: outcome.blocked, reflected: outcome.reflected, targetName, retro };
 }
 
 type DrawResult = {

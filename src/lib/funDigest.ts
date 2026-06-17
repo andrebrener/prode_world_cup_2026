@@ -70,12 +70,12 @@ export function renderAttackEmail(opts: {
   if (blocked) {
     subject = `🛡️ Tu escudo te salvó de ${attackerName}`;
     title = `🛡️ ¡Bloqueado!`;
-    body = `${attackerName} te quiso tirar <strong>${esc(cardName)}</strong> y tu escudo se lo comió entero. Se consumió — atento, quedaste descubierto.`;
+    body = `${attackerName} te quiso tirar <strong>${esc(cardName)}</strong> y tu escudo se lo comió entero. Sigue activo el resto del día… pero ahora cantaste que lo tenías.`;
     cta = "Ver el papelón en el libro de pases";
   } else if (reflected) {
     subject = `🪞 Tu espejito le devolvió ${cardName} a ${attackerName}`;
     title = `🪞 ¡Rebotó!`;
-    body = `${attackerName} te quiso tirar <strong>${esc(cardName)}</strong>… y tu espejito se la devolvió en la cara. Ahora la sufre él. Se consumió.`;
+    body = `${attackerName} te quiso tirar <strong>${esc(cardName)}</strong>… y tu espejito se la devolvió en la cara. Ahora la sufre él. Sigue activo el resto del día, pero ya saben que lo tenías.`;
     cta = "Ver cómo le explotó";
   } else {
     subject = `${cardEmoji} ${attackerName} te jugó ${cardName} en ${pool.name}`;

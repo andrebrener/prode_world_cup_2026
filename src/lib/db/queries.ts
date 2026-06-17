@@ -548,7 +548,7 @@ export async function getResolvedMatchPoints(pool: Pool): Promise<{
 }
 
 /** Tabla de un prode: calcula puntos de cada miembro contra los resultados reales. */
-export async function getLeaderboard(pool: Pool): Promise<LeaderboardRow[]> {
+export async function getLeaderboard(pool: Pool, viewerId?: string): Promise<LeaderboardRow[]> {
   const {
     people,
     ptsByMember,
@@ -600,6 +600,14 @@ export async function getLeaderboard(pool: Pool): Promise<LeaderboardRow[]> {
         ? {
             fun: {
               ...funInfo,
+              // Las defensas (escudo/espejito) son secretas: no se muestran como
+              // badge en la fila de otro. El dueño sí ve las suyas.
+              activeDayCards:
+                person.id === viewerId
+                  ? funInfo.activeDayCards
+                  : funInfo.activeDayCards.filter(
+                      (s) => s.cardType !== "escudo" && s.cardType !== "espejito",
+                    ),
               cardDelta: funInfo.cardDelta + saibamba,
               pureTotal: (pureByMember[person.id] ?? 0) + ep,
             },
@@ -693,6 +701,54 @@ function viewOf(
   defsById: DefsById,
 ): CardDef | null {
   return cardView(c.cardType, c.cardDefId ? (defsById.get(c.cardDefId) ?? null) : null);
+}
+
+/** mechanic → cosmético + enabled del mazo del prode (para el señuelo de defensas). */
+type DeckByMechanic = Map<string, { name: string; emoji: string; enabled: boolean }>;
+
+async function loadDeckByMechanic(poolId: string): Promise<DeckByMechanic> {
+  const rows = await db
+    .select({
+      mechanic: cardDefs.mechanic,
+      name: cardDefs.name,
+      emoji: cardDefs.emoji,
+      enabled: cardDefs.enabled,
+    })
+    .from(cardDefs)
+    .where(eq(cardDefs.poolId, poolId));
+  return new Map(rows.map((r) => [r.mechanic, { name: r.name, emoji: r.emoji, enabled: r.enabled }]));
+}
+
+// Legendarias auto-buff (sin víctima) que sirven de señuelo para una defensa
+// secreta: en el libro de pases se ve como que el dueño "sacó" una de estas, con
+// su efecto y todo — indistinguible de una jugada real.
+const DECOY_LEGENDARIES: CardType[] = ["diego", "costillar", "cabala", "saibamba"];
+
+// Hash determinístico de un id → el mismo señuelo siempre (no cambia al refrescar,
+// y varía por carta para que no sea siempre la misma = un soplo de que es defensa).
+function hashId(id: string): number {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
+  return h;
+}
+
+/** Señuelo estable para una defensa secreta: una legendaria del mazo, fija por carta. */
+function decoyCard(
+  cardId: string,
+  deck: DeckByMechanic,
+): { cardType: CardType; name: string; emoji: string } {
+  const candidates = DECOY_LEGENDARIES.filter((m) => {
+    const d = deck.get(m);
+    return d ? d.enabled : true; // mazo viejo sin def del prode: cae al catálogo
+  });
+  const pool = candidates.length ? candidates : DECOY_LEGENDARIES;
+  const m = pool[hashId(cardId) % pool.length];
+  const cos = deck.get(m);
+  return {
+    cardType: m,
+    name: cos?.name ?? CARD_CATALOG[m].name,
+    emoji: cos?.emoji ?? CARD_CATALOG[m].emoji,
+  };
 }
 
 type FunResolution = {
@@ -909,8 +965,6 @@ export type FunState = {
     | null;
   /** Historial completo de jugadas, más nuevas primero (la UI agrupa por día). */
   feed: FunFeedItem[];
-  /** Miembros con defensa activa hoy (escudo/espejito de la jornada): intocables. */
-  defendedIds: string[];
 };
 
 // 15 personas × ~1 jugada/día × 39 días ≈ 600, más maldiciones y bloqueos:
@@ -919,10 +973,11 @@ const FEED_LIMIT = 1500;
 
 /** Estado del modo Diversión para el visitante: mano, sorteo del día y actividad. */
 export async function getFunState(pool: Pool, viewerId: string): Promise<FunState> {
-  const [cards, memberIds, defsById] = await Promise.all([
+  const [cards, memberIds, defsById, deckByMechanic] = await Promise.all([
     db.select().from(funCards).where(eq(funCards.poolId, pool.id)),
     getPoolMemberIds(pool.id),
     loadDefsById(pool.id),
+    loadDeckByMechanic(pool.id),
   ]);
   const people = memberIds.length
     ? await db.select().from(participants).where(inArray(participants.id, memberIds))
@@ -962,11 +1017,48 @@ export async function getFunState(pool: Pool, viewerId: string): Promise<FunStat
       }
     : null;
 
+  // Las defensas (escudo/espejito) son SECRETAS mientras dura su jornada: para el
+  // resto se muestran con un SEÑUELO — una legendaria auto-buff del mazo, con su
+  // efecto y todo, indistinguible de una jugada real — así no se nota el hueco ni
+  // se sabe quién está protegido. El dueño ve la real (para que no piense que es un
+  // error). Cuando un ataque la dispara, el rebote/bloqueo del ATAQUE sí aparece en
+  // el acto (eso revela que la tenía); y recién al día siguiente aparece "la
+  // original" en el libro de pases.
+  const jornada = bindDay(new Date());
   const feed: FunFeedItem[] = cards
     .filter((c) => c.status !== "held" && c.playedAt)
     .sort((a, b) => b.playedAt!.getTime() - a.playedAt!.getTime())
     .slice(0, FEED_LIMIT)
     .map((c) => {
+      const isDefense = c.cardType === "escudo" || c.cardType === "espejito";
+      const secretToday =
+        isDefense &&
+        jornada != null &&
+        c.effectDate === jornada &&
+        c.participantId !== viewerId;
+
+      const ownerName = nameById[c.participantId] ?? "—";
+
+      // Señuelo: mostramos una legendaria falsa (cosmético del mazo), nunca la
+      // defensa real. No mandamos cuál es ni la víctima.
+      if (secretToday) {
+        const decoy = decoyCard(c.id, deckByMechanic);
+        return {
+          id: c.id,
+          at: c.playedAt!,
+          day: funToday(c.playedAt!),
+          ownerName,
+          targetName: null,
+          cardType: decoy.cardType,
+          name: decoy.name,
+          emoji: decoy.emoji,
+          blocked: false,
+          reflected: false,
+          curse: false,
+          detail: null,
+        };
+      }
+
       const def = viewOf(c, defsById) ?? CARD_CATALOG[c.cardType as CardType];
       const payload = parsePayload(c.payload);
       const detail =
@@ -979,7 +1071,7 @@ export async function getFunState(pool: Pool, viewerId: string): Promise<FunStat
         id: c.id,
         at: c.playedAt!,
         day: funToday(c.playedAt!),
-        ownerName: nameById[c.participantId] ?? "—",
+        ownerName,
         targetName: c.targetParticipantId ? (nameById[c.targetParticipantId] ?? "—") : null,
         cardType: c.cardType as CardType,
         name: def?.name ?? c.cardType,
@@ -991,24 +1083,6 @@ export async function getFunState(pool: Pool, viewerId: string): Promise<FunStat
       };
     });
 
-  // Defensas activas de la jornada: a un defendido no le podés tirar ataques (el
-  // selector lo deshabilita; resolvePlay lo rechaza igual del lado server).
-  const jornada = bindDay(new Date());
-  const defendedIds = jornada
-    ? [
-        ...new Set(
-          cards
-            .filter(
-              (c) =>
-                c.status === "played" &&
-                (c.cardType === "escudo" || c.cardType === "espejito") &&
-                c.effectDate === jornada,
-            )
-            .map((c) => c.participantId),
-        ),
-      ]
-    : [];
-
   return {
     today,
     claimedToday,
@@ -1016,7 +1090,6 @@ export async function getFunState(pool: Pool, viewerId: string): Promise<FunStat
     pending,
     myCardToday,
     feed,
-    defendedIds,
   };
 }
 
@@ -1024,10 +1097,10 @@ export type PlayContext = {
   memberIds: string[];
   /** Tabla actual (para resolver target y mostrar nombres). */
   rows: LeaderboardRow[];
+  /** id del escudo secreto activo de la víctima (si tiene): anula el ataque. */
   targetShieldCardId: string | null;
+  /** id del espejito secreto activo de la víctima (si tiene): rebota el ataque. */
   targetMirrorCardId: string | null;
-  /** Miembros con defensa activa de la jornada (escudo/espejito): intocables. */
-  defendedIds: string[];
 };
 
 /** Contexto para jugar una carta: tabla actual + defensas de la víctima. */
@@ -1059,27 +1132,11 @@ export async function getPlayContext(
       .sort((a, b) => (a.playedAt?.getTime() ?? 0) - (b.playedAt?.getTime() ?? 0))[0]?.id ??
     null;
 
-  const defendedIds = jornada
-    ? [
-        ...new Set(
-          cards
-            .filter(
-              (c) =>
-                c.status === "played" &&
-                (c.cardType === "escudo" || c.cardType === "espejito") &&
-                c.effectDate === jornada,
-            )
-            .map((c) => c.participantId),
-        ),
-      ]
-    : [];
-
   return {
     memberIds,
     rows,
     targetShieldCardId: targetId ? dayShield(targetId, "escudo") : null,
     targetMirrorCardId: targetId ? dayShield(targetId, "espejito") : null,
-    defendedIds,
   };
 }
 

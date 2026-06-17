@@ -248,28 +248,39 @@ describe("resolvePlay (validación)", () => {
     });
   });
 
-  it("no le podés tirar un ataque a alguien que ya tiene escudo puesto hoy", () => {
+  it("el ataque SALE contra un escudo secreto, pero se anula (blocked) en el acto", () => {
+    // La defensa es secreta: el ataque no se rechaza, sale y choca contra el escudo.
     const r = resolvePlay({
       ...basePlay,
       cardType: "pedo",
       targetId: "beto",
       targetShieldCardId: "escudo-de-beto",
     });
-    expect(r).toMatchObject({ ok: false });
+    expect(r).toMatchObject({ ok: true, blocked: true, reflected: false });
   });
 
-  it("no le podés tirar un ataque a alguien que ya tiene espejito puesto hoy", () => {
+  it("el ataque SALE contra un espejito secreto, pero rebota (reflected) al que lo tiró", () => {
     const r = resolvePlay({
       ...basePlay,
       cardType: "mufa",
       targetId: "beto",
       targetMirrorCardId: "espejito-de-beto",
     });
-    expect(r).toMatchObject({ ok: false });
+    expect(r).toMatchObject({ ok: true, blocked: false, reflected: true, effectDate: DAY_1 });
   });
 
-  it("la defensa solo frena ataques: una carta social igual se le puede jugar al defendido", () => {
-    // apodo es social (no es ataque): el escudo/espejito no la bloquea.
+  it("el espejito tiene prioridad sobre el escudo: rebota antes que anular", () => {
+    const r = resolvePlay({
+      ...basePlay,
+      cardType: "mufa",
+      targetId: "beto",
+      targetShieldCardId: "escudo-de-beto",
+      targetMirrorCardId: "espejito-de-beto",
+    });
+    expect(r).toMatchObject({ ok: true, blocked: false, reflected: true });
+  });
+
+  it("una carta social no es ataque: la defensa no la toca (ni bloquea ni rebota)", () => {
     const r = resolvePlay({
       ...basePlay,
       cardType: "apodo",
@@ -277,7 +288,7 @@ describe("resolvePlay (validación)", () => {
       targetShieldCardId: "escudo-de-beto",
       targetMirrorCardId: "espejito-de-beto",
     });
-    expect(r).toMatchObject({ ok: true });
+    expect(r).toMatchObject({ ok: true, blocked: false, reflected: false });
   });
 
   it("las maldiciones no se pueden jugar a mano", () => {
