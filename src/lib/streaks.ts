@@ -20,6 +20,8 @@ export type StreakResult = {
   best: number;
   /** Puntos extra acumulados por hitos. */
   bonus: number;
+  /** Bonus de hito por partido (matchId → puntos), para mostrarlo en la vista por partido. */
+  bonusByMatch: Record<string, number>;
   /** Hitos cobrados, en orden (puede repetir entre rachas). */
   milestones: number[];
   /** Partidos en 0 salvados por una carta de día (Fernet de Fernemo, caído). */
@@ -43,6 +45,7 @@ export function computeStreak(opts: {
   let best = 0;
   let bonus = 0;
   const milestones: number[] = [];
+  const bonusByMatch: Record<string, number> = {};
   const protectedMatchIds: string[] = [];
 
   for (const matchId of opts.matchOrder) {
@@ -57,6 +60,9 @@ export function computeStreak(opts: {
       if (hit) {
         bonus += hit.bonus;
         milestones.push(hit.len);
+        // El hito se cobra EN este partido (el que completó la racha): así la vista
+        // por partido puede mostrar "🔥 +N" donde realmente cayó.
+        bonusByMatch[matchId] = (bonusByMatch[matchId] ?? 0) + hit.bonus;
       }
       continue;
     }
@@ -74,6 +80,7 @@ export function computeStreak(opts: {
     current: run,
     best,
     bonus,
+    bonusByMatch,
     milestones,
     protectedMatchIds,
   };

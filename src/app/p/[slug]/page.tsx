@@ -186,6 +186,7 @@ export default async function PoolTabla({
         resolvedPoints={resolvedPts?.resolved}
         annulledMatches={resolvedPts?.annulled}
         stolenMatches={resolvedPts?.stolen}
+        streakMatches={resolvedPts?.streak}
       />
 
       {/* Cuadro de llaves */}

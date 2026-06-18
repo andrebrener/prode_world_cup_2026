@@ -542,13 +542,21 @@ export async function getResolvedMatchPoints(pool: Pool): Promise<{
   // `${ladrónId}:${matchId}` → robos de ese partido (víctima + monto), para que el
   // ladrón vea de quién y cuánto sacó en la vista por partido.
   stolen: Record<string, { victimId: string; amount: number }[]>;
+  // memberId → matchId → bonus de racha cobrado en ese partido.
+  streak: Record<string, Record<string, number>>;
 }> {
   const [s, bracket] = await Promise.all([computePoolScores(pool), getBracketState()]);
   const resolved: Record<string, MatchPointsMap> = {};
   for (const p of s.people)
     resolved[p.id] = s.fun?.effects.points[p.id] ?? s.ptsByMember[p.id] ?? {};
   const annulled = computeAnnulledMatches(s.funCardRows, bracket);
-  return { base: s.ptsByMember, resolved, annulled, stolen: s.fun?.effects.stolen ?? {} };
+  return {
+    base: s.ptsByMember,
+    resolved,
+    annulled,
+    stolen: s.fun?.effects.stolen ?? {},
+    streak: s.fun?.streakBonusByMatch ?? {},
+  };
 }
 
 /** Tabla de un prode: calcula puntos de cada miembro contra los resultados reales. */
@@ -727,6 +735,8 @@ type FunResolution = {
   effects: ReturnType<typeof applyCardEffects>;
   // pureTotal se completa en getLeaderboard (acá no hay extras ni puntos puros).
   infoByMember: Record<string, Omit<FunLeaderboardInfo, "pureTotal">>;
+  // Bonus de racha por (miembro → partido), para mostrarlo en la vista por partido.
+  streakBonusByMatch: Record<string, Record<string, number>>;
 };
 
 /** Payload JSON de las cartas sociales (apodo/mensaje/imagen). */
@@ -832,6 +842,7 @@ function resolveFun(
   }
 
   const infoByMember: FunResolution["infoByMember"] = {};
+  const streakBonusByMatch: Record<string, Record<string, number>> = {};
   // Defensas/buffs del día (escudo, espejito, aguante, var): se muestran como
   // "activos" mientras su jornada sea hoy o futura; nunca van a pendingEffects.
   const dayDefenses = new Set<CardType>(["escudo", "espejito", "aguante", "var"]);
@@ -846,6 +857,8 @@ function resolveFun(
       kickoffById,
       overrides: effects.streakOverrides[person.id],
     });
+    if (Object.keys(streak.bonusByMatch).length > 0)
+      streakBonusByMatch[person.id] = streak.bonusByMatch;
 
     const activeDayCards: FunLeaderboardInfo["activeDayCards"] = [];
     const dayCardView = (type: CardType) => {
@@ -898,7 +911,7 @@ function resolveFun(
     };
   }
 
-  return { effects, infoByMember };
+  return { effects, infoByMember, streakBonusByMatch };
 }
 
 export type HeldCard = { id: string; def: CardDef; drawDate: string };

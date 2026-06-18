@@ -62,6 +62,7 @@ export default function MatchdayPanel({
   resolvedPoints,
   annulledMatches,
   stolenMatches,
+  streakMatches,
 }: {
   predictionsByMatch: Record<string, MatchPredictionRow[]>;
   resultsByMatch: Record<string, Result>;
@@ -76,6 +77,8 @@ export default function MatchdayPanel({
   // `${ladrónId}:${matchId}` → robos de ese partido (víctima + monto). El ladrón ve
   // un chip "🥩 +X (a Fulano)" al lado de sus puntos en cada partido del que sacó tajada.
   stolenMatches?: Record<string, { victimId: string; amount: number }[]>;
+  // jugadorId → matchId → bonus de racha cobrado en ese partido (chip "🔥 +N").
+  streakMatches?: Record<string, Record<string, number>>;
 }) {
   const today = todayISO();
   // Nombres por id (para mostrar a quién le robó el ladrón en cada partido).
@@ -357,12 +360,19 @@ export default function MatchdayPanel({
                   <ul className="divide-y divide-border/60">
                     {preds.map((p) => {
                       const eff = effPred(p);
-                      // Lo que valdría el pronóstico contra el resultado (sin cartas de bloqueo/robo).
-                      const wouldBe = result ? matchPoints(eff, result) : null;
-                      // Fuera del simulador usamos los puntos REALES post-cartas si los tenemos.
+                      // Puntos NORMALES del partido: lo que vale el pronóstico contra el
+                      // resultado, sin cartas. Es el badge principal.
+                      const base = result ? matchPoints(eff, result) : null;
+                      // Puntos REALES post-cartas (VAR, doblete, mufa…) si los tenemos.
                       const real =
                         !simMode && result ? resolvedPoints?.[p.id]?.[m.id] : undefined;
-                      const pts = real ?? wouldBe;
+                      // Lo que aportó la carta EN este partido (VAR +2, doblete ×2, mufa…).
+                      const cardDelta =
+                        real !== undefined && base !== null ? real - base : 0;
+                      // Bonus de racha cobrado en este partido (hito 3/5/8/12).
+                      const streakBonus = !simMode
+                        ? (streakMatches?.[p.id]?.[m.id] ?? 0)
+                        : 0;
                       // Una carta le anula los puntos de la fecha (bloqueo/robo): aplica a todo
                       // el día, incluso a los partidos que todavía no se jugaron.
                       const annulled = !simMode && !!annulledMatches?.[`${p.id}:${m.id}`];
@@ -403,9 +413,9 @@ export default function MatchdayPanel({
                                 className="flex items-center gap-1 text-xs font-bold"
                                 title="Una carta le anuló los puntos de esta fecha (bloqueo o robo)"
                               >
-                                {wouldBe !== null && wouldBe > 0 && (
+                                {base !== null && base > 0 && (
                                   <span className="font-mono text-muted/50 line-through">
-                                    +{wouldBe}
+                                    +{base}
                                   </span>
                                 )}
                                 <span className="min-w-9 rounded-md bg-background px-2 py-0.5 text-center text-muted">
@@ -413,19 +423,43 @@ export default function MatchdayPanel({
                                 </span>
                               </span>
                             ) : (
-                              pts !== null && (
+                              base !== null && (
                                 <span
                                   className={`min-w-9 rounded-md px-2 py-0.5 text-center text-xs font-bold ${
-                                    pts === 5
+                                    base === 5
                                       ? "bg-primary/20 text-primary"
-                                      : pts === 3
+                                      : base === 3 || base === 4
                                         ? "bg-gold/20 text-gold"
                                         : "bg-background text-muted"
                                   }`}
+                                  title="Puntos del partido (sin cartas)"
                                 >
-                                  +{pts}
+                                  +{base}
                                 </span>
                               )
+                            )}
+                            {/* Aporte de la carta en este partido (VAR +2, doblete, mufa…). */}
+                            {!annulled && cardDelta !== 0 && (
+                              <span
+                                className={`min-w-9 rounded-md px-2 py-0.5 text-center text-xs font-bold ${
+                                  cardDelta > 0
+                                    ? "bg-primary/15 text-primary"
+                                    : "bg-danger/15 text-danger"
+                                }`}
+                                title="Lo que sumó (o restó) una carta en este partido"
+                              >
+                                🃏 {cardDelta > 0 ? "+" : ""}
+                                {cardDelta}
+                              </span>
+                            )}
+                            {/* Bonus de racha cobrado en este partido. */}
+                            {streakBonus > 0 && (
+                              <span
+                                className="min-w-9 rounded-md bg-gold/15 px-2 py-0.5 text-center text-xs font-bold text-gold"
+                                title="Bonus por hito de racha cobrado en este partido"
+                              >
+                                🔥 +{streakBonus}
+                              </span>
                             )}
                             {loot && loot.length > 0 && (
                               <span
