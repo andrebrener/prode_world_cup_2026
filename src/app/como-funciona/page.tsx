@@ -130,7 +130,9 @@ export default async function ComoFunciona() {
             <strong className="text-foreground">maldición ☠️</strong>. La carta se{" "}
             <strong className="text-foreground">juega sola al salir</strong>: los buffs se
             activan, los ataques te piden la víctima en el momento, y no hay vuelta atrás.
-            Si no la reclamás antes de medianoche 🇲🇽, se pierde.
+            Si no la reclamás antes de medianoche 🇲🇽, se pierde. Y ojo: si sacás un{" "}
+            <strong className="text-foreground">ataque y no se lo jugás a nadie</strong>, te
+            rebota solo 🎯.
           </div>
           <div className="rounded-2xl border border-border bg-surface p-4 text-sm text-muted">
             <h3 className="mb-2 font-bold text-foreground">😈 Buffs, mufas y traiciones</h3>

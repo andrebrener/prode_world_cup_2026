@@ -51,7 +51,14 @@ export function playText(opts: {
   detail: string | null;
   blocked?: boolean;
   reflected?: boolean;
+  /** Autotiro: sacó el ataque y no se lo jugó a nadie, le rebotó solo. */
+  backfire?: boolean;
 }): string {
+  // Autotiro: el ataque le pega al propio dueño (la "víctima" es él mismo).
+  if (opts.backfire) {
+    const action = ACTION[opts.cardType]?.("sí mismo", opts.detail) ?? "le rebotó";
+    return `${opts.emoji} ${opts.ownerName} no le jugó ${opts.name} a nadie y le rebotó solo 🎯: ${action}`;
+  }
   const action = ACTION[opts.cardType]?.(opts.targetName ?? "nadie", opts.detail) ?? "jugó una carta";
   const base = `${opts.emoji} ${opts.ownerName} jugó ${opts.name}: ${action}`;
   if (opts.blocked) return `${base} — ¡bloqueado por su escudo! 🛡️`;

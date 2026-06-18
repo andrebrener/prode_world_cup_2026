@@ -12,7 +12,7 @@ import { eq, isNotNull, and } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { pools, poolMembers, participants } from "@/lib/db/schema";
 import { buildPoolDigest, funYesterday, renderDigestEmail } from "@/lib/funDigest";
-import { autoCurseUnclaimed } from "@/lib/funSweep";
+import { autoCurseUnclaimed, backfireUnplayedAttacks } from "@/lib/funSweep";
 import { sendEmails, type Mail } from "@/lib/mailer";
 import { sendPushToParticipants } from "@/lib/push";
 import type { Pool } from "@/lib/db/queries";
@@ -46,6 +46,7 @@ export async function GET(req: NextRequest) {
   // terminó. Es el día que barremos para auto-maldecir a los que no sacaron carta.
   const yesterday = funYesterday();
   let cursed = 0;
+  let backfired = 0;
 
   for (const poolRow of funPools) {
     const pool: Pool = {
@@ -72,6 +73,8 @@ export async function GET(req: NextRequest) {
     // Karma de Tabla; el resto no se toca. En debug no mutamos la BD.
     if (!debug) {
       cursed += await autoCurseUnclaimed(pool, yesterday, memberIds);
+      // Autotiro: los ataques sacados y no jugados ayer le rebotan al dueño.
+      backfired += await backfireUnplayedAttacks(pool, yesterday);
     }
 
     // Miembros con mail cargado.
@@ -122,5 +125,6 @@ export async function GET(req: NextRequest) {
     errors,
     pushSent,
     cursed,
+    backfired,
   });
 }

@@ -701,7 +701,9 @@ export function applyCardEffects(opts: {
       loot += vm[id] ?? 0;
       if (id in vm) vm[id] = 0;
     }
-    add(flat, stealer, loot);
+    // Autotiro (ataque sacado y no jugado, reflejado contra sí mismo): el robo se
+    // vuelve daño puro — perdés tus puntos del día y no van a ningún lado.
+    if (stealer !== victim) add(flat, stealer, loot);
   }
 
   // ---- Pase 4: planos (puntos directos, robo plano, maldición de plata) ----
@@ -714,8 +716,13 @@ export function applyCardEffects(opts: {
     if (spec.victimAmount != null && card.targetId) {
       const to = card.reflected ? card.targetId : card.ownerId;
       const from = card.reflected ? card.ownerId : card.targetId;
-      add(flat, to, spec.selfAmount);
-      add(flat, from, spec.victimAmount);
+      // Autotiro contra sí mismo: solo el daño (victimAmount), no la parte buena.
+      if (to === from) {
+        add(flat, to, spec.victimAmount);
+      } else {
+        add(flat, to, spec.selfAmount);
+        add(flat, from, spec.victimAmount);
+      }
     } else {
       add(flat, card.ownerId, spec.selfAmount);
     }

@@ -915,6 +915,8 @@ export type FunFeedItem = {
   blocked: boolean;
   /** true si rebotó en un Espejito y volvió al que la tiró. */
   reflected: boolean;
+  /** true si fue un autotiro: sacó el ataque y no se lo jugó a nadie, le rebotó solo. */
+  backfire: boolean;
   /** true si fue una maldición que le tocó al reclamar. */
   curse: boolean;
   /** Detalle social (el apodo puesto, el mensaje fijado). */
@@ -1036,6 +1038,7 @@ export async function getFunState(pool: Pool, viewerId: string): Promise<FunStat
           emoji: cos?.emoji ?? CARD_CATALOG[decoyMech].emoji,
           blocked: false,
           reflected: false,
+          backfire: false,
           curse: false, // el pool de señuelos es todo positivo: nunca maldición
           detail: null,
           ...(c.participantId === viewerId && real
@@ -1063,6 +1066,8 @@ export async function getFunState(pool: Pool, viewerId: string): Promise<FunStat
         emoji: def?.emoji ?? "🃏",
         blocked: c.status === "blocked",
         reflected: c.reflected,
+        // Autotiro: reflejado y apuntado a sí mismo (lo marca el barrido del cron).
+        backfire: c.reflected && c.targetParticipantId === c.participantId,
         curse: def?.kind === "curse",
         detail,
       };

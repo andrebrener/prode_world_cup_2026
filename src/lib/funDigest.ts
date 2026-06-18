@@ -155,6 +155,7 @@ export async function buildPoolDigest(pool: Pool, now: Date = new Date()): Promi
         detail: f.detail,
         blocked: f.blocked,
         reflected: f.reflected,
+        backfire: f.backfire,
       }),
     );
 

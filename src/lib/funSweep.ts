@@ -10,6 +10,7 @@ import { funCards } from "@/lib/db/schema";
 import { ensureFunPool, getPoolDeckRows, getPoolFunConfig } from "@/lib/db/decks";
 import { getDayRankSnapshot, type Pool } from "@/lib/db/queries";
 import { fullSchedule, matchDay, pickDailyCard, resolveDeck } from "@/lib/cards";
+import { CARD_CATALOG, ALL_CARDS, type CardType } from "@/lib/cardCatalog";
 
 /**
  * A los que no sacaron carta el `date` cerrado les recalcula su sorteo
@@ -87,4 +88,63 @@ export async function autoCurseUnclaimed(
     cursed += 1;
   }
   return cursed;
+}
+
+/** Mecánicas de ataque: si las sacás y no las jugás, te rebotan. */
+const ATTACK_TYPES = new Set<CardType>(ALL_CARDS.filter((c) => c.kind === "attack").map((c) => c.type));
+
+/**
+ * Autotiro: los ataques que alguien SACÓ pero no le jugó a nadie (quedaron en
+ * "held" al cerrar el `date`) en vez de evaporarse le rebotan a su dueño. Marca la
+ * carta como jugada, reflejada (`reflected`) y apuntada a sí mismo
+ * (targetParticipantId = dueño), atada al día cerrado: el motor ya resuelve eso
+ * como "te la mandaste solo" (affectedIdOf devuelve el dueño; duelo/pedo se vuelven
+ * daño puro). Es la contracara de la jugada obligada: sacar un ataque y acobardarse
+ * (o distraerse) ahora cuesta.
+ *
+ * Corre en TODOS los prodes fun (no depende de Karma de Tabla) y solo en días con
+ * partidos (un autotiro de día sin partidos no haría nada). Idempotente: solo toca
+ * filas que siguen en "held" de ese día.
+ *
+ * Devuelve cuántos ataques rebotaron.
+ */
+export async function backfireUnplayedAttacks(pool: Pool, date: string): Promise<number> {
+  // Un autotiro de día sin partidos no haría nada; el -5 de pedo en un día de
+  // descanso sería arbitrario. Igual que la auto-maldición: solo días con partidos.
+  if (!fullSchedule().some((m) => matchDay(m.kickoff) === date)) return 0;
+
+  const held = await db
+    .select({
+      id: funCards.id,
+      participantId: funCards.participantId,
+      cardType: funCards.cardType,
+    })
+    .from(funCards)
+    .where(
+      and(
+        eq(funCards.poolId, pool.id),
+        eq(funCards.drawDate, date),
+        eq(funCards.status, "held"),
+      ),
+    );
+
+  const now = new Date();
+  let backfired = 0;
+  for (const row of held) {
+    const type = row.cardType as CardType;
+    if (!ATTACK_TYPES.has(type)) continue; // honguito/sociales no jugados se pierden
+    await db
+      .update(funCards)
+      .set({
+        status: "played",
+        playedAt: now,
+        reflected: true,
+        targetParticipantId: row.participantId,
+        // Ataques de día → atados al día cerrado; pedo (-5, sin ventana) → null.
+        effectDate: CARD_CATALOG[type]?.window === "day" ? date : null,
+      })
+      .where(and(eq(funCards.id, row.id), eq(funCards.status, "held")));
+    backfired += 1;
+  }
+  return backfired;
 }

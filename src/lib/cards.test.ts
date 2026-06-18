@@ -535,6 +535,41 @@ describe("applyCardEffects", () => {
     expect(rebotado.flat).toEqual({ ana: -5, beto: 5 });
   });
 
+  // Autotiro: ataque sacado y no jugado a nadie → reflejado contra sí mismo
+  // (targetId = dueño, reflected). El motor lo resuelve como daño puro al dueño.
+  describe("autotiro (ataque reflejado contra sí mismo)", () => {
+    const self = (cardType: CardType, over: Partial<PlayedCardEffect> = {}) =>
+      played(cardType, "ana", { targetId: "ana", reflected: true, ...over });
+
+    it("mufa: te parte al medio TU primer partido del día", () => {
+      const r = applyCardEffects({ ...opts, cards: [self("mufa", { effectDate: DAY_1 })] });
+      expect(r.points.ana.M1).toBe(1); // 3 → floor(×0.5)
+      expect(r.points.ana.M2).toBe(5); // segundo del día: intacto
+      expect(r.delta.ana).toBe(-2);
+    });
+
+    it("caído/filtro: te dejan TU día en cero", () => {
+      const r = applyCardEffects({ ...opts, cards: [self("filtro", { effectDate: DAY_1 })] });
+      expect(r.points.ana.M1).toBe(0);
+      expect(r.points.ana.M2).toBe(0);
+      expect(r.streakOverrides.ana?.M1).toBe("skip");
+    });
+
+    it("duelo: perdés TUS puntos del día y no van a ningún lado (daño puro)", () => {
+      const r = applyCardEffects({ ...opts, cards: [self("duelo", { effectDate: DAY_1 })] });
+      expect(r.points.ana.M1).toBe(0);
+      expect(r.points.ana.M2).toBe(0);
+      expect(r.flat.ana ?? 0).toBe(0); // no se devuelve el botín
+      expect(r.delta.ana).toBe(-8); // perdió M1+M2 = 3+5
+    });
+
+    it("pedo: te comés el -5, sin la parte buena", () => {
+      const r = applyCardEffects({ ...opts, cards: [self("pedo")] });
+      expect(r.flat.ana).toBe(-5);
+      expect(r.delta.ana).toBe(-5);
+    });
+  });
+
   it("var suma +2 a todos los partidos del día donde sumaste", () => {
     const r = applyCardEffects({
       ...opts,

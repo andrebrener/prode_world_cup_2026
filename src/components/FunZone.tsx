@@ -83,6 +83,7 @@ function feedText(f: FunFeedItem): string {
     ownerName: f.ownerName,
     targetName: f.targetName,
     detail: f.detail,
+    backfire: f.backfire,
   });
 }
 
@@ -658,7 +659,7 @@ export default function FunZone({
                             — ¡bloqueado por su Anulo mufa! 🛡️
                           </span>
                         )}
-                        {f.reflected && (
+                        {f.reflected && !f.backfire && (
                           <span className="font-bold text-gold">
                             {" "}
                             — ¡el Espejito se lo devolvió! 🪞
