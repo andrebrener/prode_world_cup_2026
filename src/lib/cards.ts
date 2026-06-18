@@ -526,6 +526,13 @@ export type FunEffects = {
   points: Record<string, MatchPointsMap>;
   /** Ajustes planos (robos, snapshots, maldiciones de puntos): ±puntos por miembro. */
   flat: Record<string, number>;
+  /**
+   * Robo desglosado por partido, para mostrarlo en la vista por partido (el ladrón
+   * ve "+X robado a Fulano" en cada partido del que sacó tajada). Clave
+   * `${ladrónId}:${matchId}` → lista de {victimId, amount}. Solo robos reales
+   * (no el autotiro, que es daño propio). El total coincide con el flat del ladrón.
+   */
+  stolen: Record<string, { victimId: string; amount: number }[]>;
   /** Delta total por cartas (modificadores + planos) por miembro, para mostrar. */
   delta: Record<string, number>;
   /** Partidos a los que el VAR sumó +2, por miembro (puede haber varios VAR). */
@@ -560,6 +567,7 @@ export function applyCardEffects(opts: {
   for (const [member, map] of Object.entries(opts.base)) points[member] = { ...map };
 
   const flat: Record<string, number> = {};
+  const stolen: Record<string, { victimId: string; amount: number }[]> = {};
   const varAppliedTo: Record<string, string[]> = {};
   const streakOverrides: Record<string, Record<string, StreakOverride>> = {};
   const add = (m: Record<string, number>, k: string, v: number) => {
@@ -697,13 +705,22 @@ export function applyCardEffects(opts: {
     const victim = card.reflected ? card.ownerId : card.targetId;
     const vm = map(victim);
     let loot = 0;
+    const perMatch: { matchId: string; amount: number }[] = [];
     for (const id of ids) {
-      loot += vm[id] ?? 0;
+      const got = vm[id] ?? 0;
+      loot += got;
+      if (got > 0) perMatch.push({ matchId: id, amount: got });
       if (id in vm) vm[id] = 0;
     }
     // Autotiro (ataque sacado y no jugado, reflejado contra sí mismo): el robo se
     // vuelve daño puro — perdés tus puntos del día y no van a ningún lado.
-    if (stealer !== victim) add(flat, stealer, loot);
+    if (stealer !== victim) {
+      add(flat, stealer, loot);
+      // Desglose por partido para la vista por partido (solo lo que dio tajada).
+      for (const { matchId, amount } of perMatch) {
+        (stolen[`${stealer}:${matchId}`] ??= []).push({ victimId: victim, amount });
+      }
+    }
   }
 
   // ---- Pase 4: planos (puntos directos, robo plano, maldición de plata) ----
@@ -736,5 +753,5 @@ export function applyCardEffects(opts: {
     delta[id] = after - before + (flat[id] ?? 0);
   }
 
-  return { points, flat, delta, varAppliedTo, streakOverrides };
+  return { points, flat, stolen, delta, varAppliedTo, streakOverrides };
 }

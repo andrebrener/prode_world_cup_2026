@@ -539,13 +539,16 @@ export async function getResolvedMatchPoints(pool: Pool): Promise<{
   base: Record<string, MatchPointsMap>;
   resolved: Record<string, MatchPointsMap>;
   annulled: Record<string, true>;
+  // `${ladrónId}:${matchId}` → robos de ese partido (víctima + monto), para que el
+  // ladrón vea de quién y cuánto sacó en la vista por partido.
+  stolen: Record<string, { victimId: string; amount: number }[]>;
 }> {
   const [s, bracket] = await Promise.all([computePoolScores(pool), getBracketState()]);
   const resolved: Record<string, MatchPointsMap> = {};
   for (const p of s.people)
     resolved[p.id] = s.fun?.effects.points[p.id] ?? s.ptsByMember[p.id] ?? {};
   const annulled = computeAnnulledMatches(s.funCardRows, bracket);
-  return { base: s.ptsByMember, resolved, annulled };
+  return { base: s.ptsByMember, resolved, annulled, stolen: s.fun?.effects.stolen ?? {} };
 }
 
 /** Tabla de un prode: calcula puntos de cada miembro contra los resultados reales. */

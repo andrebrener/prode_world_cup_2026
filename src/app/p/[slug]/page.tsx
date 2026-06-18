@@ -185,6 +185,7 @@ export default async function PoolTabla({
         leaderboard={leaderboard.map((r) => ({ id: r.id, name: r.name, total: r.total }))}
         resolvedPoints={resolvedPts?.resolved}
         annulledMatches={resolvedPts?.annulled}
+        stolenMatches={resolvedPts?.stolen}
       />
 
       {/* Cuadro de llaves */}

@@ -61,6 +61,7 @@ export default function MatchdayPanel({
   leaderboard = [],
   resolvedPoints,
   annulledMatches,
+  stolenMatches,
 }: {
   predictionsByMatch: Record<string, MatchPredictionRow[]>;
   resultsByMatch: Record<string, Result>;
@@ -72,8 +73,16 @@ export default function MatchdayPanel({
   // `${jugadorId}:${matchId}` de los partidos con puntos anulados por un bloqueo/robo
   // de día. Incluye los partidos del día SIN resultado, para avisar "no suma" antes.
   annulledMatches?: Record<string, true>;
+  // `${ladrónId}:${matchId}` → robos de ese partido (víctima + monto). El ladrón ve
+  // un chip "🥩 +X (a Fulano)" al lado de sus puntos en cada partido del que sacó tajada.
+  stolenMatches?: Record<string, { victimId: string; amount: number }[]>;
 }) {
   const today = todayISO();
+  // Nombres por id (para mostrar a quién le robó el ladrón en cada partido).
+  const nameById = useMemo(
+    () => Object.fromEntries(leaderboard.map((r) => [r.id, r.name])),
+    [leaderboard],
+  );
   // Si hoy no hay partidos, arranca en el día más cercano dentro del torneo.
   const initial = useMemo(() => {
     if (MATCH_DATES.includes(today)) return today;
@@ -357,6 +366,8 @@ export default function MatchdayPanel({
                       // Una carta le anula los puntos de la fecha (bloqueo/robo): aplica a todo
                       // el día, incluso a los partidos que todavía no se jugaron.
                       const annulled = !simMode && !!annulledMatches?.[`${p.id}:${m.id}`];
+                      // Robo: lo que ESTE jugador le sacó a otros en este partido.
+                      const loot = !simMode ? stolenMatches?.[`${p.id}:${m.id}`] : undefined;
                       return (
                         <li
                           key={p.id}
@@ -415,6 +426,21 @@ export default function MatchdayPanel({
                                   +{pts}
                                 </span>
                               )
+                            )}
+                            {loot && loot.length > 0 && (
+                              <span
+                                className="flex items-center gap-1 rounded-md bg-primary/15 px-2 py-0.5 text-xs font-bold text-primary"
+                                title={loot
+                                  .map((l) => `Le robó +${l.amount} a ${nameById[l.victimId] ?? "alguien"}`)
+                                  .join(" · ")}
+                              >
+                                🥩 +{loot.reduce((a, l) => a + l.amount, 0)}
+                                <span className="font-normal text-primary/80">
+                                  {loot.length === 1
+                                    ? `a ${nameById[loot[0].victimId] ?? "alguien"}`
+                                    : `a ${loot.length} jugadores`}
+                                </span>
+                              </span>
                             )}
                           </div>
                         </li>
