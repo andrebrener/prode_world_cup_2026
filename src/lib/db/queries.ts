@@ -30,10 +30,9 @@ import { allGroupStandings } from "../standings";
 import { MATCHES } from "../fixtures";
 import {
   CARD_CATALOG,
-  ALL_CARDS,
-  RARITY_WEIGHTS,
   cardView,
   outcomeLabel,
+  pickDecoyMechanic,
   DEFAULT_FUN_CONFIG,
   type CardCosmetic,
   type CardDef,
@@ -721,58 +720,6 @@ async function loadDeckByMechanic(poolId: string): Promise<DeckByMechanic> {
   return new Map(rows.map((r) => [r.mechanic, { name: r.name, emoji: r.emoji, enabled: r.enabled }]));
 }
 
-// Cartas que pueden ser señuelo de una defensa secreta: cualquier carta que se
-// juega sola y SIN víctima (auto-target), así el feed la muestra como una jugada
-// normal. Excluye las defensas reales (escudo/espejito) para no delatarse. Incluye
-// buffs, instantáneas y maldiciones — para que la mezcla se vea natural.
-const DECOY_POOL: CardType[] = ALL_CARDS.filter(
-  (c) => c.target === "self" && c.type !== "escudo" && c.type !== "espejito",
-).map((c) => c.type);
-
-// Hash determinístico de un id → el mismo señuelo siempre (no cambia al refrescar,
-// y varía por carta para que no sea siempre la misma = un soplo de que es defensa).
-function hashId(id: string): number {
-  let h = 0;
-  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
-  return h;
-}
-
-/**
- * Señuelo estable para una defensa secreta: cualquier carta del mazo, fija por
- * carta. Pesa por rareza (pesos normales del juego) para que la mezcla se vea
- * natural — no es el sorteo exacto, pero alcanza para que no cante.
- */
-function decoyCard(
-  cardId: string,
-  deck: DeckByMechanic,
-): { cardType: CardType; name: string; emoji: string } {
-  const candidates = DECOY_POOL.filter((m) => {
-    const d = deck.get(m);
-    return d ? d.enabled : true; // mazo viejo sin def del prode: cae al catálogo
-  });
-  const pool = candidates.length ? candidates : DECOY_POOL;
-
-  // Tirada determinística pesada por rareza.
-  const weightOf = (m: CardType) => RARITY_WEIGHTS[CARD_CATALOG[m].rarity] ?? 1;
-  const total = pool.reduce((a, m) => a + weightOf(m), 0);
-  let acc = hashId(cardId) % total;
-  let m = pool[pool.length - 1];
-  for (const cand of pool) {
-    acc -= weightOf(cand);
-    if (acc < 0) {
-      m = cand;
-      break;
-    }
-  }
-
-  const cos = deck.get(m);
-  return {
-    cardType: m,
-    name: cos?.name ?? CARD_CATALOG[m].name,
-    emoji: cos?.emoji ?? CARD_CATALOG[m].emoji,
-  };
-}
-
 type FunResolution = {
   effects: ReturnType<typeof applyCardEffects>;
   // pureTotal se completa en getLeaderboard (acá no hay extras ni puntos puros).
@@ -1052,21 +999,31 @@ export async function getFunState(pool: Pool, viewerId: string): Promise<FunStat
   // dueño le sumamos una nota privada con la carta real (para que no se confunda).
   // Cuando un ataque la dispara, el rebote/bloqueo del ATAQUE sí aparece en el acto
   // (eso revela que la tenía); y recién al día siguiente aparece "la original".
-  const jornada = bindDay(new Date());
+  //
+  // El secreto dura hasta el reset de las 0hs de México (cuando `today` avanza),
+  // igual que el badge de la tabla — NO hasta que arranca el último partido (eso
+  // haría `bindDay` y revelaría antes de tiempo).
   const feed: FunFeedItem[] = cards
     .filter((c) => c.status !== "held" && c.playedAt)
     .sort((a, b) => b.playedAt!.getTime() - a.playedAt!.getTime())
     .slice(0, FEED_LIMIT)
     .map((c) => {
       const isDefense = c.cardType === "escudo" || c.cardType === "espejito";
-      const secretToday = isDefense && jornada != null && c.effectDate === jornada;
+      const secretToday = isDefense && c.effectDate != null && c.effectDate >= today;
 
       const ownerName = nameById[c.participantId] ?? "—";
 
       // Señuelo: mostramos una carta falsa (cosmético del mazo), nunca la defensa
-      // real. Al dueño le adjuntamos la real como nota privada.
+      // real. Usamos el señuelo GUARDADO al jugarla (estable); si es una defensa
+      // vieja sin señuelo guardado, lo derivamos del id (mismo algoritmo). Al dueño
+      // le adjuntamos la real como nota privada.
       if (secretToday) {
-        const decoy = decoyCard(c.id, deckByMechanic);
+        const stored = parsePayload(c.payload)?.decoy;
+        const decoyMech =
+          typeof stored === "string" && CARD_CATALOG[stored as CardType]
+            ? (stored as CardType)
+            : pickDecoyMechanic(c.id);
+        const cos = deckByMechanic.get(decoyMech);
         const real = viewOf(c, defsById) ?? CARD_CATALOG[c.cardType as CardType];
         return {
           id: c.id,
@@ -1074,13 +1031,12 @@ export async function getFunState(pool: Pool, viewerId: string): Promise<FunStat
           day: funToday(c.playedAt!),
           ownerName,
           targetName: null,
-          cardType: decoy.cardType,
-          name: decoy.name,
-          emoji: decoy.emoji,
+          cardType: decoyMech,
+          name: cos?.name ?? CARD_CATALOG[decoyMech].name,
+          emoji: cos?.emoji ?? CARD_CATALOG[decoyMech].emoji,
           blocked: false,
           reflected: false,
-          // Si el señuelo cayó en una maldición, que se pinte como tal (verde).
-          curse: CARD_CATALOG[decoy.cardType]?.kind === "curse",
+          curse: false, // el pool de señuelos es todo positivo: nunca maldición
           detail: null,
           ...(c.participantId === viewerId && real
             ? { secretReal: { name: real.name, emoji: real.emoji } }

@@ -513,6 +513,52 @@ export function isNoEffect(def: Pick<CardDef, "spec">): boolean {
   return def.spec.outcome === "social_overlay" || def.spec.outcome === "clear_social";
 }
 
+/**
+ * Mecánicas que pueden ser SEÑUELO de una defensa secreta: positivas (suman puntos o
+ * dan un boost al puntaje) y auto-target (sin víctima). Se filtra por OUTCOME, no por
+ * carta: quedan afuera las defensas, sociales, maldiciones, robos, lo negativo y las
+ * que adivinan al campeón (`champion_points`, ej. Sai Bamba). Así el señuelo parece
+ * una jugada normal y buena, sin delatar que en realidad es una defensa.
+ */
+export const DECOY_POOL: CardType[] = ALL_CARDS.filter((c) => {
+  if (c.target !== "self") return false;
+  switch (c.spec.outcome) {
+    case "multiply_match":
+      return c.spec.factor >= 1; // doblar/triplicar; nunca la mufa (×0.5, y es ataque)
+    case "bonus_if_scored":
+    case "floor_match_points":
+    case "var_bonus":
+      return true;
+    case "flat_points":
+      return c.spec.selfAmount > 0; // papas/speed sí; Ramirez (−5) no
+    default:
+      return false; // shield, champion_points, social, zero_day, robos, etc.
+  }
+}).map((c) => c.type);
+
+/** Hash determinístico de un string → entero (estable entre renders y deploys). */
+function decoyHash(seed: string): number {
+  let h = 0;
+  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
+  return h;
+}
+
+/**
+ * Señuelo (mecánica) de una defensa secreta, determinístico por `seed` (el id de la
+ * carta) y pesado por rareza con los pesos normales del juego, para que la mezcla se
+ * vea natural. Se calcula una vez al jugar la defensa y se guarda, así no se mueve.
+ */
+export function pickDecoyMechanic(seed: string): CardType {
+  const weightOf = (m: CardType) => RARITY_WEIGHTS[CARD_CATALOG[m].rarity] ?? 1;
+  const total = DECOY_POOL.reduce((a, m) => a + weightOf(m), 0);
+  let acc = decoyHash(seed) % total;
+  for (const m of DECOY_POOL) {
+    acc -= weightOf(m);
+    if (acc < 0) return m;
+  }
+  return DECOY_POOL[DECOY_POOL.length - 1];
+}
+
 /** Resumen neutro (sin el nombre) de qué hace una mecánica — para la UI de admin. */
 export function outcomeLabel(spec: OutcomeSpec, target: CardDef["target"] = "self"): string {
   switch (spec.outcome) {

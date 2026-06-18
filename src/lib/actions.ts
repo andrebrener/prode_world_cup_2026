@@ -46,6 +46,7 @@ import {
   MAX_APODO_CHARS,
   MAX_MENSAJE_CHARS,
   MAX_FOTO_CHARS,
+  pickDecoyMechanic,
   type CardDef,
   type CardType,
   type PoolMode,
@@ -1160,6 +1161,11 @@ async function executePlay(
     if (!extra?.matchId) return { ok: false, error: "Elegí un partido." };
     chosenMatchId = extra.matchId;
   }
+
+  // Defensa secreta: fijamos el señuelo AHORA (determinístico por id) y lo guardamos
+  // en el payload. Así queda clavado y no se mueve aunque después cambie la lógica
+  // del señuelo. El resto lo ve como esta carta positiva; nunca la defensa real.
+  if (def.kind === "shield") payload.decoy = pickDecoyMechanic(cardId);
 
   const ctx = await getPlayContext(pool, ownerId, targetId);
   const finalTargetId = targetId;
