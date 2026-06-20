@@ -72,7 +72,9 @@ export default function ResultsEditor({
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([date, matches]) => ({
         date,
-        matches: [...matches].sort((a, b) => a.kickoff.localeCompare(b.kickoff)),
+        matches: [...matches].sort(
+          (a, b) => new Date(a.kickoff).getTime() - new Date(b.kickoff).getTime(),
+        ),
       }));
   }, []);
 

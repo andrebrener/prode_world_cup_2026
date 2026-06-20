@@ -102,7 +102,9 @@ export default function MatchdayPanel({
   const dayMatches = useMemo(
     () =>
       MATCHES.filter((m) => m.date === date).sort(
-        (a, b) => a.kickoff.localeCompare(b.kickoff) || a.id.localeCompare(b.id),
+        (a, b) =>
+          new Date(a.kickoff).getTime() - new Date(b.kickoff).getTime() ||
+          a.id.localeCompare(b.id),
       ),
     [date],
   );
