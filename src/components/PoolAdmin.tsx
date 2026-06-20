@@ -11,6 +11,7 @@ import {
   saveCardDefAction,
   addCardDefAction,
   deleteCardDefAction,
+  setCardTargetAction,
   updateFunConfigAction,
   setMemberRolesAction,
   type CardDefPatch,
@@ -81,7 +82,14 @@ export default function PoolAdmin({
       {isFun ? (
         <>
           <SorteoConfig slug={slug} config={data.config} busy={busy} run={run} />
-          <Deck slug={slug} deck={data.deck} mechanics={mechanics} busy={busy} run={run} />
+          <Deck
+            slug={slug}
+            deck={data.deck}
+            members={data.members}
+            mechanics={mechanics}
+            busy={busy}
+            run={run}
+          />
         </>
       ) : (
         <p className="rounded-xl border border-border bg-surface p-4 text-sm text-muted">
@@ -200,12 +208,14 @@ function SorteoConfig({
 function Deck({
   slug,
   deck,
+  members,
   mechanics,
   busy,
   run,
 }: {
   slug: string;
   deck: DeckCard[];
+  members: PoolAdminData["members"];
   mechanics: MechanicOption[];
   busy: boolean;
   run: (fn: () => Promise<{ ok: boolean; error?: string }>, okText: string) => void;
@@ -231,7 +241,14 @@ function Deck({
             ) : (
               <div className="flex flex-col gap-3">
                 {cards.map((card) => (
-                  <CardRow key={card.id} slug={slug} card={card} busy={busy} run={run} />
+                  <CardRow
+                    key={card.id}
+                    slug={slug}
+                    card={card}
+                    members={members}
+                    busy={busy}
+                    run={run}
+                  />
                 ))}
               </div>
             )}
@@ -349,11 +366,13 @@ function NewCardForm({
 function CardRow({
   slug,
   card,
+  members,
   busy,
   run,
 }: {
   slug: string;
   card: DeckCard;
+  members: PoolAdminData["members"];
   busy: boolean;
   run: (fn: () => Promise<{ ok: boolean; error?: string }>, okText: string) => void;
 }) {
@@ -414,6 +433,33 @@ function CardRow({
         className="mt-2 w-full resize-y rounded-lg border border-border bg-surface px-2 py-1.5 text-xs leading-snug"
         aria-label="Descripción"
       />
+
+      {/* Blanco fijo: solo para cartas con víctima. Si elegís a alguien, la carta
+          únicamente se le puede tirar a esa persona (el modal deja a esa sola). */}
+      {card.target === "other" && (
+        <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-dashed border-border/70 bg-background/40 px-2 py-1.5">
+          <span className="text-xs font-semibold text-muted">🎯 Solo se le puede tirar a</span>
+          <select
+            value={card.restrictedTargetId ?? ""}
+            disabled={busy}
+            onChange={(e) =>
+              run(
+                () => setCardTargetAction(slug, card.id, e.target.value || null),
+                e.target.value ? "Blanco fijado." : "Blanco sacado.",
+              )
+            }
+            className="min-w-[8rem] flex-1 rounded-lg border border-border bg-surface px-2 py-1.5 text-sm disabled:opacity-50"
+            aria-label="Blanco fijo"
+          >
+            <option value="">Cualquiera (ataque normal)</option>
+            {members.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
         <span className="text-xs text-muted">🎛️ {card.effect}</span>

@@ -42,9 +42,9 @@ const played = (
   ...over,
 });
 
-describe("auditoría: las 28 cartas del catálogo", () => {
+describe("auditoría: las 29 cartas del catálogo", () => {
   it("el catálogo está completo y consistente", () => {
-    expect(ALL_CARDS.length).toBe(28);
+    expect(ALL_CARDS.length).toBe(29);
     for (const def of ALL_CARDS) {
       expect(def.name.length, def.type).toBeGreaterThan(1);
       expect(def.description.length, def.type).toBeGreaterThan(10);

@@ -1,0 +1,1 @@
+ALTER TABLE `card_defs` ADD `restricted_target_id` text REFERENCES participants(id) ON DELETE SET NULL;

@@ -105,6 +105,12 @@ export const cardDefs = sqliteTable("card_defs", {
   weight: integer("weight").notNull().default(1),
   enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
   sortOrder: integer("sort_order").notNull().default(0),
+  // Blanco fijo (config del admin): si está seteado, esta carta SOLO se le puede
+  // tirar a esta persona. El que la juega no elige víctima — el modal le deja a esa
+  // sola y el servidor fuerza el blanco. Null = ataque normal (elegís a cualquiera).
+  restrictedTargetId: text("restricted_target_id").references(() => participants.id, {
+    onDelete: "set null",
+  }),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
 });
 

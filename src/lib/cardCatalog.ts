@@ -41,6 +41,7 @@ export type CardType =
   | "papas"
   | "speed"
   | "pedo"
+  | "vendetta"
   // vidente
   | "saibamba"
   // defensas del día
@@ -314,6 +315,18 @@ export const CARD_CATALOG: Record<CardType, CardDef> = {
     window: null,
     blockable: true,
     description: "Te le sentás en la cara y soltás: le robás 5 puntos y te los llevás puestos (vos +5, él -5).",
+  }),
+  vendetta: c({
+    type: "vendetta",
+    spec: { outcome: "multiply_match", scope: "first_of_day", factor: 0 },
+    name: "Cero al primero",
+    emoji: "🎯",
+    rarity: "rara",
+    kind: "attack",
+    target: "other",
+    window: "day",
+    blockable: true,
+    description: "Una carta con nombre y apellido: tu víctima no suma nada en su primer partido del día (queda en cero). El admin decide a quién apunta esta carta — al que la juega no le queda más que tirársela a esa persona.",
   }),
 
   // ---------- Vidente ----------

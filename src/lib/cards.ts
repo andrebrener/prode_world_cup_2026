@@ -68,7 +68,7 @@ function pickFromBucket<T>(options: T[], parts: string[]): T {
  * viene del registro en código, lo cosmético (nombre/emoji/descripción/rareza)
  * de la fila del mazo, y `defId` apunta a esa fila (para guardarla en fun_cards).
  */
-export type DrawnCard = CardDef & { defId: string };
+export type DrawnCard = CardDef & { defId: string; restrictedTargetId: string | null };
 
 /** Fila del mazo tal como vive en la DB (lo que necesita resolveDeck). */
 export type DeckRow = {
@@ -78,6 +78,8 @@ export type DeckRow = {
   emoji: string;
   description: string;
   rarity: string;
+  /** Blanco fijo (config del admin): si está, la carta solo se le tira a esta persona. */
+  restrictedTargetId?: string | null;
 };
 
 /** Resuelve filas del mazo con su mecánica del registro. Ignora mecánicas desconocidas. */
@@ -93,6 +95,7 @@ export function resolveDeck(rows: DeckRow[]): DrawnCard[] {
       description: r.description,
       rarity: r.rarity as CardRarity,
       defId: r.id,
+      restrictedTargetId: r.restrictedTargetId ?? null,
     });
   }
   return out;

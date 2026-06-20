@@ -34,6 +34,7 @@ import {
   getPoolByCode,
   isPoolMember,
   getPlayContext,
+  getPoolMemberIds,
   getDayRankSnapshot,
   canManagePool,
   getPoolRole,
@@ -921,6 +922,35 @@ export async function deleteCardDefAction(
   return { ok: true };
 }
 
+/**
+ * Fija (o saca) el blanco de una carta del mazo: si se pasa un participante, la carta
+ * SOLO se le puede tirar a esa persona (el modal deja habilitada solo a ella y el
+ * servidor fuerza el blanco). targetId null = ataque normal (se le tira a cualquiera).
+ */
+export async function setCardTargetAction(
+  slug: string,
+  defId: string,
+  targetId: string | null,
+): Promise<{ ok: boolean; error?: string }> {
+  const gate = await manageGate(slug);
+  if ("error" in gate) return { ok: false, error: gate.error };
+  const [row] = await db.select().from(cardDefs).where(eq(cardDefs.id, defId));
+  if (!row || row.poolId !== gate.pool.id) return { ok: false, error: "Carta no encontrada." };
+
+  const base = CARD_CATALOG[row.mechanic as CardType];
+  if (targetId && base?.target !== "other")
+    return { ok: false, error: "Esta carta no lleva víctima: no se le puede fijar un blanco." };
+  if (targetId) {
+    const memberIds = await getPoolMemberIds(gate.pool.id);
+    if (!memberIds.includes(targetId))
+      return { ok: false, error: "Esa persona no está en este prode." };
+  }
+
+  await db.update(cardDefs).set({ restrictedTargetId: targetId }).where(eq(cardDefs.id, defId));
+  revalidatePath(`/p/${gate.pool.slug}`, "layout");
+  return { ok: true };
+}
+
 export type FunConfigPatch = {
   weightComun: number;
   weightRara: number;
@@ -1132,6 +1162,8 @@ async function executePlay(
   def: CardDef,
   targetId: string | null,
   extra?: PlayCardExtra,
+  /** Blanco fijo del admin: si está, la carta se le tira SÍ o SÍ a esta persona. */
+  restrictedTargetId: string | null = null,
 ): Promise<PlayResult> {
   // Inputs sociales: validar acá (resolvePlay es puro, no ve payloads).
   const payload: Record<string, unknown> = {};
@@ -1167,8 +1199,25 @@ async function executePlay(
   // del señuelo. El resto lo ve como esta carta positiva; nunca la defensa real.
   if (def.kind === "shield") payload.decoy = pickDecoyMechanic(cardId);
 
-  const ctx = await getPlayContext(pool, ownerId, targetId);
-  const finalTargetId = targetId;
+  // Blanco fijo (config del admin): la víctima la decide el admin, no el cliente.
+  // Forzamos el blanco server-side (el que juega no puede elegir otro) y pedimos el
+  // contexto de defensas de ESA víctima.
+  let finalTargetId = restrictedTargetId ?? targetId;
+
+  const ctx = await getPlayContext(pool, ownerId, finalTargetId);
+
+  // Blanco fijo inválido (te tocó a vos mismo, o esa persona ya no está en el prode):
+  // no hay a quién tirársela → sale jugada al vacío.
+  if (
+    restrictedTargetId &&
+    (restrictedTargetId === ownerId || !ctx.memberIds.includes(restrictedTargetId))
+  ) {
+    await db
+      .update(funCards)
+      .set({ status: "played", playedAt: new Date() })
+      .where(eq(funCards.id, cardId));
+    return { ok: true };
+  }
 
   // Sin rivales no hay a quién atacar: la carta sale jugada al vacío.
   if (def.target === "other" && ctx.memberIds.length < 2) {
@@ -1270,6 +1319,8 @@ type DrawResult = {
   curse?: boolean;
   /** La carta necesita que elijas víctima (y/o apodo/foto): quedó pendiente. */
   needsTarget?: boolean;
+  /** Blanco fijo del admin: el modal deja habilitada solo a esta persona. */
+  restrictedTargetId?: string | null;
 };
 
 /** Saca una carta y la juega en el acto (jugada obligada). */
@@ -1311,11 +1362,17 @@ async function drawAndPlay(
   // Las que piden víctima/apodo/foto quedan pendientes hasta que las resuelvas.
   const needsChoice = def.target === "other" || !!def.input;
   if (!needsChoice) {
-    await executePlay(pool, participantId, cardId, def, null);
+    await executePlay(pool, participantId, cardId, def, null, undefined, def.restrictedTargetId);
   }
 
   revalidatePath("/", "layout");
-  return { ok: true, card: def, cardId, needsTarget: needsChoice };
+  return {
+    ok: true,
+    card: def,
+    cardId,
+    needsTarget: needsChoice,
+    restrictedTargetId: def.restrictedTargetId,
+  };
 }
 
 /**
@@ -1399,6 +1456,7 @@ export async function playCardAction(
   // Re-skin del prode: si la carta apunta a una def del mazo, usamos su nombre/
   // emoji/descripción (la mecánica igual sale del registro por cardType).
   let def: CardDef = baseDef;
+  let restrictedTargetId: string | null = null;
   if (row.cardDefId) {
     const [d] = await db
       .select({
@@ -1406,13 +1464,17 @@ export async function playCardAction(
         emoji: cardDefs.emoji,
         description: cardDefs.description,
         rarity: cardDefs.rarity,
+        restrictedTargetId: cardDefs.restrictedTargetId,
       })
       .from(cardDefs)
       .where(eq(cardDefs.id, row.cardDefId));
-    if (d) def = cardView(row.cardType, { ...d, rarity: d.rarity as CardDef["rarity"] }) ?? baseDef;
+    if (d) {
+      def = cardView(row.cardType, { ...d, rarity: d.rarity as CardDef["rarity"] }) ?? baseDef;
+      restrictedTargetId = d.restrictedTargetId;
+    }
   }
 
-  const result = await executePlay(pool, id, cardId, def, targetId, extra);
+  const result = await executePlay(pool, id, cardId, def, targetId, extra, restrictedTargetId);
   if (result.ok) revalidatePath("/", "layout");
   return { ...result, card: def };
 }

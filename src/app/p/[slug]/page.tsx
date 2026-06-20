@@ -152,7 +152,7 @@ export default async function PoolTabla({
         <FunZone
           slug={pool.slug}
           state={funState}
-          members={leaderboard.map((r) => ({ id: r.id, name: r.name, avatar: r.avatar }))}
+          members={leaderboard.map((r) => ({ id: r.id, name: r.name, avatar: r.avatar, total: r.total }))}
           meId={participant.id}
           myInfo={leaderboard.find((r) => r.id === participant.id)?.fun ?? null}
           matchOptions={pickableMatches()}

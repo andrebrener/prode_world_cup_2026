@@ -149,6 +149,10 @@ export type PoolAdminData = {
     enabled: boolean;
     sortOrder: number;
     effect: string;
+    /** self/other: si lleva víctima (para mostrar el selector de blanco fijo). */
+    target: "self" | "other";
+    /** Blanco fijo: la carta solo se le puede tirar a esta persona (null = a cualquiera). */
+    restrictedTargetId: string | null;
   }[];
   config: {
     weightComun: number;
@@ -181,6 +185,8 @@ export async function getPoolAdmin(poolId: string): Promise<PoolAdminData> {
       effect: CARD_CATALOG[d.mechanic as CardType]
         ? outcomeLabel(CARD_CATALOG[d.mechanic as CardType].spec, CARD_CATALOG[d.mechanic as CardType].target)
         : "—",
+      target: CARD_CATALOG[d.mechanic as CardType]?.target ?? "self",
+      restrictedTargetId: d.restrictedTargetId,
     })),
     config: {
       weightComun: cfg?.weightComun ?? DEFAULT_FUN_CONFIG.weights.comun,
@@ -695,8 +701,8 @@ function kickoffOf(matchId: string): string | null {
 
 type FunCardRow = typeof funCards.$inferSelect;
 
-/** defId → cosmético del mazo del prode (re-skin). */
-export type DefsById = Map<string, CardCosmetic>;
+/** defId → cosmético del mazo del prode (re-skin) + blanco fijo del admin. */
+export type DefsById = Map<string, CardCosmetic & { restrictedTargetId: string | null }>;
 
 /** Carga las defs del mazo de un prode indexadas por id (para resolver el display). */
 async function loadDefsById(poolId: string): Promise<DefsById> {
@@ -707,10 +713,16 @@ async function loadDefsById(poolId: string): Promise<DefsById> {
       emoji: cardDefs.emoji,
       description: cardDefs.description,
       rarity: cardDefs.rarity,
+      restrictedTargetId: cardDefs.restrictedTargetId,
     })
     .from(cardDefs)
     .where(eq(cardDefs.poolId, poolId));
-  return new Map(rows.map((r) => [r.id, { ...r, rarity: r.rarity as CardCosmetic["rarity"] }]));
+  return new Map(
+    rows.map((r) => [
+      r.id,
+      { ...r, rarity: r.rarity as CardCosmetic["rarity"], restrictedTargetId: r.restrictedTargetId },
+    ]),
+  );
 }
 
 /**
@@ -923,7 +935,13 @@ function resolveFun(
   return { effects, infoByMember, streakBonusByMatch };
 }
 
-export type HeldCard = { id: string; def: CardDef; drawDate: string };
+export type HeldCard = {
+  id: string;
+  def: CardDef;
+  drawDate: string;
+  /** Blanco fijo del admin (si la carta solo se le puede tirar a una persona). */
+  restrictedTargetId: string | null;
+};
 
 export type FunFeedItem = {
   id: string;
@@ -1000,6 +1018,9 @@ export async function getFunState(pool: Pool, viewerId: string): Promise<FunStat
         id: c.id,
         def: viewOf(c, defsById) ?? CARD_CATALOG[c.cardType as CardType],
         drawDate: c.drawDate,
+        restrictedTargetId: c.cardDefId
+          ? (defsById.get(c.cardDefId)?.restrictedTargetId ?? null)
+          : null,
       }))[0] ?? null;
 
   const claimedToday = mine.some((c) => c.drawDate === today);

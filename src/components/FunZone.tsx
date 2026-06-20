@@ -4,7 +4,7 @@
 // No hay mano: la carta se juega al salir. Si pide víctima/apodo/foto, el modal
 // se abre al toque y no se puede esquivar — hasta no resolverla no hay otro sorteo.
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import confetti from "canvas-confetti";
 import { claimDailyCardAction, playCardAction } from "@/lib/actions";
@@ -23,7 +23,7 @@ import Avatar from "./Avatar";
 import LottieFX from "./LottieFX";
 import ShareCardButton from "./ShareCardButton";
 
-export type FunMember = { id: string; name: string; avatar: string | null };
+export type FunMember = { id: string; name: string; avatar: string | null; total: number };
 
 const RARITY_STYLE: Record<CardRarity, { ring: string; text: string; glow: string }> = {
   comun: { ring: "border-[#00e5ff66]", text: "text-[#7ee7f4]", glow: "" },
@@ -150,7 +150,11 @@ export default function FunZone({
   const [flipped, setFlipped] = useState(false);
 
   // Resolución obligada (víctima / apodo / foto)
-  const [localPlaying, setLocalPlaying] = useState<{ id: string; def: CardDef } | null>(null);
+  const [localPlaying, setLocalPlaying] = useState<{
+    id: string;
+    def: CardDef;
+    restrictedTargetId: string | null;
+  } | null>(null);
   // Carta ya resuelta en esta sesión (evita reabrir el modal hasta que llegue el refresh).
   const [resolvedId, setResolvedId] = useState<string | null>(null);
   const [targetId, setTargetId] = useState<string | null>(null);
@@ -160,6 +164,9 @@ export default function FunZone({
   const [matchId, setMatchId] = useState<string | null>(null);
   const [lastPlay, setLastPlay] = useState<{ text: string; bad: boolean } | null>(null);
 
+  // `members` ya viene ordenado por ranking (de mayor a menor total). La posición
+  // de cada uno es su índice en la tabla completa (incluyéndome a mí).
+  const rankById = new Map(members.map((m, i) => [m.id, i + 1]));
   const rivals = members.filter((m) => m.id !== meId);
   const myName = members.find((m) => m.id === meId)?.name ?? "";
 
@@ -168,8 +175,23 @@ export default function FunZone({
   const playing =
     localPlaying ??
     (state.pending && state.pending.id !== resolvedId && !revealed
-      ? { id: state.pending.id, def: state.pending.def }
+      ? {
+          id: state.pending.id,
+          def: state.pending.def,
+          restrictedTargetId: state.pending.restrictedTargetId,
+        }
       : null);
+
+  // Blanco fijo (config del admin): la carta solo se le puede tirar a esta persona.
+  // `lockedValid` = el blanco está entre tus rivales (no sos vos ni se fue del prode).
+  const lockedTarget = playing?.restrictedTargetId ?? null;
+  const lockedValid = !!lockedTarget && rivals.some((m) => m.id === lockedTarget);
+  const lockedName = lockedTarget ? (members.find((m) => m.id === lockedTarget)?.name ?? null) : null;
+
+  // Con blanco fijo válido, autoseleccionamos a esa persona (no hay otra opción).
+  useEffect(() => {
+    if (lockedValid && lockedTarget) setTargetId(lockedTarget);
+  }, [lockedValid, lockedTarget, playing?.id]);
 
   // Historial agrupado por día (hoy expandido, el resto colapsado).
   const feedByDay = useMemo(() => {
@@ -215,7 +237,11 @@ export default function FunZone({
           setMensaje("");
           setImagen(null);
           setMatchId(null);
-          setLocalPlaying({ id: res.cardId, def });
+          setLocalPlaying({
+            id: res.cardId,
+            def,
+            restrictedTargetId: res.restrictedTargetId ?? null,
+          });
         }
       });
     });
@@ -272,7 +298,10 @@ export default function FunZone({
       (playing.def.input === "mensaje" && mensaje.trim().length >= 2) ||
       (playing.def.input === "imagen" && !!imagen) ||
       (playing.def.input === "partido" && (!!matchId || matchOptions.length === 0))) &&
-    (playing?.def.target !== "other" || !!targetId || rivals.length === 0);
+    (playing?.def.target !== "other" ||
+      !!targetId ||
+      rivals.length === 0 ||
+      (!!lockedTarget && !lockedValid));
 
   // Tus defensas/buffs del día activos — escudo, espejito, Fernet de Fernemo, VAR
   // — que valen para la jornada de hoy (o la próxima si los jugaste de noche).
@@ -377,7 +406,13 @@ export default function FunZone({
                 <strong>{state.pending.def.name}</strong> y falta elegir a quién.
               </p>
               <button
-                onClick={() => setLocalPlaying({ id: state.pending!.id, def: state.pending!.def })}
+                onClick={() =>
+                  setLocalPlaying({
+                    id: state.pending!.id,
+                    def: state.pending!.def,
+                    restrictedTargetId: state.pending!.restrictedTargetId,
+                  })
+                }
                 className="fun-gradient fun-wiggle mx-auto rounded-xl px-5 py-2.5 text-sm font-black text-white transition hover:brightness-110 sm:mx-0"
               >
                 ⚡ Resolver ahora
@@ -519,22 +554,46 @@ export default function FunZone({
                     No hay rivales todavía: la carta se va a jugar al vacío 🫥
                   </p>
                 )}
+                {/* Blanco fijo: esta carta solo se le puede tirar a una persona. */}
+                {lockedTarget && lockedValid && (
+                  <p className="rounded-lg border border-primary/40 bg-primary/10 px-3 py-2 text-xs font-semibold text-primary">
+                    🎯 Esta carta tiene nombre y apellido: solo se le puede tirar a{" "}
+                    <strong>{lockedName}</strong>.
+                  </p>
+                )}
+                {lockedTarget && !lockedValid && (
+                  <p className="rounded-lg border border-border bg-background/60 px-3 py-2 text-xs text-muted">
+                    🎯 Esta carta apunta a {lockedName ?? "alguien"}, que no está disponible: se va a
+                    jugar al vacío 🫥
+                  </p>
+                )}
                 {rivals.map((m) => {
                   // Las defensas son secretas: a cualquiera le podés tirar. Si tenía
                   // escudo/espejito puesto, te enterás recién al tirarla.
+                  // Con blanco fijo válido, solo esa persona queda habilitada.
+                  const disabled = lockedValid && m.id !== lockedTarget;
                   return (
                     <button
                       key={m.id}
-                      onClick={() => setTargetId(m.id)}
+                      disabled={disabled}
+                      onClick={() => !disabled && setTargetId(m.id)}
                       className={`flex items-center gap-3 rounded-xl border px-3 py-2 text-left transition ${
-                        targetId === m.id
-                          ? "border-primary bg-background"
-                          : "border-border bg-background/50 hover:border-primary/50"
+                        disabled
+                          ? "cursor-not-allowed border-border/40 bg-background/30 opacity-40"
+                          : targetId === m.id
+                            ? "border-primary bg-background"
+                            : "border-border bg-background/50 hover:border-primary/50"
                       }`}
                     >
+                      <span className="w-5 shrink-0 text-center text-xs font-bold tabular-nums text-muted">
+                        {rankById.get(m.id)}
+                      </span>
                       <Avatar name={m.name} avatar={m.avatar} size={32} />
                       <span className="font-bold text-foreground">{m.name}</span>
-                      {targetId === m.id && <span className="ml-auto">🎯</span>}
+                      <span className="ml-auto shrink-0 text-xs font-semibold tabular-nums text-muted">
+                        {m.total} pts
+                      </span>
+                      {targetId === m.id && <span className="shrink-0">🎯</span>}
                     </button>
                   );
                 })}
