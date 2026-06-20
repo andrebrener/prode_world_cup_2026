@@ -40,6 +40,8 @@ const ACTION: Record<CardType, Clause> = {
   foto: (t) => `le cambia la foto a ${t}`,
   microfono: (t, d) => `deja dicho sobre ${t}: “${d ?? "…"}”`,
   borron: () => "se limpia los apodos y fotos que le colgaron",
+  caparazon: () => "le cae el caparazón azul por ir primero: queda igualado con el último",
+  golpe: () => "golpe al podio: -15 puntos",
 };
 
 export function playText(opts: {

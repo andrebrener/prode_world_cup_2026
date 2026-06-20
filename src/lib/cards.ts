@@ -176,8 +176,13 @@ export function pickDailyCard(
   const weights =
     config.karmaTabla && pos ? karmaWeights(config.weights, pos.rank, pos.total) : config.weights;
 
+  // Las posicionales (Caparazón/Golpe) NO entran al balde por rareza: tienen su
+  // propia compuerta por puesto (pickPositionalCard). Acá se las saca del sorteo.
+  const normal = deck.filter((c) => !c.positional);
+  if (normal.length === 0) return null;
+
   // Sorteo por rareza, solo entre las rarezas presentes y con sus pesos de config.
-  const present = RARITY_ORDER.filter((r) => deck.some((c) => c.rarity === r));
+  const present = RARITY_ORDER.filter((r) => normal.some((c) => c.rarity === r));
   if (present.length === 0) return null;
   const total = present.reduce((a, r) => a + (weights[r] ?? 0), 0);
   let rarity: CardRarity;
@@ -195,7 +200,33 @@ export function pickDailyCard(
     // Todos los pesos presentes en 0: repartí parejo entre las rarezas presentes.
     rarity = present[roll([...parts, "rareza"], present.length)];
   }
-  return pickFrom(deck.filter((c) => c.rarity === rarity));
+  return pickFrom(normal.filter((c) => c.rarity === rarity));
+}
+
+/**
+ * Sorteo POSICIONAL: la carta que le cae a `pos.rank` (si alguna). Determinístico
+ * por (prode, jugador, fecha, mecánica). Para cada carta posicional del mazo cuyo
+ * `ranks` incluya el puesto del jugador (y con el prode al menos en `minPlayers`),
+ * tira 1/`oddsDenom`; devuelve la primera que pega, en orden de mazo. Independiente
+ * de los pesos de rareza y del Karma de Tabla. null si no le toca ninguna.
+ *
+ * Corre ANTES de pickDailyCard: si pega, reemplaza la carta normal del día. Como
+ * son maldiciones, el que no reclama igual se las come (funSweep.autoCurseUnclaimed).
+ */
+export function pickPositionalCard(
+  seed: { poolId: string; participantId: string; date: string },
+  deck: DrawnCard[],
+  pos: { rank: number; total: number },
+): DrawnCard | null {
+  const parts = [seed.poolId, seed.participantId, seed.date];
+  for (const card of deck) {
+    const p = card.positional;
+    if (!p) continue;
+    if (pos.total < p.minPlayers) continue;
+    if (!p.ranks.includes(pos.rank)) continue;
+    if (roll([...parts, "posicional", card.type], p.oddsDenom) === 0) return card;
+  }
+  return null;
 }
 
 /** Mazo oficial ya resuelto (para el wrapper de back-compat y los tests). */
@@ -216,9 +247,11 @@ export function cardOdds(): Record<CardType, number> {
   const odds = {} as Record<CardType, number>;
 
   // Un solo nivel: cada rareza pesa weight/total y se reparte uniforme entre sus cartas.
+  // Las posicionales no entran al balde por rareza (tienen su propia compuerta), así
+  // que quedan fuera de estas odds.
   const totalWeight = Object.values(RARITY_WEIGHTS).reduce((a, b) => a + b, 0);
   for (const rarity of Object.keys(RARITY_WEIGHTS) as CardRarity[]) {
-    const options = ALL_CARDS.filter((c) => c.rarity === rarity);
+    const options = ALL_CARDS.filter((c) => c.rarity === rarity && !c.positional);
     for (const c of options) {
       odds[c.type] = (100 * RARITY_WEIGHTS[rarity]) / (totalWeight * options.length);
     }
@@ -517,6 +550,12 @@ export type PlayedCardEffect = {
   effectDate: string | null;
   reflected: boolean;
   playedAt: Date;
+  /**
+   * Monto congelado de una penalización posicional (Caparazón Azul): se calculó al
+   * caer la carta y vive en su payload, no en el spec. Lo lee el outcome
+   * `frozen_penalty`. Ausente en el resto de las cartas.
+   */
+  flatPenalty?: number;
 };
 
 /** matchId → puntos del miembro en ese partido. */
@@ -746,6 +785,15 @@ export function applyCardEffects(opts: {
     } else {
       add(flat, card.ownerId, spec.selfAmount);
     }
+  }
+
+  // ---- Pase 5: Caparazón Azul — penalización congelada (monto en la propia carta) ----
+  // El monto se calculó al caer (igualar al líder con el último) y viaja en
+  // card.flatPenalty; acá solo se descuenta. Siempre al dueño (es maldición self).
+  for (const card of cards) {
+    const spec = CARD_CATALOG[card.cardType]?.spec;
+    if (spec?.outcome !== "frozen_penalty") continue;
+    add(flat, card.ownerId, -(card.flatPenalty ?? 0));
   }
 
   const delta: Record<string, number> = {};

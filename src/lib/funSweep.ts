@@ -8,8 +8,8 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { funCards } from "@/lib/db/schema";
 import { ensureFunPool, getPoolDeckRows, getPoolFunConfig } from "@/lib/db/decks";
-import { getDayRankSnapshot, type Pool } from "@/lib/db/queries";
-import { fullSchedule, matchDay, pickDailyCard, resolveDeck } from "@/lib/cards";
+import { caparazonPenalty, getDayRankSnapshot, type Pool } from "@/lib/db/queries";
+import { fullSchedule, matchDay, pickDailyCard, pickPositionalCard, resolveDeck } from "@/lib/cards";
 import { CARD_CATALOG, ALL_CARDS, type CardType } from "@/lib/cardCatalog";
 
 /**
@@ -38,14 +38,20 @@ export async function autoCurseUnclaimed(
 
   await ensureFunPool(pool.id); // idempotente: clona el mazo oficial si falta
   const config = await getPoolFunConfig(pool.id);
-  if (!config.karmaTabla) return 0;
+
+  const deck = resolveDeck(await getPoolDeckRows(pool.id));
+  if (deck.length === 0) return 0;
+  const hasPositional = deck.some((c) => c.positional);
+
+  // Sin Karma de Tabla NI cartas posicionales no hay nada que aplicarle al que no
+  // sacó: sin sesgo por posición no hay incentivo a esconderse. Con cualquiera de
+  // los dos sí (el karma le sube la maldición al líder; las posicionales —Caparazón/
+  // Golpe— le caen igual al puesto aunque se esconda).
+  if (!config.karmaTabla && !hasPositional) return 0;
 
   // Una maldición de día sin partidos no haría nada y un -5 plano (Ramírez) por no
   // jugar en un día de descanso sería arbitrario: solo barremos días con partidos.
   if (!fullSchedule().some((m) => matchDay(m.kickoff) === date)) return 0;
-
-  const deck = resolveDeck(await getPoolDeckRows(pool.id));
-  if (deck.length === 0) return 0;
 
   // Quién ya tiene carta de ese día (reclamada o ya barrida): no se toca.
   const existing = await db
@@ -61,14 +67,20 @@ export async function autoCurseUnclaimed(
   let cursed = 0;
   for (const participantId of memberIds) {
     if (claimed.has(participantId)) continue;
-    const drawn = pickDailyCard(
-      { poolId: pool.id, participantId, date },
-      deck,
-      config,
-      snap.get(participantId),
-    );
+    const seed = { poolId: pool.id, participantId, date };
+    const pos = snap.get(participantId);
+    // Las posicionales corren primero (con o sin karma); si no pega ninguna y hay
+    // karma, va el sorteo normal por rareza.
+    const drawn =
+      (pos ? pickPositionalCard(seed, deck, pos) : null) ??
+      (config.karmaTabla ? pickDailyCard(seed, deck, config, pos) : null);
     // Buffs/ataques/sociales que no jugó: se pierden, no se insertan.
     if (!drawn || drawn.kind !== "curse") continue;
+    // Caparazón Azul: congelá el monto contra la tabla al cierre del día.
+    const payload =
+      drawn.spec.outcome === "frozen_penalty"
+        ? { shell: await caparazonPenalty(pool, participantId) }
+        : undefined;
     await db
       .insert(funCards)
       .values({
@@ -81,8 +93,9 @@ export async function autoCurseUnclaimed(
         status: "played",
         drawnAt: now,
         playedAt: now,
-        // Maldición de día → atada al día cerrado; Ramírez (-5, sin ventana) → null.
+        // Maldición de día → atada al día cerrado; las planas (Ramírez/Caparazón/Golpe) → null.
         effectDate: drawn.window === "day" ? date : null,
+        payload: payload ? JSON.stringify(payload) : null,
       })
       .onConflictDoNothing();
     cursed += 1;

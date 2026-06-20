@@ -36,6 +36,7 @@ import {
   getPlayContext,
   getPoolMemberIds,
   getDayRankSnapshot,
+  caparazonPenalty,
   canManagePool,
   getPoolRole,
   type ParticipantDetail,
@@ -58,6 +59,7 @@ import {
   matchDay,
   resolveDeck,
   pickDailyCard,
+  pickPositionalCard,
   resolvePlay,
   BLOCKABLE_ATTACKS,
   retroDefenseTargets,
@@ -1348,6 +1350,8 @@ async function drawAndPlay(
   participantId: string,
   drawDate: string,
   def: DrawnCard,
+  /** Payload congelado de la carta (ej. el monto del Caparazón Azul). */
+  payload?: Record<string, unknown>,
 ): Promise<DrawResult> {
   const isCurse = def.kind === "curse";
   const now = new Date();
@@ -1366,6 +1370,7 @@ async function drawAndPlay(
       drawnAt: now,
       playedAt: isCurse ? now : null,
       effectDate: isCurse && def.window === "day" ? (bindDay(now) ?? funToday(now)) : null,
+      payload: payload && Object.keys(payload).length ? JSON.stringify(payload) : null,
     });
   } catch {
     // Índice único: ya reclamó hoy (doble click / doble pestaña).
@@ -1433,19 +1438,32 @@ export async function claimDailyCardAction(slug: string): Promise<DrawResult> {
   ]);
   const deck = resolveDeck(deckRows);
   const today = funToday();
-  // Karma de tabla: si está prendido, el sesgo por rareza usa la posición CON LA
-  // QUE EMPEZÓ EL DÍA (snapshot congelado el primer reclamo del prode ese día),
-  // no la del momento de reclamar — así tu propia carta no te mueve la posición.
+  // La posición CON LA QUE EMPEZÓ EL DÍA (snapshot congelado el primer reclamo del
+  // prode ese día, no la del momento de reclamar — así tu propia carta no te mueve la
+  // posición) la usan el Karma de Tabla (sesgo de rareza) Y las cartas posicionales
+  // (Caparazón/Golpe). Se calcula si hay cualquiera de los dos.
+  const hasPositional = deck.some((c) => c.positional);
   let pos: { rank: number; total: number } | undefined;
-  if (config.karmaTabla) {
+  if (config.karmaTabla || hasPositional) {
     const snap = await getDayRankSnapshot(pool, today);
     pos = snap.get(id);
   }
-  const drawn = pickDailyCard({ poolId: pool.id, participantId: id, date: today }, deck, config, pos);
+  const seed = { poolId: pool.id, participantId: id, date: today };
+  // Las posicionales corren ANTES del sorteo normal: si te toca una (le cae solo a
+  // tu puesto, con su propia probabilidad), reemplaza la carta del día. Si no, va el
+  // sorteo normal por rareza.
+  const drawn =
+    (pos ? pickPositionalCard(seed, deck, pos) : null) ?? pickDailyCard(seed, deck, config, pos);
   if (!drawn) {
     return { ok: false, error: "Este prode no tiene cartas habilitadas." };
   }
-  return drawAndPlay(pool, id, today, drawn);
+  // Caparazón Azul: el monto (lo justo para igualar al líder con el último) se calcula
+  // AHORA contra la tabla y se congela en el payload de la carta.
+  const payload =
+    drawn.spec.outcome === "frozen_penalty"
+      ? { shell: await caparazonPenalty(pool, id) }
+      : undefined;
+  return drawAndPlay(pool, id, today, drawn, payload);
 }
 
 /**

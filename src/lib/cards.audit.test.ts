@@ -42,15 +42,23 @@ const played = (
   ...over,
 });
 
-describe("auditoría: las 29 cartas del catálogo", () => {
+describe("auditoría: las 31 cartas del catálogo", () => {
   it("el catálogo está completo y consistente", () => {
-    expect(ALL_CARDS.length).toBe(29);
+    expect(ALL_CARDS.length).toBe(31);
     for (const def of ALL_CARDS) {
       expect(def.name.length, def.type).toBeGreaterThan(1);
       expect(def.description.length, def.type).toBeGreaterThan(10);
       expect(def.emoji.length, def.type).toBeGreaterThan(0);
       // Reglas estructurales:
       if (def.kind === "curse") expect(def.target, def.type).toBe("self");
+      // Posicionales (Caparazón/Golpe): son maldiciones (te caen solas, no se
+      // esquivan) con su compuerta por puesto bien formada.
+      if (def.positional) {
+        expect(def.kind, def.type).toBe("curse");
+        expect(def.positional.ranks.length, def.type).toBeGreaterThan(0);
+        expect(def.positional.oddsDenom, def.type).toBeGreaterThan(1);
+        expect(def.positional.minPlayers, def.type).toBeGreaterThanOrEqual(2);
+      }
       // Los inputs sociales (apodo/foto/micrófono) son de cartas sociales; el
       // input "partido" (Honguito) es un buff que elige a qué partido se ata.
       if (def.input && def.input !== "partido") expect(def.kind, def.type).toBe("social");
@@ -301,7 +309,7 @@ describe("auditoría: escenarios cruzados", () => {
     }
   });
 
-  it("cartas de tipos desconocidos (catálogo viejo: swap/caparazón) se ignoran sin romper", () => {
+  it("cartas de tipos desconocidos (catálogo viejo: swap/afano) se ignoran sin romper", () => {
     const r = applyCardEffects({
       ...opts,
       cards: [played("afano" as CardType, { targetId: "beto" })],

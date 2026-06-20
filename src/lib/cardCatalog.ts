@@ -58,7 +58,10 @@ export type CardType =
   | "apodo"
   | "foto"
   | "microfono"
-  | "borron";
+  | "borron"
+  // posicionales (le caen solo a ciertos puestos de la tabla)
+  | "caparazon"
+  | "golpe";
 
 export type CardWindow = "match" | "day" | null;
 
@@ -98,9 +101,30 @@ export type OutcomeSpec =
   /** Overlay de ego (no toca puntos): apodo, foto o mensaje. */
   | { outcome: "social_overlay"; kind: "apodo" | "foto" | "mensaje" }
   /** Limpia los overlays sociales propios. */
-  | { outcome: "clear_social" };
+  | { outcome: "clear_social" }
+  /**
+   * Penalización plana CONGELADA: el monto NO está en el spec — se calcula al caer
+   * la carta (contra la tabla del momento) y se guarda en el payload de la fila
+   * (`{ shell }`). El Caparazón Azul lo usa para restar lo justo y dejar al líder
+   * igualado con el último. Se aplica una sola vez y no se recalcula.
+   */
+  | { outcome: "frozen_penalty" };
 
 export type Outcome = OutcomeSpec["outcome"];
+
+/**
+ * Sorteo POSICIONAL: la carta NO entra al balde por rareza del sorteo normal. Le cae
+ * solo a ciertos puestos de la tabla (`ranks`, 0-based: 0 = líder, 1 = 2º, …), cada
+ * uno con probabilidad ~1/`oddsDenom` por día, y solo si el prode tiene al menos
+ * `minPlayers`. `pickDailyCard` la excluye del sorteo normal; la reparte
+ * `pickPositionalCard` con la posición congelada del día. Como son maldiciones, el
+ * que no reclama igual se las come (funSweep), así no se esquivan escondiéndose.
+ */
+export type PositionalDraw = {
+  ranks: number[];
+  oddsDenom: number;
+  minPlayers: number;
+};
 
 export type CardDef = {
   type: CardType;
@@ -118,6 +142,8 @@ export type CardDef = {
   blockable: boolean;
   /** input extra que pide la UI al jugarla ("partido": elegís a qué partido se ata) */
   input?: "apodo" | "mensaje" | "imagen" | "partido";
+  /** Sorteo posicional (solo a ciertos puestos): fuera del balde por rareza. Ver PositionalDraw. */
+  positional?: PositionalDraw;
   description: string;
 };
 
@@ -495,6 +521,34 @@ export const CARD_CATALOG: Record<CardType, CardDef> = {
     blockable: false,
     description: "Te sacás de encima todos los apodos, fotos truchas y declaraciones que te colgaron. Volvés a ser vos.",
   }),
+
+  // ---------- Posicionales (le caen solo a ciertos puestos de la tabla) ----------
+  caparazon: c({
+    type: "caparazon",
+    spec: { outcome: "frozen_penalty" },
+    name: "Caparazón Azul",
+    emoji: "🐚",
+    rarity: "maldicion",
+    kind: "curse",
+    target: "self",
+    window: null,
+    blockable: false,
+    positional: { ranks: [0], oddsDenom: 4, minPlayers: 2 },
+    description: "El caparazón azul de Mario Kart te busca por ir primero: te resta los puntos justos para dejarte igualado con el último de la tabla. Le cae SOLO al líder, más o menos una vez cada cuatro días. No se puede esquivar.",
+  }),
+  golpe: c({
+    type: "golpe",
+    spec: { outcome: "flat_points", selfAmount: -15 },
+    name: "Golpe al Podio",
+    emoji: "🥊",
+    rarity: "maldicion",
+    kind: "curse",
+    target: "self",
+    window: null,
+    blockable: false,
+    positional: { ranks: [1, 2], oddsDenom: 6, minPlayers: 3 },
+    description: "Por andar cerca de la cima te llevás un golpe: -15 puntos. Le cae al 2º y al 3º de la tabla, más o menos una vez cada seis días. No se puede esquivar.",
+  }),
 };
 
 export const ALL_CARDS: CardDef[] = Object.values(CARD_CATALOG);
@@ -631,6 +685,8 @@ export function outcomeLabel(spec: OutcomeSpec, target: CardDef["target"] = "sel
           : "Fija un mensaje sobre la víctima";
     case "clear_social":
       return "Te saca los apodos/fotos/mensajes colgados";
+    case "frozen_penalty":
+      return "Te deja igualado con el último de la tabla (se calcula al caer)";
   }
 }
 
@@ -703,8 +759,13 @@ export type DeckEntry = {
 /**
  * Mazo oficial (las cartas de kbarulo), derivado del catálogo en su orden de
  * declaración. Es el punto de partida que se clona a cada prode fun.
+ *
+ * Las cartas POSICIONALES (Caparazón/Golpe) quedan FUERA del mazo default: son
+ * opt-in. No se siembran en ningún prode; aparecen solo en el selector "+ Agregar
+ * carta" (MECHANIC_OPTIONS, que sí las incluye) y el admin que las quiera las
+ * agrega a mano (addCardDefAction valida contra el catálogo, no contra este mazo).
  */
-export const DEFAULT_DECK: DeckEntry[] = ALL_CARDS.map((c, i) => ({
+export const DEFAULT_DECK: DeckEntry[] = ALL_CARDS.filter((c) => !c.positional).map((c, i) => ({
   mechanic: c.type,
   name: c.name,
   emoji: c.emoji,

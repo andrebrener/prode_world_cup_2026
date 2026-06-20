@@ -15,6 +15,7 @@ import {
   applyCardEffects,
   resolveDeck,
   pickDailyCard,
+  pickPositionalCard,
   karmaWeights,
   type PlayedCardEffect,
   type PlayInput,
@@ -24,6 +25,7 @@ import {
   CARD_CATALOG,
   RARITY_WEIGHTS,
   NO_EFFECT_CARDS,
+  ALL_CARDS,
   DEFAULT_DECK,
   DEFAULT_FUN_CONFIG,
   isNoEffect,
@@ -156,6 +158,78 @@ describe("caldeadorScore / caldeadorKoPred", () => {
       const ko = caldeadorKoPred("carta", `M${i}`, "AAA", "BBB");
       if (ko.homeGoals > ko.awayGoals) expect(ko.advance).toBe("AAA");
       if (ko.awayGoals > ko.homeGoals) expect(ko.advance).toBe("BBB");
+    }
+  });
+});
+
+describe("pickPositionalCard (Caparazón Azul / Golpe al Podio)", () => {
+  // Las posicionales son opt-in (no están en DEFAULT_DECK): este mazo simula un
+  // prode que las agregó, resolviendo TODO el catálogo.
+  const DECK = resolveDeck(
+    ALL_CARDS.map((c) => ({
+      id: c.type,
+      mechanic: c.type,
+      name: c.name,
+      emoji: c.emoji,
+      description: c.description,
+      rarity: c.rarity,
+    })),
+  );
+  const seed = (p: string, date = "2026-06-20") => ({ poolId: "pool1", participantId: p, date });
+
+  it("el Caparazón le cae SOLO al líder (rank 0), nunca a otro puesto", () => {
+    for (let i = 0; i < 200; i++) {
+      const notLeader = pickPositionalCard(seed(`p${i}`), DECK, { rank: 3, total: 10 });
+      expect(notLeader?.type).not.toBe("caparazon");
+    }
+  });
+
+  it("el Golpe le cae al 2º y 3º (rank 1/2), nunca al líder ni más abajo", () => {
+    for (let i = 0; i < 200; i++) {
+      expect(pickPositionalCard(seed(`p${i}`), DECK, { rank: 0, total: 10 })?.type).not.toBe("golpe");
+      expect(pickPositionalCard(seed(`p${i}`), DECK, { rank: 4, total: 10 })?.type).not.toBe("golpe");
+    }
+  });
+
+  it("la probabilidad del Caparazón al líder ronda 1 cada 4 días (~25%)", () => {
+    let hits = 0;
+    const N = 4000;
+    for (let i = 0; i < N; i++) {
+      const c = pickPositionalCard(seed(`p${i}`), DECK, { rank: 0, total: 10 });
+      if (c?.type === "caparazon") hits++;
+    }
+    expect(hits / N).toBeGreaterThan(0.2);
+    expect(hits / N).toBeLessThan(0.3);
+  });
+
+  it("la probabilidad del Golpe al 2º ronda 1 cada 6 días (~16%)", () => {
+    let hits = 0;
+    const N = 4000;
+    for (let i = 0; i < N; i++) {
+      const c = pickPositionalCard(seed(`p${i}`), DECK, { rank: 1, total: 10 });
+      if (c?.type === "golpe") hits++;
+    }
+    expect(hits / N).toBeGreaterThan(0.12);
+    expect(hits / N).toBeLessThan(0.21);
+  });
+
+  it("respeta minPlayers: el Golpe no cae si hay menos de 3 jugadores", () => {
+    for (let i = 0; i < 200; i++) {
+      expect(pickPositionalCard(seed(`p${i}`), DECK, { rank: 1, total: 2 })).toBeNull();
+    }
+  });
+
+  it("es determinístico por (prode, jugador, fecha)", () => {
+    expect(pickPositionalCard(seed("ana"), DECK, { rank: 0, total: 10 })?.type).toBe(
+      pickPositionalCard(seed("ana"), DECK, { rank: 0, total: 10 })?.type,
+    );
+  });
+
+  it("el sorteo normal (pickDailyCard) NUNCA devuelve una posicional", () => {
+    const config = { ...DEFAULT_FUN_CONFIG };
+    for (let i = 0; i < 2000; i++) {
+      const c = pickDailyCard(seed(`p${i}`), DECK, config, { rank: 0, total: 10 });
+      expect(c?.positional).toBeUndefined();
     }
   });
 });
@@ -519,6 +593,24 @@ describe("applyCardEffects", () => {
       cards: [played("papas", "ana"), played("speed", "ana"), played("ramirez", "beto")],
     });
     expect(r.flat).toEqual({ ana: 7, beto: -5 });
+  });
+
+  it("Golpe al Podio: -15 planos al dueño (maldición self)", () => {
+    const r = applyCardEffects({ ...opts, cards: [played("golpe", "ana")] });
+    expect(r.flat.ana).toBe(-15);
+  });
+
+  it("Caparazón Azul: resta el monto CONGELADO de la carta (flatPenalty)", () => {
+    const r = applyCardEffects({
+      ...opts,
+      cards: [played("caparazon", "ana", { flatPenalty: 37 })],
+    });
+    expect(r.flat.ana).toBe(-37);
+  });
+
+  it("Caparazón sin monto congelado no rompe (resta 0)", () => {
+    const r = applyCardEffects({ ...opts, cards: [played("caparazon", "ana")] });
+    expect(r.flat.ana ?? 0).toBe(0);
   });
 
   it("pedo transfiere 5; rebotado va al revés", () => {

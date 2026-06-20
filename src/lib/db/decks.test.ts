@@ -50,10 +50,16 @@ async function seedPool(db: Db, opts: { mode?: string; createdBy?: string } = {}
 }
 
 describe("DEFAULT_DECK (mazo oficial derivado del catálogo)", () => {
-  it("tiene una entrada por carta del catálogo, con su mecánica resoluble", () => {
-    expect(DEFAULT_DECK.length).toBe(ALL_CARDS.length);
+  it("tiene una entrada por carta NO posicional del catálogo, con su mecánica resoluble", () => {
+    // Las posicionales (Caparazón/Golpe) son opt-in: NO se siembran, así que no
+    // están en el mazo default (pero sí en el catálogo y en el selector de admin).
+    const nonPositional = ALL_CARDS.filter((c) => !c.positional);
+    expect(DEFAULT_DECK.length).toBe(nonPositional.length);
+    expect(DEFAULT_DECK.length).toBeLessThan(ALL_CARDS.length);
     for (const d of DEFAULT_DECK) {
-      expect(CARD_CATALOG[d.mechanic]).toBeDefined();
+      const base = CARD_CATALOG[d.mechanic];
+      expect(base).toBeDefined();
+      expect(base.positional, d.mechanic).toBeUndefined();
       expect(d.name.length).toBeGreaterThan(0);
       expect(d.emoji.length).toBeGreaterThan(0);
     }
