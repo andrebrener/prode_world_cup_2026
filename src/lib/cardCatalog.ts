@@ -582,8 +582,9 @@ export function outcomeLabel(spec: OutcomeSpec, target: CardDef["target"] = "sel
           : spec.scope === "all_of_day"
             ? "todos tus partidos del día"
             : "tu primer partido del día";
-      const f = spec.factor === 0.5 ? "a la mitad" : `×${spec.factor}`;
-      return `Multiplica ${f} ${scope}`;
+      if (spec.factor === 0) return `Anula ${scope} (0 puntos)`;
+      if (spec.factor === 0.5) return `Parte al medio ${scope} (mitad de puntos)`;
+      return `Multiplica ×${spec.factor} ${scope}`;
     }
     case "bonus_if_scored":
       return `+${spec.amount} si sumás en tu primer partido del día`;
