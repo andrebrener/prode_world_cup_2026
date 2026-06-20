@@ -597,6 +597,7 @@ export async function getLeaderboard(pool: Pool, viewerId?: string): Promise<Lea
     const funInfo = fun?.infoByMember[person.id];
     const flat = fun?.effects.flat[person.id] ?? 0;
     const streakBonus = funInfo?.streakBonus ?? 0;
+    const pure = pureByMember[person.id] ?? 0;
 
     return {
       id: person.id,
@@ -620,8 +621,13 @@ export async function getLeaderboard(pool: Pool, viewerId?: string): Promise<Lea
                   : funInfo.activeDayCards.filter(
                       (s) => s.cardType !== "escudo" && s.cardType !== "espejito",
                     ),
-              cardDelta: funInfo.cardDelta + saibamba,
-              pureTotal: (pureByMember[person.id] ?? 0) + ep,
+              // 🃏 mide TODO lo que las cartas movieron sobre el Puro (puntos
+              // reales sin cartas): efectos en cancha (mp+kp − pure) + flat +
+              // saibamba. Clave medir contra `pure` y no contra la base que ya
+              // tiene horneados el Caldeador/Piedrambre — si no, el swing de esas
+              // dos cartas se perdía y Puro + 🃏 + ⚡ no cerraba con el Total.
+              cardDelta: mp + kp - pure + flat + saibamba,
+              pureTotal: pure + ep,
             },
           }
         : {}),
