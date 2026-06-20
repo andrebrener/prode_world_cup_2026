@@ -575,11 +575,14 @@ export async function getLeaderboard(pool: Pool, viewerId?: string): Promise<Lea
   } = await computePoolScores(pool);
   if (people.length === 0) return [];
 
-  // Sai Bamba: el vidente le garantiza al que la jugó los puntos del campeón.
+  // Sai Bamba: el vidente es ÚNICO. Si varios la jugaron, solo cobra el último
+  // que la jugó (se la "roba" al anterior); los previos no suman los puntos.
+  const lastSaibamba = funCardRows
+    .filter((c) => c.cardType === "saibamba" && c.status === "played" && c.playedAt)
+    .sort((a, b) => a.playedAt!.getTime() - b.playedAt!.getTime())
+    .at(-1);
   const saibambaIds = new Set(
-    funCardRows
-      .filter((c) => c.cardType === "saibamba" && c.status === "played")
-      .map((c) => c.participantId),
+    lastSaibamba ? [lastSaibamba.participantId] : [],
   );
 
   const rows: LeaderboardRow[] = people.map((person) => {
