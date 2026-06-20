@@ -84,6 +84,8 @@ export async function getPoolFunConfig(poolId: string, db: Db = defaultDb): Prom
       rara: row.weightRara,
       legendaria: row.weightLegendaria,
       maldicion: row.weightMaldicion,
+      // "extra" no tiene columna ni peso: las posicionales no se sortean por rareza.
+      extra: 0,
     },
     karmaTabla: row.karmaTabla,
   };

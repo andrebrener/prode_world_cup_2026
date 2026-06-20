@@ -20,7 +20,11 @@ import { RARITY_LABEL, type CardRarity, type MechanicOption } from "@/lib/cardCa
 import type { PoolAdminData, PoolRole } from "@/lib/db/queries";
 
 type DeckCard = PoolAdminData["deck"][number];
-const RARITIES: CardRarity[] = ["comun", "rara", "legendaria", "maldicion"];
+// Para los selectores de rareza y la agrupación del mazo (incluye "Extra").
+const RARITIES: CardRarity[] = ["comun", "rara", "legendaria", "maldicion", "extra"];
+// Para el editor de pesos del sorteo: solo las que tienen peso (Extra no se sortea).
+// `as const` para que indexen el estado `w` (que tiene exactamente estas 4 claves).
+const WEIGHTED_RARITIES = ["comun", "rara", "legendaria", "maldicion"] as const;
 
 export default function PoolAdmin({
   slug,
@@ -136,9 +140,9 @@ function SorteoConfig({
         cualquier otra común.
       </p>
 
-      {/* Pesos por rareza */}
+      {/* Pesos por rareza (Extra no entra: las posicionales no se sortean por rareza) */}
       <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {RARITIES.map((r) => (
+        {WEIGHTED_RARITIES.map((r) => (
           <div key={r} className="rounded-xl border border-border bg-background p-3">
             <div className="text-xs font-bold uppercase tracking-wide text-muted">
               {RARITY_LABEL[r]}

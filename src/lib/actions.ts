@@ -800,7 +800,7 @@ async function funGate(slug: string) {
 
 // ---------- Administración del prode (owner/admin) ----------
 
-const RARITIES = new Set(["comun", "rara", "legendaria", "maldicion"]);
+const RARITIES = new Set(["comun", "rara", "legendaria", "maldicion", "extra"]);
 
 /** Gate de gestión: el visitante debe ser owner o admin del prode. */
 async function manageGate(slug: string) {

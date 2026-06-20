@@ -100,11 +100,13 @@ describe("dailyCard (sorteo diario, 4 baldes)", () => {
   });
 
   it("la distribución por rareza respeta los pesos (50/26/9/15)", () => {
-    const counts = { comun: 0, rara: 0, legendaria: 0, maldicion: 0 };
+    const counts = { comun: 0, rara: 0, legendaria: 0, maldicion: 0, extra: 0 };
     const N = 4000;
     for (let i = 0; i < N; i++) {
       counts[dailyCard("pool1", `jugador-${i}`, "2026-06-15").rarity]++;
     }
+    // Las posicionales (extra) nunca salen por el sorteo normal.
+    expect(counts.extra).toBe(0);
     expect(counts.comun / N).toBeGreaterThan(0.42);
     expect(counts.comun / N).toBeLessThan(0.58);
     expect(counts.maldicion / N).toBeGreaterThan(0.1);
@@ -793,7 +795,7 @@ describe("resolveDeck / pickDailyCard (sorteo por prode)", () => {
 });
 
 describe("karmaWeights (sesgo por posición)", () => {
-  const base = { comun: 50, rara: 26, legendaria: 10, maldicion: 10 };
+  const base = { comun: 50, rara: 26, legendaria: 10, maldicion: 10, extra: 0 };
 
   it("1 jugador → sin sesgo", () => {
     expect(karmaWeights(base, 0, 1)).toEqual(base);

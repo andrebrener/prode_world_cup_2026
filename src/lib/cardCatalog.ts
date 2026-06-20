@@ -17,7 +17,10 @@
 // - social:         no toca puntos; toca el ego (apodo, foto, mensaje). Dura
 //                   hasta que la víctima juegue Borrón y cuenta nueva.
 
-export type CardRarity = "comun" | "rara" | "legendaria" | "maldicion";
+// "extra" NO es un tramo del sorteo por rareza (peso 0): es la categoría de las
+// cartas posicionales (Caparazón/Golpe), que caen por su propia compuerta por puesto.
+// Se usa solo para mostrarlas aparte (badge/color) y agruparlas en el admin.
+export type CardRarity = "comun" | "rara" | "legendaria" | "maldicion" | "extra";
 
 export type CardType =
   // ventana partido (v1)
@@ -144,6 +147,13 @@ export type CardDef = {
   input?: "apodo" | "mensaje" | "imagen" | "partido";
   /** Sorteo posicional (solo a ciertos puestos): fuera del balde por rareza. Ver PositionalDraw. */
   positional?: PositionalDraw;
+  /**
+   * Etiqueta de efecto a mano para el selector del admin ("Reward (qué hace)"). Si
+   * falta, se deriva genéricamente del spec (outcomeLabel). La usan las cartas cuyo
+   * spec es genérico pero querés un texto propio (ej. Golpe comparte flat_points con
+   * Ramírez/papas, pero su label dice "al podio").
+   */
+  effectLabel?: string;
   description: string;
 };
 
@@ -528,12 +538,13 @@ export const CARD_CATALOG: Record<CardType, CardDef> = {
     spec: { outcome: "frozen_penalty" },
     name: "Caparazón Azul",
     emoji: "🐚",
-    rarity: "maldicion",
+    rarity: "extra",
     kind: "curse",
     target: "self",
     window: null,
     blockable: false,
     positional: { ranks: [0], oddsDenom: 4, minPlayers: 2 },
+    effectLabel: "Deja al líder igualado con el último",
     description: "El caparazón azul de Mario Kart te busca por ir primero: te resta los puntos justos para dejarte igualado con el último de la tabla. Le cae SOLO al líder, más o menos una vez cada cuatro días. No se puede esquivar.",
   }),
   golpe: c({
@@ -541,12 +552,13 @@ export const CARD_CATALOG: Record<CardType, CardDef> = {
     spec: { outcome: "flat_points", selfAmount: -15 },
     name: "Golpe al Podio",
     emoji: "🥊",
-    rarity: "maldicion",
+    rarity: "extra",
     kind: "curse",
     target: "self",
     window: null,
     blockable: false,
     positional: { ranks: [1, 2], oddsDenom: 6, minPlayers: 3 },
+    effectLabel: "-15 puntos al 2º y al 3º del podio",
     description: "Por andar cerca de la cima te llevás un golpe: -15 puntos. Le cae al 2º y al 3º de la tabla, más o menos una vez cada seis días. No se puede esquivar.",
   }),
 };
@@ -560,12 +572,17 @@ export const ALL_CARDS: CardDef[] = Object.values(CARD_CATALOG);
  */
 export const NO_EFFECT_CARDS: CardType[] = ["apodo", "foto", "microfono", "borron"];
 
-/** Probabilidad de cada rareza en el sorteo diario (sobre 100). */
+/**
+ * Probabilidad de cada rareza en el sorteo diario (sobre 100). "extra" pesa 0: las
+ * posicionales no entran al sorteo por rareza (tienen su propia compuerta), así que
+ * sumar/sacar extras no mueve las chances de las demás.
+ */
 export const RARITY_WEIGHTS: Record<CardRarity, number> = {
   comun: 50,
   rara: 26,
   legendaria: 9,
   maldicion: 15,
+  extra: 0,
 };
 
 export const RARITY_LABEL: Record<CardRarity, string> = {
@@ -573,6 +590,7 @@ export const RARITY_LABEL: Record<CardRarity, string> = {
   rara: "Rara",
   legendaria: "Legendaria",
   maldicion: "Maldición",
+  extra: "Extra",
 };
 
 /** ¿La carta es "sin efecto" (puro ego)? Se decide por su mecánica, no por su nombre. */
@@ -686,7 +704,7 @@ export function outcomeLabel(spec: OutcomeSpec, target: CardDef["target"] = "sel
     case "clear_social":
       return "Te saca los apodos/fotos/mensajes colgados";
     case "frozen_penalty":
-      return "Te deja igualado con el último de la tabla (se calcula al caer)";
+      return "Deja al líder igualado con el último";
   }
 }
 
@@ -709,7 +727,7 @@ export const MECHANIC_OPTIONS: MechanicOption[] = ALL_CARDS.map((card) => ({
   emoji: card.emoji,
   description: card.description,
   rarity: card.rarity,
-  effect: outcomeLabel(card.spec, card.target),
+  effect: card.effectLabel ?? outcomeLabel(card.spec, card.target),
   kind: card.kind,
   target: card.target,
 }));

@@ -101,7 +101,9 @@ export function resolveDeck(rows: DeckRow[]): DrawnCard[] {
   return out;
 }
 
-const RARITY_ORDER: CardRarity[] = ["comun", "rara", "legendaria", "maldicion"];
+// "extra" va al final pero nunca se sortea por acá: las posicionales se excluyen del
+// balde por rareza (ver pickDailyCard), así que el sorteo normal nunca cae en "extra".
+const RARITY_ORDER: CardRarity[] = ["comun", "rara", "legendaria", "maldicion", "extra"];
 
 /**
  * Cuánto encogen las rarezas neutrales (común/rara) hacia los extremos de la tabla,
@@ -147,6 +149,8 @@ export function karmaWeights(
     rara: Math.max(0, weights.rara * shrink),
     legendaria: Math.max(0, weights.legendaria * (1 - tilt)),
     maldicion: Math.max(0, weights.maldicion * (1 + tilt)),
+    // "extra" no participa del sorteo por rareza: el karma no lo toca.
+    extra: Math.max(0, weights.extra),
   };
 }
 

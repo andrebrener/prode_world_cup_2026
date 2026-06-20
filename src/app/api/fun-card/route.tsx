@@ -12,9 +12,10 @@ const RARITY_HEX: Record<CardRarity, { ring: string; text: string; glow: string 
   rara: { ring: "#8b3cff", text: "#c9a2ff", glow: "rgba(139,60,255,0.45)" },
   legendaria: { ring: "#ffd24a", text: "#ffd24a", glow: "rgba(255,210,74,0.55)" },
   maldicion: { ring: "#39ff5a", text: "#7dff96", glow: "rgba(57,255,90,0.45)" },
+  extra: { ring: "#4d7cff", text: "#9db4ff", glow: "rgba(77,124,255,0.45)" },
 };
 
-const RARITIES: CardRarity[] = ["comun", "rara", "legendaria", "maldicion"];
+const RARITIES: CardRarity[] = ["comun", "rara", "legendaria", "maldicion", "extra"];
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
@@ -30,7 +31,11 @@ export async function GET(req: Request) {
   const by = (searchParams.get("by") ?? "").slice(0, 40);
 
   const r = RARITY_HEX[rarity];
-  const label = curse ? "☠️ Maldición" : RARITY_LABEL[rarity];
+  const label = curse
+    ? rarity === "extra"
+      ? "💥 Extra"
+      : "☠️ Maldición"
+    : RARITY_LABEL[rarity];
 
   return new ImageResponse(
     (

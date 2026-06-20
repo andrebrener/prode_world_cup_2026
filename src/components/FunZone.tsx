@@ -38,6 +38,12 @@ const RARITY_STYLE: Record<CardRarity, { ring: string; text: string; glow: strin
     text: "text-[#7dff96]",
     glow: "shadow-[0_0_32px_#39ff5a44]",
   },
+  // Extra (posicionales): azul caparazón.
+  extra: {
+    ring: "border-[#4d7cffaa]",
+    text: "text-[#9db4ff]",
+    glow: "shadow-[0_0_32px_#4d7cff55]",
+  },
 };
 
 function burst(rarity: CardRarity) {
@@ -50,6 +56,18 @@ function burst(rarity: CardRarity) {
       gravity: 1.4,
       origin: { y: 0.4 },
       colors: ["#39ff5a", "#1d7a2f", "#0a3d14"],
+    });
+    return;
+  }
+  if (rarity === "extra") {
+    // Caparazón azul cayendo del cielo: nube azul, no festeja.
+    confetti({
+      particleCount: 110,
+      spread: 110,
+      startVelocity: 18,
+      gravity: 1.5,
+      origin: { y: 0.3 },
+      colors: ["#4d7cff", "#1e40af", "#9db4ff"],
     });
     return;
   }
@@ -371,7 +389,11 @@ export default function FunZone({
                 <span
                   className={`mt-0.5 text-[10px] font-bold uppercase tracking-widest ${RARITY_STYLE[revealed.def.rarity].text}`}
                 >
-                  {revealed.curse ? "☠️ Maldición" : RARITY_LABEL[revealed.def.rarity]}
+                  {revealed.curse
+                    ? revealed.def.rarity === "extra"
+                      ? "💥 Extra"
+                      : "☠️ Maldición"
+                    : RARITY_LABEL[revealed.def.rarity]}
                 </span>
               </div>
             )}

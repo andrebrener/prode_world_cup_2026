@@ -53,7 +53,11 @@ export default function ShareCardButton({
   }
 
   function shareText(origin: string) {
-    const what = curse ? "una maldición ☠️" : `una carta ${RARITY_LABEL[rarity].toLowerCase()}`;
+    const what = curse
+      ? rarity === "extra"
+        ? "un extra 💥"
+        : "una maldición ☠️"
+      : `una carta ${RARITY_LABEL[rarity].toLowerCase()}`;
     return `${emoji} Me salió *${name}* (${what}) en el Prode Mundial 2026 🏆\nJugá vos 👉 ${origin}/p/${slug}`;
   }
 
