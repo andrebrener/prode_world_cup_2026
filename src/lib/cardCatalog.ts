@@ -643,6 +643,8 @@ export type MechanicOption = {
   rarity: CardRarity;
   effect: string;
   kind: CardDef["kind"];
+  /** self/other: si lleva víctima (para mostrar el selector de blanco fijo al crearla). */
+  target: CardDef["target"];
 };
 
 export const MECHANIC_OPTIONS: MechanicOption[] = ALL_CARDS.map((card) => ({
@@ -653,6 +655,7 @@ export const MECHANIC_OPTIONS: MechanicOption[] = ALL_CARDS.map((card) => ({
   rarity: card.rarity,
   effect: outcomeLabel(card.spec, card.target),
   kind: card.kind,
+  target: card.target,
 }));
 
 /** Campos cosméticos editables por prode (re-skin). */

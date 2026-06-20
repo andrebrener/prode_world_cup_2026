@@ -863,7 +863,14 @@ export async function saveCardDefAction(
 export async function addCardDefAction(
   slug: string,
   mechanic: string,
-  cosmetic?: { name?: string; emoji?: string; description?: string; rarity?: string },
+  cosmetic?: {
+    name?: string;
+    emoji?: string;
+    description?: string;
+    rarity?: string;
+    /** Blanco fijo: la carta solo se le podrá tirar a esta persona (solo cartas con víctima). */
+    restrictedTargetId?: string | null;
+  },
 ): Promise<{ ok: boolean; error?: string; id?: string }> {
   const gate = await manageGate(slug);
   if ("error" in gate) return { ok: false, error: gate.error };
@@ -874,6 +881,17 @@ export async function addCardDefAction(
   const emoji = (cosmetic?.emoji?.trim() || base.emoji).slice(0, 8);
   const description = (cosmetic?.description?.trim() || base.description).slice(0, 240);
   const rarity = cosmetic?.rarity && RARITIES.has(cosmetic.rarity) ? cosmetic.rarity : base.rarity;
+
+  // Blanco fijo: solo válido para cartas con víctima y un miembro real del prode.
+  let restrictedTargetId: string | null = null;
+  if (cosmetic?.restrictedTargetId) {
+    if (base.target !== "other")
+      return { ok: false, error: "Esta carta no lleva víctima: no se le puede fijar un blanco." };
+    const memberIds = await getPoolMemberIds(gate.pool.id);
+    if (!memberIds.includes(cosmetic.restrictedTargetId))
+      return { ok: false, error: "Esa persona no está en este prode." };
+    restrictedTargetId = cosmetic.restrictedTargetId;
+  }
 
   const existing = await db
     .select({ sortOrder: cardDefs.sortOrder })
@@ -891,6 +909,7 @@ export async function addCardDefAction(
     rarity,
     enabled: true,
     sortOrder: nextOrder,
+    restrictedTargetId,
     createdAt: new Date(),
   });
   // El admin re-agrega esta mecánica: levantá el tombstone si lo había borrado.

@@ -257,7 +257,7 @@ function Deck({
       })}
 
       {/* Agregar carta: mismo formato que una carta, en un recuadro punteado */}
-      <NewCardForm slug={slug} mechanics={mechanics} busy={busy} run={run} />
+      <NewCardForm slug={slug} mechanics={mechanics} members={members} busy={busy} run={run} />
     </section>
   );
 }
@@ -265,16 +265,19 @@ function Deck({
 function NewCardForm({
   slug,
   mechanics,
+  members,
   busy,
   run,
 }: {
   slug: string;
   mechanics: MechanicOption[];
+  members: PoolAdminData["members"];
   busy: boolean;
   run: (fn: () => Promise<{ ok: boolean; error?: string }>, okText: string) => void;
 }) {
   const first = mechanics[0];
   const [mech, setMech] = useState<string>(first?.mechanic ?? "");
+  const [target, setTarget] = useState<string>("");
   const [draft, setDraft] = useState({
     name: first?.defaultName ?? "",
     emoji: first?.emoji ?? "🃏",
@@ -282,17 +285,23 @@ function NewCardForm({
     rarity: (first?.rarity ?? "comun") as CardRarity,
   });
 
+  // ¿La mecánica elegida lleva víctima? Solo ahí tiene sentido el blanco fijo.
+  const hasVictim = mechanics.find((o) => o.mechanic === mech)?.target === "other";
+
   // Al elegir un reward, precargamos sus valores por defecto (después los editás).
   const pick = (m: string) => {
     setMech(m);
     const opt = mechanics.find((o) => o.mechanic === m);
-    if (opt)
+    if (opt) {
       setDraft({
         name: opt.defaultName,
         emoji: opt.emoji,
         description: opt.description,
         rarity: opt.rarity,
       });
+      // Si la nueva mecánica no lleva víctima, limpiamos el blanco fijo.
+      if (opt.target !== "other") setTarget("");
+    }
   };
 
   return (
@@ -350,10 +359,40 @@ function NewCardForm({
         aria-label="Descripción"
       />
 
+      {/* Blanco fijo: solo si la mecánica lleva víctima. La carta únicamente se le
+          podrá tirar a la persona elegida. */}
+      {hasVictim && (
+        <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-dashed border-border/70 bg-background/40 px-2 py-1.5">
+          <span className="text-xs font-semibold text-muted">🎯 Solo se le puede tirar a</span>
+          <select
+            value={target}
+            onChange={(e) => setTarget(e.target.value)}
+            className="min-w-[8rem] flex-1 rounded-lg border border-border bg-surface px-2 py-1.5 text-sm"
+            aria-label="Blanco fijo"
+          >
+            <option value="">Cualquiera (ataque normal)</option>
+            {members.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
       <div className="mt-3 flex justify-end">
         <button
           disabled={busy || !mech || !draft.name.trim()}
-          onClick={() => run(() => addCardDefAction(slug, mech, draft), "Carta agregada.")}
+          onClick={() =>
+            run(
+              () =>
+                addCardDefAction(slug, mech, {
+                  ...draft,
+                  restrictedTargetId: hasVictim && target ? target : null,
+                }),
+              "Carta agregada.",
+            )
+          }
           className="rounded-xl bg-primary px-4 py-2 text-sm font-bold text-primary-ink transition hover:brightness-110 disabled:opacity-50"
         >
           + Agregar al mazo
