@@ -164,7 +164,7 @@ function SorteoConfig({
         Los pesos son relativos (no hace falta que sumen 100): cuentan en proporción al total ({sum}).
       </p>
 
-      {/* Karma de tabla: sesgo por posición */}
+      {/* Karma: sesgo por posición + por timba (Total − Puro) */}
       <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-xl border border-border bg-background p-3">
         <input
           type="checkbox"
@@ -173,12 +173,15 @@ function SorteoConfig({
           className="mt-0.5 h-4 w-4 accent-[var(--color-primary,#8b3cff)]"
         />
         <span className="text-sm">
-          <span className="font-semibold text-foreground">Karma de tabla ⚖️</span>
+          <span className="font-semibold text-foreground">Karma ⚖️</span>
           <span className="block text-xs text-muted">
-            Sesga el sorteo según la posición: el <strong>1ro</strong> tiene más chance de{" "}
-            <strong>maldición</strong> y casi nada de legendaria; el <strong>último</strong> al
-            revés; los del medio casi sin cambios. Se calcula con la posición con la que cada uno
-            arrancó el día (no cambia por tu propia carta), y solo reacomoda cómo se reparte por
+            Sesga el sorteo por dos cosas, sumadas: por <strong>posición</strong> (el{" "}
+            <strong>1ro</strong> tiene más chance de <strong>maldición</strong> y casi nada de
+            legendaria; el <strong>último</strong> al revés; el medio casi sin cambios) y por cuánto
+            te <strong>infló la timba</strong> (la diferencia entre tu puntaje y tu{" "}
+            <strong>Puro</strong>: el que más subió por cartas y racha se come más maldición; el que
+            llegó por buen ojo, casi nada). Se calcula con la foto del día (posición y suerte con la
+            que cada uno arrancó, no cambia por tu propia carta) y solo reacomoda cómo se reparte por
             rareza.
           </span>
         </span>

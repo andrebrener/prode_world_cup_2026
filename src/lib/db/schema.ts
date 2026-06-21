@@ -134,14 +134,14 @@ export const deckTombstones = sqliteTable(
 // solo nivel: cada carta se sortea por su rareza según los pesos (weightComun +
 // weightRara + weightLegendaria + weightMaldicion). Las sociales (apodo/foto/…) son
 // comunes más — no tienen tramo aparte. Una fila por prode; si falta, se usan los
-// defaults oficiales (50·26·9·15).
+// defaults oficiales (50·25·10·15).
 export const poolFunConfig = sqliteTable("pool_fun_config", {
   poolId: text("pool_id")
     .primaryKey()
     .references(() => pools.id, { onDelete: "cascade" }),
   weightComun: integer("weight_comun").notNull().default(50),
-  weightRara: integer("weight_rara").notNull().default(26),
-  weightLegendaria: integer("weight_legendaria").notNull().default(9),
+  weightRara: integer("weight_rara").notNull().default(25),
+  weightLegendaria: integer("weight_legendaria").notNull().default(10),
   weightMaldicion: integer("weight_maldicion").notNull().default(15),
   // Karma de tabla: si está prendido, el sorteo sesga los pesos de rareza por
   // posición (1ro → más maldición / menos legendaria; último al revés). Off por

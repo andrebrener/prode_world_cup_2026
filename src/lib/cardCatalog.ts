@@ -618,8 +618,8 @@ export const NO_EFFECT_CARDS: CardType[] = ["apodo", "foto", "microfono", "borro
  */
 export const RARITY_WEIGHTS: Record<CardRarity, number> = {
   comun: 50,
-  rara: 26,
-  legendaria: 9,
+  rara: 25,
+  legendaria: 10,
   maldicion: 15,
   extra: 0,
 };
