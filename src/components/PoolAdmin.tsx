@@ -135,9 +135,7 @@ function SorteoConfig({
     <section className="rounded-2xl border border-border bg-surface p-5">
       <h2 className="wordmark text-2xl">Sorteo</h2>
       <p className="mt-1 text-sm text-muted">
-        Cómo se reparten las cartas del día: cada carta se sortea por su rareza. Las sociales
-        (apodo, foto, mensaje, borrón) son comunes más — no tocan el puntaje, pero salen como
-        cualquier otra común.
+        Cómo se reparten las cartas del día: cada carta se sortea por su rareza.
       </p>
 
       {/* Pesos por rareza (Extra no entra: las posicionales no se sortean por rareza) */}
