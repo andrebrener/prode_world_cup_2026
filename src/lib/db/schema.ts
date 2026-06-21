@@ -166,6 +166,11 @@ export const poolDayRank = sqliteTable(
       .references(() => participants.id, { onDelete: "cascade" }),
     rank: integer("rank").notNull(), // 0-based: 0 = 1ro de la tabla
     total: integer("total").notNull(), // cuántos jugadores había en el snapshot
+    // Karma de cartas: cuánto se infló con la capa Fun al arranque del día
+    // (Total − Puro = delta de cartas + bonus de racha). Se congela junto al rank y
+    // se normaliza contra el grupo al leer (→ luckScore en [-1,1]). 0 en snapshots
+    // viejos (pre-migración): ese día no hay sesgo por cartas, solo por posición.
+    luck: integer("luck").notNull().default(0),
   },
   (t) => [primaryKey({ columns: [t.poolId, t.date, t.participantId] })],
 );

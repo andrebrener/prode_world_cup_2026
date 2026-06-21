@@ -869,6 +869,32 @@ describe("karmaWeights (sesgo por posición)", () => {
     expect(w.rara).toBe(26);
   });
 
+  it("karma de cartas: el inflado por timba (luckScore +1) sube maldición y baja legendaria", () => {
+    // Mismo puesto (medio, sin sesgo de tabla): solo manda el luckScore.
+    const inflado = karmaWeights(base, 2, 5, 1);
+    const perjudicado = karmaWeights(base, 2, 5, -1);
+    expect(inflado.maldicion).toBeGreaterThan(base.maldicion);
+    expect(inflado.legendaria).toBeLessThan(base.legendaria);
+    expect(perjudicado.maldicion).toBeLessThan(base.maldicion);
+    expect(perjudicado.legendaria).toBeGreaterThan(base.legendaria);
+  });
+
+  it("karma de cartas: en la media (luckScore 0) no agrega sesgo sobre el de tabla", () => {
+    expect(karmaWeights(base, 2, 5, 0)).toEqual(karmaWeights(base, 2, 5));
+  });
+
+  it("tabla + cartas SE SUMAN: líder inflado por timba se castiga más que líder limpio", () => {
+    const liderLimpio = karmaWeights(base, 0, 5, 0); // puntero por buen ojo
+    const liderInflado = karmaWeights(base, 0, 5, 1); // puntero por timba
+    expect(liderInflado.maldicion).toBeGreaterThan(liderLimpio.maldicion);
+    expect(liderInflado.legendaria).toBeLessThan(liderLimpio.legendaria);
+  });
+
+  it("tilt combinado con tope: la legendaria nunca se anula del todo (queda upside)", () => {
+    const w = karmaWeights(base, 0, 5, 1); // líder + máximo inflado
+    expect(w.legendaria).toBeGreaterThan(0);
+  });
+
   it("el karma sesga el sorteo según posición", () => {
     const deck = resolveDeck([
       { id: "leg", mechanic: "saibamba", name: "Leg", emoji: "🔮", description: "", rarity: "legendaria" },

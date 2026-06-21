@@ -126,24 +126,52 @@ const KARMA_NEUTRAL_SHRINK = 0.25;
 const KARMA_LEGMAL_STRENGTH = 0.5;
 
 /**
- * Karma de tabla: sesga los pesos de rareza por posición. `rank` es 0-based
- * (0 = 1ro de la tabla) sobre `total` jugadores. Gradiente parejo: hacia el líder
- * sube maldición y baja legendaria; hacia el último sube legendaria y baja
- * maldición; el medio queda igual. Las neutrales (común/rara) se achican hacia los
- * extremos para que el sesgo se sienta (si no, común se come casi toda la
- * probabilidad). El eje leg/mal va atenuado por KARMA_LEGMAL_STRENGTH para que el
- * líder no quede con puro downside. Con 1 jugador no hay sesgo.
+ * Karma de CARTAS: cuánto inclina el eje leg/mal el haberse beneficiado de la timba
+ * (cartas + racha). El sorteo recibe un `luckScore` en [-1, 1] = cuánto se infló el
+ * jugador con la capa Fun (Total − Puro) RELATIVO al grupo: +1 = el que más se
+ * benefició, -1 = al que más lo perjudicó, 0 = en la media. Va sumado al sesgo de
+ * tabla (no lo reemplaza): así el puntero que llegó por timba se come más maldición
+ * que el que llegó por buen ojo (Puro alto, luckScore bajo). 0 = sin sesgo por
+ * cartas. Simétrico con el de tabla.
+ */
+const KARMA_CARDS_STRENGTH = 0.5;
+
+/**
+ * Tope del tilt combinado (tabla + cartas). Sin tope, un puntero MUY inflado por
+ * cartas llegaría a tilt 1 y le anularía la legendaria del todo (puro downside, el
+ * problema que KARMA_LEGMAL_STRENGTH vino a arreglar). Con 0.9: incluso en el peor
+ * caso conserva ~10% de su legendaria (sigue siendo una apuesta) y la maldición no
+ * pasa de ×1.9.
+ */
+const KARMA_TILT_CAP = 0.9;
+
+/**
+ * Karma: sesga los pesos de rareza por posición de tabla Y por cuánto se benefició
+ * de las cartas/racha (luckScore, ver arriba). `rank` es 0-based (0 = 1ro de la
+ * tabla) sobre `total` jugadores. Gradiente parejo de tabla: hacia el líder sube
+ * maldición y baja legendaria; hacia el último al revés; el medio queda igual. A eso
+ * se le SUMA el eje de cartas (el inflado por timba → más maldición). Las neutrales
+ * (común/rara) se achican según la fuerza del sesgo combinado para que se sienta (si
+ * no, común se come casi toda la probabilidad). El eje leg/mal va atenuado por las
+ * STRENGTH y con tope KARMA_TILT_CAP para que nunca quede puro downside. Con 1
+ * jugador y sin sesgo de cartas no hay karma.
  */
 export function karmaWeights(
   weights: Record<CardRarity, number>,
   rank: number,
   total: number,
+  luckScore = 0, // [-1, 1] relativo al grupo; 0 = sin sesgo por cartas
 ): Record<CardRarity, number> {
-  if (total <= 1) return weights;
-  const t = Math.max(0, Math.min(1, rank / (total - 1))); // 0 = arriba, 1 = abajo
-  const s = 1 - 2 * t; // +1 líder, -1 último, 0 medio
-  const shrink = 1 - KARMA_NEUTRAL_SHRINK * Math.abs(s); // neutrales hacia los extremos
-  const tilt = s * KARMA_LEGMAL_STRENGTH; // eje leg/mal atenuado
+  if (total <= 1 && luckScore === 0) return weights;
+  const t = total > 1 ? Math.max(0, Math.min(1, rank / (total - 1))) : 0.5; // 0 = arriba, 1 = abajo
+  const sTable = total > 1 ? 1 - 2 * t : 0; // +1 líder, -1 último, 0 medio
+  const tiltTable = sTable * KARMA_LEGMAL_STRENGTH; // eje leg/mal por posición, atenuado
+  const tiltCards = Math.max(-1, Math.min(1, luckScore)) * KARMA_CARDS_STRENGTH; // por timba
+  const tilt = Math.max(-KARMA_TILT_CAP, Math.min(KARMA_TILT_CAP, tiltTable + tiltCards)); // suma con tope
+  // Neutrales: se achican con la fuerza del sesgo combinado. Calibrado para que con
+  // solo karma de tabla en el extremo (|tilt| = KARMA_LEGMAL_STRENGTH) el encogido
+  // sea exactamente KARMA_NEUTRAL_SHRINK, como antes.
+  const shrink = Math.max(0, 1 - KARMA_NEUTRAL_SHRINK * (Math.abs(tilt) / KARMA_LEGMAL_STRENGTH));
   return {
     comun: Math.max(0, weights.comun * shrink),
     rara: Math.max(0, weights.rara * shrink),
@@ -163,22 +191,26 @@ export function karmaWeights(
  * prode puede deshabilitar toda una rareza). Devuelve null si el mazo quedó vacío.
  *
  * Si `config.karmaTabla` está prendido y se pasa `pos` (posición en la tabla), los
- * pesos de rareza se sesgan por posición (ver karmaWeights). Sin `pos`, o con el
- * karma apagado, usa los pesos tal cual.
+ * pesos de rareza se sesgan por posición Y por `pos.luckScore` (cuánto se benefició
+ * de cartas/racha relativo al grupo; ver karmaWeights). Sin `pos`, o con el karma
+ * apagado, usa los pesos tal cual.
  */
 export function pickDailyCard(
   seed: { poolId: string; participantId: string; date: string },
   deck: DrawnCard[],
   config: FunConfig,
-  pos?: { rank: number; total: number },
+  pos?: { rank: number; total: number; luckScore?: number },
 ): DrawnCard | null {
   if (deck.length === 0) return null;
   const parts = [seed.poolId, seed.participantId, seed.date];
   const pickFrom = (opts: DrawnCard[]) => pickFromBucket(opts, parts);
 
-  // Pesos de rareza: con karma prendido y posición conocida, sesgados por la tabla.
+  // Pesos de rareza: con karma prendido y posición conocida, sesgados por la tabla
+  // (posición) y por la timba (luckScore).
   const weights =
-    config.karmaTabla && pos ? karmaWeights(config.weights, pos.rank, pos.total) : config.weights;
+    config.karmaTabla && pos
+      ? karmaWeights(config.weights, pos.rank, pos.total, pos.luckScore ?? 0)
+      : config.weights;
 
   // Las posicionales (Caparazón/Golpe) NO entran al balde por rareza: tienen su
   // propia compuerta por puesto (pickPositionalCard). Acá se las saca del sorteo.

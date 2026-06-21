@@ -1446,12 +1446,13 @@ export async function claimDailyCardAction(slug: string): Promise<DrawResult> {
   ]);
   const deck = resolveDeck(deckRows);
   const today = funToday();
-  // La posición CON LA QUE EMPEZÓ EL DÍA (snapshot congelado el primer reclamo del
-  // prode ese día, no la del momento de reclamar — así tu propia carta no te mueve la
-  // posición) la usan el Karma de Tabla (sesgo de rareza) Y las cartas posicionales
-  // (Caparazón/Golpe). Se calcula si hay cualquiera de los dos.
+  // El snapshot CON EL QUE EMPEZÓ EL DÍA (congelado el primer reclamo del prode ese
+  // día, no el del momento de reclamar — así tu propia carta no te mueve la posición
+  // ni el luck) lo usan el Karma (sesgo de rareza por posición Y por cuánto te
+  // inflaste con cartas/racha) Y las cartas posicionales (Caparazón/Golpe/Remontada).
+  // Se calcula si hay cualquiera de los dos.
   const hasPositional = deck.some((c) => c.positional);
-  let pos: { rank: number; total: number } | undefined;
+  let pos: { rank: number; total: number; luckScore: number } | undefined;
   if (config.karmaTabla || hasPositional) {
     const snap = await getDayRankSnapshot(pool, today);
     pos = snap.get(id);

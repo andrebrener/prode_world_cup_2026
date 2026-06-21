@@ -676,20 +676,37 @@ export async function realityDelta(pool: Pool, participantId: string): Promise<n
 }
 
 /**
- * Posición de cada jugador AL ARRANQUE del día (para el karma de tabla). Se congela
- * una sola vez por (prode, fecha): la primera llamada del día calcula la tabla
- * actual y la persiste; las siguientes (de cualquier jugador) reusan ese snapshot.
- * Así el sesgo por posición no depende de quién reclamó primero ni de la propia
- * carta del que reclama (pickDailyCard corre antes de jugarla). Devuelve un mapa
- * participantId → { rank (0-based), total }.
+ * Piso de la escala para normalizar el luck del karma de cartas. Si el grupo entero
+ * se movió poco con la timba (máx. desvío < este piso), el sesgo por cartas queda
+ * tenue (nadie se infló desproporcionadamente, no hay a quién castigar). En puntos.
+ */
+const KARMA_CARDS_MIN_SCALE = 10;
+
+/**
+ * Posición de cada jugador AL ARRANQUE del día (para el karma). Se congela una sola
+ * vez por (prode, fecha): la primera llamada del día calcula la tabla actual y la
+ * persiste; las siguientes (de cualquier jugador) reusan ese snapshot. Así el sesgo
+ * no depende de quién reclamó primero ni de la propia carta del que reclama
+ * (pickDailyCard corre antes de jugarla).
+ *
+ * Congela también `luck` = cuánto se benefició cada uno de la capa Fun (Total − Puro
+ * = cartas + racha). Al leer lo normaliza contra el grupo (media y desvío del día,
+ * con piso KARMA_CARDS_MIN_SCALE) → `luckScore` en [-1, 1]: +1 el más inflado por
+ * timba, -1 al que más lo perjudicó, 0 en la media. Devuelve un mapa
+ * participantId → { rank (0-based), total, luckScore }.
  */
 export async function getDayRankSnapshot(
   pool: Pool,
   date: string,
-): Promise<Map<string, { rank: number; total: number }>> {
+): Promise<Map<string, { rank: number; total: number; luckScore: number }>> {
   const read = async () =>
     db
-      .select({ participantId: poolDayRank.participantId, rank: poolDayRank.rank, total: poolDayRank.total })
+      .select({
+        participantId: poolDayRank.participantId,
+        rank: poolDayRank.rank,
+        total: poolDayRank.total,
+        luck: poolDayRank.luck,
+      })
       .from(poolDayRank)
       .where(and(eq(poolDayRank.poolId, pool.id), eq(poolDayRank.date, date)));
 
@@ -707,6 +724,9 @@ export async function getDayRankSnapshot(
             participantId: r.id,
             rank: i,
             total: rows.length,
+            // Lo que la timba (cartas + racha) le sumó/restó al Puro. Sin fun info,
+            // pureTotal = total → luck 0 (no se benefició ni se perjudicó).
+            luck: Math.round(r.total - (r.fun?.pureTotal ?? r.total)),
           })),
         )
         .onConflictDoNothing();
@@ -714,7 +734,22 @@ export async function getDayRankSnapshot(
     // Releé: si otro reclamo ganó la carrera, mandan sus filas (mismo día).
     snap = await read();
   }
-  return new Map(snap.map((r) => [r.participantId, { rank: r.rank, total: r.total }]));
+
+  // Normalización del luck contra el grupo del día → luckScore en [-1, 1].
+  const lucks = snap.map((r) => r.luck);
+  const mean = lucks.length ? lucks.reduce((a, b) => a + b, 0) / lucks.length : 0;
+  const maxAbsDev = lucks.reduce((m, l) => Math.max(m, Math.abs(l - mean)), 0);
+  const scale = Math.max(maxAbsDev, KARMA_CARDS_MIN_SCALE);
+  return new Map(
+    snap.map((r) => [
+      r.participantId,
+      {
+        rank: r.rank,
+        total: r.total,
+        luckScore: Math.max(-1, Math.min(1, (r.luck - mean) / scale)),
+      },
+    ]),
+  );
 }
 
 // ---------- Modo Diversión ----------

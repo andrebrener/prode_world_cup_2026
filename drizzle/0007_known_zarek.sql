@@ -1,0 +1,1 @@
+ALTER TABLE `pool_day_rank` ADD `luck` integer DEFAULT 0 NOT NULL;
