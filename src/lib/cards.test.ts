@@ -221,6 +221,37 @@ describe("pickPositionalCard (Caparazón Azul / Golpe al Podio)", () => {
     }
   });
 
+  it("la Remontada le cae SOLO a los últimos 3 (fromBottom), nunca más arriba", () => {
+    // total 10 → últimos 3 = ranks 7, 8, 9. El 4º de abajo (rank 6) y el líder no.
+    for (let i = 0; i < 200; i++) {
+      expect(pickPositionalCard(seed(`p${i}`), DECK, { rank: 6, total: 10 })?.type).not.toBe(
+        "remontada",
+      );
+      expect(pickPositionalCard(seed(`p${i}`), DECK, { rank: 0, total: 10 })?.type).not.toBe(
+        "remontada",
+      );
+    }
+  });
+
+  it("la Remontada SÍ le pega al último (rank = total-1) con prob ~1/5", () => {
+    let hits = 0;
+    const N = 4000;
+    for (let i = 0; i < N; i++) {
+      const c = pickPositionalCard(seed(`p${i}`), DECK, { rank: 9, total: 10 });
+      if (c?.type === "remontada") hits++;
+    }
+    expect(hits / N).toBeGreaterThan(0.15);
+    expect(hits / N).toBeLessThan(0.25);
+  });
+
+  it("la Remontada respeta minPlayers: no cae con menos de 4 jugadores", () => {
+    for (let i = 0; i < 200; i++) {
+      expect(pickPositionalCard(seed(`p${i}`), DECK, { rank: 2, total: 3 })?.type).not.toBe(
+        "remontada",
+      );
+    }
+  });
+
   it("es determinístico por (prode, jugador, fecha)", () => {
     expect(pickPositionalCard(seed("ana"), DECK, { rank: 0, total: 10 })?.type).toBe(
       pickPositionalCard(seed("ana"), DECK, { rank: 0, total: 10 })?.type,
@@ -613,6 +644,19 @@ describe("applyCardEffects", () => {
   it("Caparazón sin monto congelado no rompe (resta 0)", () => {
     const r = applyCardEffects({ ...opts, cards: [played("caparazon", "ana")] });
     expect(r.flat.ana ?? 0).toBe(0);
+  });
+
+  it("Baño de realidad: suma el ajuste CONGELADO al dueño (puede ser ±)", () => {
+    const baja = applyCardEffects({
+      ...opts,
+      cards: [played("banio_realidad", "ana", { flatPenalty: -12 })], // cartas lo inflaron: baja
+    });
+    expect(baja.flat.ana).toBe(-12);
+    const sube = applyCardEffects({
+      ...opts,
+      cards: [played("banio_realidad", "beto", { flatPenalty: 7 })], // lo perjudicaron: sube
+    });
+    expect(sube.flat.beto).toBe(7);
   });
 
   it("pedo transfiere 5; rebotado va al revés", () => {

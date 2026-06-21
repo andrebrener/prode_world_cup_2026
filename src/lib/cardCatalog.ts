@@ -45,6 +45,7 @@ export type CardType =
   | "speed"
   | "pedo"
   | "vendetta"
+  | "banio_realidad"
   // vidente
   | "saibamba"
   // defensas del día
@@ -64,7 +65,8 @@ export type CardType =
   | "borron"
   // posicionales (le caen solo a ciertos puestos de la tabla)
   | "caparazon"
-  | "golpe";
+  | "golpe"
+  | "remontada";
 
 export type CardWindow = "match" | "day" | null;
 
@@ -111,7 +113,11 @@ export type OutcomeSpec =
    * (`{ shell }`). El Caparazón Azul lo usa para restar lo justo y dejar al líder
    * igualado con el último. Se aplica una sola vez y no se recalcula.
    */
-  | { outcome: "frozen_penalty" };
+  | { outcome: "frozen_penalty" }
+  // Ajuste plano CONGELADO al jugarse: deja al afectado con su Puro (puntos reales
+  // sin cartas) en ese instante. El monto (Puro − total, ± según corresponda) se
+  // calcula al jugar la carta y vive en su payload (`{ reality }`); no se recalcula.
+  | { outcome: "frozen_delta" };
 
 export type Outcome = OutcomeSpec["outcome"];
 
@@ -127,6 +133,12 @@ export type PositionalDraw = {
   ranks: number[];
   oddsDenom: number;
   minPlayers: number;
+  /**
+   * Por defecto `ranks` se cuenta desde ARRIBA (0 = líder, 1 = 2º…). Con `fromBottom`
+   * se cuenta desde el FONDO (0 = último, 1 = anteúltimo, 2 = antepenúltimo…), para
+   * cartas que le caen a los de atrás sin importar cuántos jueguen.
+   */
+  fromBottom?: boolean;
 };
 
 export type CardDef = {
@@ -364,6 +376,19 @@ export const CARD_CATALOG: Record<CardType, CardDef> = {
     blockable: true,
     description: "Una carta con nombre y apellido: tu víctima no suma nada en su primer partido del día (queda en cero). El admin decide a quién apunta esta carta — al que la juega no le queda más que tirársela a esa persona.",
   }),
+  banio_realidad: c({
+    type: "banio_realidad",
+    spec: { outcome: "frozen_delta" },
+    name: "Baño de realidad",
+    emoji: "🚿",
+    rarity: "rara",
+    kind: "instant",
+    target: "self",
+    window: null,
+    blockable: false,
+    effectLabel: "Te deja con tu Puro (puntos reales sin cartas), una sola vez",
+    description: "Te pegás un baño de realidad: en el acto te suma o resta lo justo para dejarte con tu Puro — los puntos que tenés de verdad, sin cartas. Si las cartas te inflaron, bajás; si te perjudicaron, subís. Es de una sola vez: queda congelado en ese momento y después la tabla sigue normal (no vivís permanentemente en la realidad).",
+  }),
 
   // ---------- Vidente ----------
   saibamba: c({
@@ -561,6 +586,20 @@ export const CARD_CATALOG: Record<CardType, CardDef> = {
     effectLabel: "-15 puntos al 2º y al 3º del podio",
     description: "Por andar cerca de la cima te llevás un golpe: -15 puntos. Le cae al 2º y al 3º de la tabla, más o menos una vez cada seis días. No se puede esquivar.",
   }),
+  remontada: c({
+    type: "remontada",
+    spec: { outcome: "flat_points", selfAmount: 20 },
+    name: "Remontada",
+    emoji: "🚀",
+    rarity: "extra",
+    kind: "buff",
+    target: "self",
+    window: null,
+    blockable: false,
+    positional: { ranks: [0, 1, 2], oddsDenom: 5, minPlayers: 4, fromBottom: true },
+    effectLabel: "+20 puntos a los últimos 3 de la tabla",
+    description: "Un envión para los de atrás: +20 puntos al toque. Le cae SOLO a los últimos tres de la tabla, más o menos una vez cada cinco días. Hay que reclamar la carta del día para llevársela.",
+  }),
 };
 
 export const ALL_CARDS: CardDef[] = Object.values(CARD_CATALOG);
@@ -705,6 +744,10 @@ export function outcomeLabel(spec: OutcomeSpec, target: CardDef["target"] = "sel
       return "Te saca los apodos/fotos/mensajes colgados";
     case "frozen_penalty":
       return "Deja al líder igualado con el último";
+    case "frozen_delta":
+      return target === "other"
+        ? "Deja a la víctima con su Puro (puntos reales sin cartas)"
+        : "Te deja con tu Puro (puntos reales sin cartas)";
   }
 }
 

@@ -227,7 +227,9 @@ export function pickPositionalCard(
     const p = card.positional;
     if (!p) continue;
     if (pos.total < p.minPlayers) continue;
-    if (!p.ranks.includes(pos.rank)) continue;
+    // `fromBottom`: el puesto se mide desde el fondo (0 = último). Si no, desde arriba.
+    const effRank = p.fromBottom ? pos.total - 1 - pos.rank : pos.rank;
+    if (!p.ranks.includes(effRank)) continue;
     if (roll([...parts, "posicional", card.type], p.oddsDenom) === 0) return card;
   }
   return null;
@@ -798,6 +800,16 @@ export function applyCardEffects(opts: {
     const spec = CARD_CATALOG[card.cardType]?.spec;
     if (spec?.outcome !== "frozen_penalty") continue;
     add(flat, card.ownerId, -(card.flatPenalty ?? 0));
+  }
+
+  // ---- Baño de realidad — ajuste plano congelado (monto en la propia carta) ----
+  // El monto (Puro − total propio, ± según corresponda) se calculó al jugarse y viaja
+  // en card.flatPenalty; acá solo se suma al dueño, dejándolo con su Puro de ese
+  // instante. Es self, así que affectedIdOf devuelve al dueño.
+  for (const card of cards) {
+    const spec = CARD_CATALOG[card.cardType]?.spec;
+    if (spec?.outcome !== "frozen_delta") continue;
+    add(flat, affectedIdOf(card), card.flatPenalty ?? 0);
   }
 
   const delta: Record<string, number> = {};

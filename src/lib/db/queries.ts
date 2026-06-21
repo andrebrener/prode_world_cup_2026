@@ -662,6 +662,20 @@ export async function caparazonPenalty(pool: Pool, participantId: string): Promi
 }
 
 /**
+ * Baño de realidad: ajuste plano (con signo) que deja a `participantId` con su Puro
+ * (puntos reales sin cartas) sobre el estado ACTUAL. Positivo si las cartas lo
+ * perjudicaron (sube), negativo si lo inflaron (baja). Se calcula al jugar la carta y
+ * se congela en su payload (no se recalcula). 0 si no hay con qué compararse.
+ */
+export async function realityDelta(pool: Pool, participantId: string): Promise<number> {
+  const rows = await getLeaderboard(pool);
+  const mine = rows.find((r) => r.id === participantId);
+  if (!mine) return 0;
+  const pureTotal = mine.fun?.pureTotal ?? mine.total;
+  return pureTotal - mine.total;
+}
+
+/**
  * Posición de cada jugador AL ARRANQUE del día (para el karma de tabla). Se congela
  * una sola vez por (prode, fecha): la primera llamada del día calcula la tabla
  * actual y la persiste; las siguientes (de cualquier jugador) reusan ese snapshot.
@@ -800,8 +814,13 @@ function toEffect(c: FunCardRow): PlayedCardEffect {
       effectMatchId = null;
     }
   }
-  // Caparazón Azul: la penalización congelada vive en el payload (`{ shell }`).
-  const shell = parsePayload(c.payload)?.shell;
+  // Montos CONGELADOS que viven en el payload: el Caparazón Azul (`{ shell }`) y el
+  // Baño de realidad (`{ reality }`, ya con signo). Ambos llegan al motor como
+  // flatPenalty; cada outcome (frozen_penalty / frozen_delta) lo usa a su manera.
+  const frozen = parsePayload(c.payload);
+  const shell = frozen?.shell;
+  const reality = frozen?.reality;
+  const flatPenalty = shell != null ? Number(shell) : reality != null ? Number(reality) : null;
   return {
     id: c.id,
     cardType: c.cardType as CardType,
@@ -811,7 +830,7 @@ function toEffect(c: FunCardRow): PlayedCardEffect {
     effectDate,
     reflected: c.reflected,
     playedAt: c.playedAt!,
-    ...(shell != null ? { flatPenalty: Number(shell) } : {}),
+    ...(flatPenalty != null ? { flatPenalty } : {}),
   };
 }
 
@@ -978,6 +997,8 @@ export type FunFeedItem = {
   reflected: boolean;
   /** true si fue un autotiro: sacó el ataque y no se lo jugó a nadie, le rebotó solo. */
   backfire: boolean;
+  /** true si NO sacó la carta del día anterior y el barrido se la aplicó solo. */
+  auto: boolean;
   /** true si fue una maldición que le tocó al reclamar. */
   curse: boolean;
   /** Detalle social (el apodo puesto, el mensaje fijado). */
@@ -1103,6 +1124,7 @@ export async function getFunState(pool: Pool, viewerId: string): Promise<FunStat
           blocked: false,
           reflected: false,
           backfire: false,
+          auto: false,
           curse: false, // el pool de señuelos es todo positivo: nunca maldición
           detail: null,
           ...(c.participantId === viewerId && real
@@ -1119,10 +1141,16 @@ export async function getFunState(pool: Pool, viewerId: string): Promise<FunStat
           : c.cardType === "microfono"
             ? (payload?.mensaje ?? null)
             : null;
+      // El día en que se jugó (para agrupar). Una jugada a mano siempre cae el día
+      // que se sacó; si el día de jugada NO coincide con el de sorteo, fue el barrido
+      // del cron: autotiro (reflejado a sí mismo) o auto-maldición (no la sacó).
+      const playedDay = funToday(c.playedAt!);
+      const backfire = c.reflected && c.targetParticipantId === c.participantId;
+      const auto = playedDay !== c.drawDate && !backfire;
       return {
         id: c.id,
         at: c.playedAt!,
-        day: funToday(c.playedAt!),
+        day: playedDay,
         ownerName,
         targetName: c.targetParticipantId ? (nameById[c.targetParticipantId] ?? "—") : null,
         cardType: c.cardType as CardType,
@@ -1131,7 +1159,9 @@ export async function getFunState(pool: Pool, viewerId: string): Promise<FunStat
         blocked: c.status === "blocked",
         reflected: c.reflected,
         // Autotiro: reflejado y apuntado a sí mismo (lo marca el barrido del cron).
-        backfire: c.reflected && c.targetParticipantId === c.participantId,
+        backfire,
+        // Auto-maldición: cayó por un día ya cerrado que no reclamó (le cayó sola).
+        auto,
         curse: def?.kind === "curse",
         detail,
       };

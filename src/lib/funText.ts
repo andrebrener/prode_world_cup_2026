@@ -26,8 +26,10 @@ const ACTION: Record<CardType, Clause> = {
   duelo: (t) => `le afana a ${t} todos sus puntos del día`,
   papas: () => "+5 al toque",
   speed: () => "+2 al toque",
+  remontada: () => "+20 al toque",
   pedo: (t) => `le roba 5 puntos a ${t}`,
   vendetta: (t) => `le clava un cero en el primer partido del día a ${t}`,
+  banio_realidad: () => "se pega un baño de realidad: queda con su Puro (sin cartas)",
   saibamba: () => "cobra los puntos del campeón",
   escudo: () => "bloquea todos los ataques que le tiren hoy",
   aguante: () => "su racha aguanta los ceros de hoy",
@@ -56,11 +58,19 @@ export function playText(opts: {
   reflected?: boolean;
   /** Autotiro: sacó el ataque y no se lo jugó a nadie, le rebotó solo. */
   backfire?: boolean;
+  /** Auto-maldición: NO sacó la carta del día anterior y el barrido se la aplicó solo. */
+  auto?: boolean;
 }): string {
   // Autotiro: el ataque le pega al propio dueño (la "víctima" es él mismo).
   if (opts.backfire) {
     const action = ACTION[opts.cardType]?.("sí mismo", opts.detail) ?? "le rebotó";
     return `${opts.emoji} ${opts.ownerName} no le jugó ${opts.name} a nadie y le rebotó solo 🎯: ${action}`;
+  }
+  // Auto-maldición: no reclamó su carta y el barrido nocturno se la aplicó igual,
+  // por el día que ya cerró. Se aclara que NO la sacó (le cayó sola).
+  if (opts.auto) {
+    const action = ACTION[opts.cardType]?.(opts.ownerName, opts.detail) ?? "le cayó una maldición";
+    return `${opts.emoji} ${opts.ownerName} no sacó carta y le cayó sola 🤖 (automática del día anterior) ${opts.name}: ${action}`;
   }
   const action = ACTION[opts.cardType]?.(opts.targetName ?? "nadie", opts.detail) ?? "jugó una carta";
   const base = `${opts.emoji} ${opts.ownerName} jugó ${opts.name}: ${action}`;

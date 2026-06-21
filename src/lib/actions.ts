@@ -37,6 +37,7 @@ import {
   getPoolMemberIds,
   getDayRankSnapshot,
   caparazonPenalty,
+  realityDelta,
   canManagePool,
   getPoolRole,
   type ParticipantDetail,
@@ -1265,6 +1266,13 @@ async function executePlay(
   const targetName = finalTargetId
     ? (ctx.rows.find((r) => r.id === finalTargetId)?.name ?? undefined)
     : undefined;
+
+  // Baño de realidad: el ajuste (Puro − total propio, con signo) se calcula AHORA
+  // contra la tabla actual —sin esta carta, que todavía está "held"— y se congela en
+  // el payload. Después no se recalcula: es de una sola vez.
+  if (def.spec.outcome === "frozen_delta" && !outcome.blocked) {
+    payload.reality = await realityDelta(pool, ownerId);
+  }
 
   await db
     .update(funCards)
