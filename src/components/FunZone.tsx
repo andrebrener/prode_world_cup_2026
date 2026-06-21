@@ -102,6 +102,7 @@ function feedText(f: FunFeedItem): string {
     targetName: f.targetName,
     detail: f.detail,
     backfire: f.backfire,
+    auto: f.auto,
   });
 }
 
