@@ -38,6 +38,7 @@ import {
   getDayRankSnapshot,
   caparazonPenalty,
   realityDelta,
+  swapDelta,
   canManagePool,
   getPoolRole,
   type ParticipantDetail,
@@ -1286,6 +1287,14 @@ async function executePlay(
   // el payload. Después no se recalcula: es de una sola vez.
   if (def.spec.outcome === "frozen_delta" && !outcome.blocked) {
     payload.reality = await realityDelta(pool, ownerId);
+  }
+
+  // Game is game: el swap (D = total de la víctima − total del dueño) se calcula AHORA
+  // contra la tabla actual —sin esta carta, todavía "held"— y se congela en el payload.
+  // Si rebotó (espejito), igual se congela: el motor lo invierte. Si lo bloqueó un
+  // escudo, no hay efecto, así que ni se calcula.
+  if (def.spec.outcome === "frozen_swap" && !outcome.blocked && finalTargetId) {
+    payload.swap = await swapDelta(pool, ownerId, finalTargetId);
   }
 
   await db

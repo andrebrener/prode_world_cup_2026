@@ -686,6 +686,24 @@ export async function realityDelta(pool: Pool, participantId: string): Promise<n
 }
 
 /**
+ * Game is game: el monto del swap de totales entre `ownerId` y `targetId` sobre el
+ * estado ACTUAL. D = total de la víctima − total del dueño. Aplicado, deja al dueño
+ * con el total de la víctima (+D) y a la víctima con el del dueño (−D). Se calcula al
+ * jugar la carta y se congela en su payload (no se recalcula). 0 si falta alguno.
+ */
+export async function swapDelta(
+  pool: Pool,
+  ownerId: string,
+  targetId: string,
+): Promise<number> {
+  const rows = await getLeaderboard(pool);
+  const mine = rows.find((r) => r.id === ownerId);
+  const theirs = rows.find((r) => r.id === targetId);
+  if (!mine || !theirs) return 0;
+  return theirs.total - mine.total;
+}
+
+/**
  * Piso de la escala para normalizar el luck del karma de cartas. Si el grupo entero
  * se movió poco con la timba (máx. desvío < este piso), el sesgo por cartas queda
  * tenue (nadie se infló desproporcionadamente, no hay a quién castigar). En puntos.
@@ -859,13 +877,22 @@ function toEffect(c: FunCardRow): PlayedCardEffect {
       effectMatchId = null;
     }
   }
-  // Montos CONGELADOS que viven en el payload: el Caparazón Azul (`{ shell }`) y el
-  // Baño de realidad (`{ reality }`, ya con signo). Ambos llegan al motor como
-  // flatPenalty; cada outcome (frozen_penalty / frozen_delta) lo usa a su manera.
+  // Montos CONGELADOS que viven en el payload: el Caparazón Azul (`{ shell }`), el
+  // Baño de realidad (`{ reality }`, ya con signo) y Game is game (`{ swap }`, D =
+  // total víctima − total dueño). Los tres llegan al motor como flatPenalty; cada
+  // outcome (frozen_penalty / frozen_delta / frozen_swap) lo usa a su manera.
   const frozen = parsePayload(c.payload);
   const shell = frozen?.shell;
   const reality = frozen?.reality;
-  const flatPenalty = shell != null ? Number(shell) : reality != null ? Number(reality) : null;
+  const swap = frozen?.swap;
+  const flatPenalty =
+    shell != null
+      ? Number(shell)
+      : reality != null
+        ? Number(reality)
+        : swap != null
+          ? Number(swap)
+          : null;
   return {
     id: c.id,
     cardType: c.cardType as CardType,

@@ -630,9 +630,11 @@ export type PlayedCardEffect = {
   reflected: boolean;
   playedAt: Date;
   /**
-   * Monto congelado de una penalización posicional (Caparazón Azul): se calculó al
-   * caer la carta y vive en su payload, no en el spec. Lo lee el outcome
-   * `frozen_penalty`. Ausente en el resto de las cartas.
+   * Monto congelado que vive en el payload de la carta, no en el spec. Lo usan los
+   * outcomes que calculan su monto al jugarse: `frozen_penalty` (Caparazón Azul, lo
+   * resta), `frozen_delta` (Baño de realidad, lo suma con signo) y `frozen_swap`
+   * (Game is game, D = total víctima − total dueño: se lo suma al dueño y se lo resta
+   * a la víctima). Ausente en el resto de las cartas.
    */
   flatPenalty?: number;
 };
@@ -883,6 +885,20 @@ export function applyCardEffects(opts: {
     const spec = CARD_CATALOG[card.cardType]?.spec;
     if (spec?.outcome !== "frozen_delta") continue;
     add(flat, affectedIdOf(card), card.flatPenalty ?? 0);
+  }
+
+  // ---- Game is game — swap CONGELADO de totales (monto en la propia carta) ----
+  // D = total de la víctima − total del dueño, congelado al jugarse, viaja en
+  // card.flatPenalty. Aplicado: el dueño += D (queda con el total que tenía la
+  // víctima) y la víctima −= D (queda con el del dueño). Un espejito lo invierte (le
+  // pega al que lo tiró). Sin víctima o sin monto (un autotiro nunca congela el swap),
+  // queda en no-op.
+  for (const card of cards) {
+    const spec = CARD_CATALOG[card.cardType]?.spec;
+    if (spec?.outcome !== "frozen_swap" || !card.targetId) continue;
+    const d = card.flatPenalty ?? 0;
+    add(flat, card.ownerId, card.reflected ? -d : d);
+    add(flat, card.targetId, card.reflected ? d : -d);
   }
 
   const delta: Record<string, number> = {};

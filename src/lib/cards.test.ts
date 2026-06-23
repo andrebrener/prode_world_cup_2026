@@ -729,6 +729,32 @@ describe("applyCardEffects", () => {
     expect(rebotado.flat).toEqual({ ana: -5, beto: 5 });
   });
 
+  it("Game is game: swapea totales con el monto CONGELADO (D); rebotado va al revés", () => {
+    // D = total de beto − total de ana (congelado al jugarse). Aplicado: ana += D
+    // (queda con lo de beto), beto −= D (queda con lo de ana). Acá D = 12.
+    const directo = applyCardEffects({
+      ...opts,
+      cards: [played("game_is_game", "ana", { targetId: "beto", flatPenalty: 12 })],
+    });
+    expect(directo.flat).toEqual({ ana: 12, beto: -12 });
+
+    // Espejito: el swap se invierte y le pega al que lo tiró.
+    const rebotado = applyCardEffects({
+      ...opts,
+      cards: [played("game_is_game", "ana", { targetId: "beto", flatPenalty: 12, reflected: true })],
+    });
+    expect(rebotado.flat).toEqual({ ana: -12, beto: 12 });
+  });
+
+  it("Game is game sin monto congelado no rompe (no-op)", () => {
+    const r = applyCardEffects({
+      ...opts,
+      cards: [played("game_is_game", "ana", { targetId: "beto" })],
+    });
+    expect(r.flat.ana ?? 0).toBe(0);
+    expect(r.flat.beto ?? 0).toBe(0);
+  });
+
   // Autotiro: ataque sacado y no jugado a nadie → reflejado contra sí mismo
   // (targetId = dueño, reflected). El motor lo resuelve como daño puro al dueño.
   describe("autotiro (ataque reflejado contra sí mismo)", () => {

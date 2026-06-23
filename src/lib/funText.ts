@@ -30,6 +30,7 @@ const ACTION: Record<CardType, Clause> = {
   pedo: (t) => `le roba 5 puntos a ${t}`,
   vendetta: (t) => `le clava un cero en el primer partido del día a ${t}`,
   banio_realidad: () => "se pega un baño de realidad: queda con su Puro (sin cartas)",
+  game_is_game: (t) => `le intercambia el puntaje a ${t} (game is game)`,
   saibamba: () => "cobra los puntos del campeón",
   escudo: () => "bloquea todos los ataques que le tiren hoy",
   aguante: () => "su racha aguanta los ceros de hoy",

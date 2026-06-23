@@ -46,6 +46,7 @@ export type CardType =
   | "pedo"
   | "vendetta"
   | "banio_realidad"
+  | "game_is_game"
   // vidente
   | "saibamba"
   // defensas del día
@@ -117,7 +118,15 @@ export type OutcomeSpec =
   // Ajuste plano CONGELADO al jugarse: deja al afectado con su Puro (puntos reales
   // sin cartas) en ese instante. El monto (Puro − total, ± según corresponda) se
   // calcula al jugar la carta y vive en su payload (`{ reality }`); no se recalcula.
-  | { outcome: "frozen_delta" };
+  | { outcome: "frozen_delta" }
+  /**
+   * Swap CONGELADO de totales (Game is game): el dueño y la víctima INTERCAMBIAN su
+   * total. El monto (D = total de la víctima − total del dueño, en ese instante) NO
+   * está en el spec — se calcula al jugar la carta contra la tabla y se guarda en el
+   * payload (`{ swap }`). Al aplicarse: dueño += D (queda con el total de la víctima),
+   * víctima −= D (queda con el del dueño). Un espejito lo invierte. No se recalcula.
+   */
+  | { outcome: "frozen_swap" };
 
 export type Outcome = OutcomeSpec["outcome"];
 
@@ -388,6 +397,19 @@ export const CARD_CATALOG: Record<CardType, CardDef> = {
     blockable: false,
     effectLabel: "Te deja con tu Puro (puntos reales sin cartas), una sola vez",
     description: "Te pegás un baño de realidad: en el acto te suma o resta lo justo para dejarte con tu Puro — los puntos que tenés de verdad, sin cartas. Si las cartas te inflaron, bajás; si te perjudicaron, subís. Es de una sola vez: queda congelado en ese momento y después la tabla sigue normal (no vivís permanentemente en la realidad).",
+  }),
+  game_is_game: c({
+    type: "game_is_game",
+    spec: { outcome: "frozen_swap" },
+    name: "Game is game",
+    emoji: "🔄",
+    rarity: "legendaria",
+    kind: "attack",
+    target: "other",
+    window: null,
+    blockable: true,
+    effectLabel: "Intercambia tu puntaje con el de la víctima (lo que valga la diferencia)",
+    description: "Game is game, papá: elegís a alguien y le intercambiás el puntaje. Si está arriba tuyo, te quedás con sus puntos y le dejás los tuyos (subís vos, baja él); si está abajo, también pasa — así que elegí con cabeza. Es variable: vale la diferencia que haya entre los dos en ese instante (se congela ahí, una sola vez). Un espejito te lo rebota.",
   }),
 
   // ---------- Vidente ----------
@@ -748,6 +770,8 @@ export function outcomeLabel(spec: OutcomeSpec, target: CardDef["target"] = "sel
       return target === "other"
         ? "Deja a la víctima con su Puro (puntos reales sin cartas)"
         : "Te deja con tu Puro (puntos reales sin cartas)";
+    case "frozen_swap":
+      return "Intercambia tu puntaje con el de la víctima";
   }
 }
 
