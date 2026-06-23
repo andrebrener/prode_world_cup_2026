@@ -221,10 +221,10 @@ describe("pickPositionalCard (Caparazón Azul / Golpe al Podio)", () => {
     }
   });
 
-  it("la Remontada le cae SOLO a los últimos 3 (fromBottom), nunca más arriba", () => {
-    // total 10 → últimos 3 = ranks 7, 8, 9. El 4º de abajo (rank 6) y el líder no.
+  it("la Remontada le cae SOLO a los últimos 4 (fromBottom), nunca más arriba", () => {
+    // total 10 → últimos 4 = ranks 6, 7, 8, 9. El 5º de abajo (rank 5) y el líder no.
     for (let i = 0; i < 200; i++) {
-      expect(pickPositionalCard(seed(`p${i}`), DECK, { rank: 6, total: 10 })?.type).not.toBe(
+      expect(pickPositionalCard(seed(`p${i}`), DECK, { rank: 5, total: 10 })?.type).not.toBe(
         "remontada",
       );
       expect(pickPositionalCard(seed(`p${i}`), DECK, { rank: 0, total: 10 })?.type).not.toBe(
@@ -244,9 +244,9 @@ describe("pickPositionalCard (Caparazón Azul / Golpe al Podio)", () => {
     expect(hits / N).toBeLessThan(0.25);
   });
 
-  it("la Remontada respeta minPlayers: no cae con menos de 4 jugadores", () => {
+  it("la Remontada respeta minPlayers: no cae con menos de 5 jugadores", () => {
     for (let i = 0; i < 200; i++) {
-      expect(pickPositionalCard(seed(`p${i}`), DECK, { rank: 2, total: 3 })?.type).not.toBe(
+      expect(pickPositionalCard(seed(`p${i}`), DECK, { rank: 3, total: 4 })?.type).not.toBe(
         "remontada",
       );
     }
@@ -256,6 +256,62 @@ describe("pickPositionalCard (Caparazón Azul / Golpe al Podio)", () => {
     expect(pickPositionalCard(seed("ana"), DECK, { rank: 0, total: 10 })?.type).toBe(
       pickPositionalCard(seed("ana"), DECK, { rank: 0, total: 10 })?.type,
     );
+  });
+
+  describe("config del admin (puestos + probabilidad)", () => {
+    // Mazo resuelto con una config posicional custom: Remontada a los últimos 2,
+    // Golpe hasta el 4º (2º-3º-4º) y Caparazón siempre (1 en 1).
+    const cfg = {
+      ...DEFAULT_FUN_CONFIG,
+      positional: {
+        remontadaBottomN: 2,
+        golpePodioN: 4,
+        caparazonOdds: 1,
+        golpeOdds: 6,
+        remontadaOdds: 5,
+      },
+    };
+    const customDeck = resolveDeck(
+      ALL_CARDS.map((c) => ({
+        id: c.type,
+        mechanic: c.type,
+        name: c.name,
+        emoji: c.emoji,
+        description: c.description,
+        rarity: c.rarity,
+      })),
+      cfg,
+    );
+
+    it("Remontada con últimos 2: pega al rank 8 (anteúltimo) pero no al 7", () => {
+      // total 10 → últimos 2 = ranks 8, 9. El 3º de abajo (rank 7) ya no.
+      for (let i = 0; i < 200; i++) {
+        expect(pickPositionalCard(seed(`p${i}`), customDeck, { rank: 7, total: 10 })?.type).not.toBe(
+          "remontada",
+        );
+      }
+      let hits = 0;
+      for (let i = 0; i < 2000; i++) {
+        if (pickPositionalCard(seed(`p${i}`), customDeck, { rank: 8, total: 10 })?.type === "remontada") hits++;
+      }
+      expect(hits).toBeGreaterThan(0);
+    });
+
+    it("Golpe hasta el 4º: ahora SÍ le pega al 4º (rank 3), antes no", () => {
+      let hits = 0;
+      for (let i = 0; i < 2000; i++) {
+        if (pickPositionalCard(seed(`p${i}`), customDeck, { rank: 3, total: 10 })?.type === "golpe") hits++;
+      }
+      expect(hits).toBeGreaterThan(0);
+    });
+
+    it("Caparazón con odds 1: le cae al líder TODOS los días", () => {
+      for (let i = 0; i < 200; i++) {
+        expect(pickPositionalCard(seed(`p${i}`), customDeck, { rank: 0, total: 10 })?.type).toBe(
+          "caparazon",
+        );
+      }
+    });
   });
 
   it("el sorteo normal (pickDailyCard) NUNCA devuelve una posicional", () => {
@@ -827,6 +883,7 @@ describe("resolveDeck / pickDailyCard (sorteo por prode)", () => {
     const d = pickDailyCard({ poolId: "p", participantId: "x", date: "d" }, deck, {
       weights: DEFAULT_FUN_CONFIG.weights,
       karmaTabla: false,
+      positional: DEFAULT_FUN_CONFIG.positional,
     });
     expect(d?.type).toBe("doblete");
     expect(d?.name).toBe("La Tractora");
@@ -900,7 +957,7 @@ describe("karmaWeights (sesgo por posición)", () => {
       { id: "leg", mechanic: "saibamba", name: "Leg", emoji: "🔮", description: "", rarity: "legendaria" },
       { id: "mal", mechanic: "nemo", name: "Mal", emoji: "🛏️", description: "", rarity: "maldicion" },
     ]);
-    const cfg = { weights: base, karmaTabla: true };
+    const cfg = { weights: base, karmaTabla: true, positional: DEFAULT_FUN_CONFIG.positional };
     // Ya ninguna rareza pesa 0 (el líder conserva su tiro a legendaria), así que el
     // sesgo se ve en frecuencia: muestreamos muchos seeds y comparamos.
     const N = 400;

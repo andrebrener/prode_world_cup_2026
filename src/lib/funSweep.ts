@@ -39,7 +39,7 @@ export async function autoCurseUnclaimed(
   await ensureFunPool(pool.id); // idempotente: clona el mazo oficial si falta
   const config = await getPoolFunConfig(pool.id);
 
-  const deck = resolveDeck(await getPoolDeckRows(pool.id));
+  const deck = resolveDeck(await getPoolDeckRows(pool.id), config);
   if (deck.length === 0) return 0;
   const hasPositional = deck.some((c) => c.positional);
 

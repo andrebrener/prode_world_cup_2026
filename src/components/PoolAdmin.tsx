@@ -85,7 +85,7 @@ export default function PoolAdmin({
 
       {isFun ? (
         <>
-          <SorteoConfig slug={slug} config={data.config} busy={busy} run={run} />
+          <SorteoConfig slug={slug} config={data.config} deck={data.deck} busy={busy} run={run} />
           <Deck
             slug={slug}
             deck={data.deck}
@@ -112,11 +112,13 @@ export default function PoolAdmin({
 function SorteoConfig({
   slug,
   config,
+  deck,
   busy,
   run,
 }: {
   slug: string;
   config: PoolAdminData["config"];
+  deck: DeckCard[];
   busy: boolean;
   run: (fn: () => Promise<{ ok: boolean; error?: string }>, okText: string) => void;
 }) {
@@ -127,9 +129,22 @@ function SorteoConfig({
     maldicion: config.weightMaldicion,
   });
   const [karma, setKarma] = useState(config.karmaTabla);
+  // Cartas posicionales: puestos a los que le caen + probabilidad (1 en X).
+  const [pos, setPos] = useState({
+    remontadaBottom: config.posRemontadaBottom,
+    golpePodio: config.posGolpePodio,
+    caparazonOdds: config.posCaparazonOdds,
+    golpeOdds: config.posGolpeOdds,
+    remontadaOdds: config.posRemontadaOdds,
+  });
 
   const sum = w.comun + w.rara + w.legendaria + w.maldicion;
   const pct = (weight: number) => (sum > 0 ? (100 * weight) / sum : 100 / 4);
+
+  // Solo mostramos los controles de las posicionales que el prode tenga en el mazo.
+  const inDeck = new Set(deck.map((c) => c.mechanic));
+  const anyPositional = inDeck.has("caparazon") || inDeck.has("golpe") || inDeck.has("remontada");
+  const num = (v: string, min: number) => Math.max(min, Math.trunc(Number(v) || min));
 
   return (
     <section className="rounded-2xl border border-border bg-surface p-5">
@@ -185,6 +200,96 @@ function SorteoConfig({
         </span>
       </label>
 
+      {/* Cartas posicionales: a qué puestos le caen y con qué probabilidad. Solo las
+          que el prode tenga en el mazo (son opt-in). */}
+      {anyPositional && (
+        <div className="mt-4 rounded-xl border border-border bg-background p-3">
+          <div className="text-xs font-bold uppercase tracking-wide text-muted">
+            Cartas posicionales
+          </div>
+          <p className="mt-1 text-xs text-muted">
+            Le caen solas según el puesto en la tabla (con la foto del día). Acá elegís a cuántos
+            puestos y cada cuánto.
+          </p>
+
+          {inDeck.has("remontada") && (
+            <div className="mt-3 grid grid-cols-2 gap-3">
+              <label className="block">
+                <span className="text-xs font-semibold text-foreground">🚀 Remontada — últimos</span>
+                <input
+                  type="number"
+                  min={1}
+                  value={pos.remontadaBottom}
+                  onChange={(e) => setPos({ ...pos, remontadaBottom: num(e.target.value, 1) })}
+                  className="mt-1 w-full rounded-lg border border-border bg-surface px-2 py-1 text-sm"
+                />
+                <span className="mt-0.5 block text-xs text-muted">+20 a los últimos {pos.remontadaBottom} de la tabla</span>
+              </label>
+              <label className="block">
+                <span className="text-xs font-semibold text-foreground">Probabilidad — 1 en</span>
+                <input
+                  type="number"
+                  min={1}
+                  value={pos.remontadaOdds}
+                  onChange={(e) => setPos({ ...pos, remontadaOdds: num(e.target.value, 1) })}
+                  className="mt-1 w-full rounded-lg border border-border bg-surface px-2 py-1 text-sm"
+                />
+                <span className="mt-0.5 block text-xs text-muted">~1 cada {pos.remontadaOdds} días</span>
+              </label>
+            </div>
+          )}
+
+          {inDeck.has("golpe") && (
+            <div className="mt-3 grid grid-cols-2 gap-3">
+              <label className="block">
+                <span className="text-xs font-semibold text-foreground">🥊 Golpe — hasta el</span>
+                <input
+                  type="number"
+                  min={2}
+                  value={pos.golpePodio}
+                  onChange={(e) => setPos({ ...pos, golpePodio: num(e.target.value, 2) })}
+                  className="mt-1 w-full rounded-lg border border-border bg-surface px-2 py-1 text-sm"
+                />
+                <span className="mt-0.5 block text-xs text-muted">-15 del 2º al {pos.golpePodio}º (el líder no)</span>
+              </label>
+              <label className="block">
+                <span className="text-xs font-semibold text-foreground">Probabilidad — 1 en</span>
+                <input
+                  type="number"
+                  min={1}
+                  value={pos.golpeOdds}
+                  onChange={(e) => setPos({ ...pos, golpeOdds: num(e.target.value, 1) })}
+                  className="mt-1 w-full rounded-lg border border-border bg-surface px-2 py-1 text-sm"
+                />
+                <span className="mt-0.5 block text-xs text-muted">~1 cada {pos.golpeOdds} días</span>
+              </label>
+            </div>
+          )}
+
+          {inDeck.has("caparazon") && (
+            <div className="mt-3 grid grid-cols-2 gap-3">
+              <div className="block">
+                <span className="text-xs font-semibold text-foreground">🐚 Caparazón Azul</span>
+                <span className="mt-1 block rounded-lg border border-dashed border-border px-2 py-1 text-xs text-muted">
+                  Solo al líder (puesto fijo)
+                </span>
+              </div>
+              <label className="block">
+                <span className="text-xs font-semibold text-foreground">Probabilidad — 1 en</span>
+                <input
+                  type="number"
+                  min={1}
+                  value={pos.caparazonOdds}
+                  onChange={(e) => setPos({ ...pos, caparazonOdds: num(e.target.value, 1) })}
+                  className="mt-1 w-full rounded-lg border border-border bg-surface px-2 py-1 text-sm"
+                />
+                <span className="mt-0.5 block text-xs text-muted">~1 cada {pos.caparazonOdds} días</span>
+              </label>
+            </div>
+          )}
+        </div>
+      )}
+
       <button
         disabled={busy}
         onClick={() =>
@@ -196,6 +301,11 @@ function SorteoConfig({
                 weightLegendaria: w.legendaria,
                 weightMaldicion: w.maldicion,
                 karmaTabla: karma,
+                posRemontadaBottom: pos.remontadaBottom,
+                posGolpePodio: pos.golpePodio,
+                posCaparazonOdds: pos.caparazonOdds,
+                posGolpeOdds: pos.golpeOdds,
+                posRemontadaOdds: pos.remontadaOdds,
               }),
             "Sorteo guardado.",
           )

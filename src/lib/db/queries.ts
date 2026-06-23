@@ -160,6 +160,11 @@ export type PoolAdminData = {
     weightLegendaria: number;
     weightMaldicion: number;
     karmaTabla: boolean;
+    posRemontadaBottom: number;
+    posGolpePodio: number;
+    posCaparazonOdds: number;
+    posGolpeOdds: number;
+    posRemontadaOdds: number;
   };
   members: { id: string; name: string; role: PoolRole }[];
 };
@@ -194,6 +199,11 @@ export async function getPoolAdmin(poolId: string): Promise<PoolAdminData> {
       weightLegendaria: cfg?.weightLegendaria ?? DEFAULT_FUN_CONFIG.weights.legendaria,
       weightMaldicion: cfg?.weightMaldicion ?? DEFAULT_FUN_CONFIG.weights.maldicion,
       karmaTabla: cfg?.karmaTabla ?? DEFAULT_FUN_CONFIG.karmaTabla,
+      posRemontadaBottom: cfg?.posRemontadaBottom ?? DEFAULT_FUN_CONFIG.positional.remontadaBottomN,
+      posGolpePodio: cfg?.posGolpePodio ?? DEFAULT_FUN_CONFIG.positional.golpePodioN,
+      posCaparazonOdds: cfg?.posCaparazonOdds ?? DEFAULT_FUN_CONFIG.positional.caparazonOdds,
+      posGolpeOdds: cfg?.posGolpeOdds ?? DEFAULT_FUN_CONFIG.positional.golpeOdds,
+      posRemontadaOdds: cfg?.posRemontadaOdds ?? DEFAULT_FUN_CONFIG.positional.remontadaOdds,
     },
     members,
   };

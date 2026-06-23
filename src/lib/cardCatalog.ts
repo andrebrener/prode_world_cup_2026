@@ -596,9 +596,9 @@ export const CARD_CATALOG: Record<CardType, CardDef> = {
     target: "self",
     window: null,
     blockable: false,
-    positional: { ranks: [0, 1, 2], oddsDenom: 5, minPlayers: 4, fromBottom: true },
-    effectLabel: "+20 puntos a los últimos 3 de la tabla",
-    description: "Un envión para los de atrás: +20 puntos al toque. Le cae SOLO a los últimos tres de la tabla, más o menos una vez cada cinco días. Hay que reclamar la carta del día para llevársela.",
+    positional: { ranks: [0, 1, 2, 3], oddsDenom: 5, minPlayers: 5, fromBottom: true },
+    effectLabel: "+20 puntos a los últimos 4 de la tabla",
+    description: "Un envión para los de atrás: +20 puntos al toque. Le cae SOLO a los últimos cuatro de la tabla, más o menos una vez cada cinco días. Hay que reclamar la carta del día para llevársela.",
   }),
 };
 
@@ -836,17 +836,46 @@ export const DEFAULT_DECK: DeckEntry[] = ALL_CARDS.filter((c) => !c.positional).
   sortOrder: i,
 }));
 
-/** Config de sorteo por prode (los pesos de rareza + el karma de tabla). */
+/**
+ * Parámetros de las cartas POSICIONALES editables por el admin. Los puestos a los
+ * que le caen (cuántos arriba/abajo) y su probabilidad. El resto del PositionalDraw
+ * (fromBottom, etc.) sigue fijo en el catálogo; estos valores lo pisan al resolver
+ * el mazo (ver applyPositionalConfig en cards.ts).
+ */
+export type PositionalConfig = {
+  // Remontada: le cae a los ÚLTIMOS N de la tabla (default 4).
+  remontadaBottomN: number;
+  // Golpe al Podio: pega del 2º hasta el Nº puesto, sin tocar al líder (default 3 → 2º y 3º).
+  golpePodioN: number;
+  // Probabilidad de cada posicional: 1 en X días que le toca a un puesto elegible.
+  caparazonOdds: number;
+  golpeOdds: number;
+  remontadaOdds: number;
+};
+
+/** Config de sorteo por prode (los pesos de rareza + el karma de tabla + posicionales). */
 export type FunConfig = {
   weights: Record<CardRarity, number>;
   // Karma de tabla: sesga los pesos de rareza por posición en la tabla.
   karmaTabla: boolean;
+  // Puestos y probabilidad de las cartas posicionales (Caparazón/Golpe/Remontada).
+  positional: PositionalConfig;
 };
+
+// Defaults de los posicionales, derivados del catálogo para no desincronizarse.
+const POS = (t: CardType) => CARD_CATALOG[t].positional!;
 
 /** Config de sorteo default (los valores oficiales). */
 export const DEFAULT_FUN_CONFIG: FunConfig = {
   weights: { ...RARITY_WEIGHTS },
   karmaTabla: false,
+  positional: {
+    remontadaBottomN: POS("remontada").ranks.length, // últimos 4
+    golpePodioN: Math.max(...POS("golpe").ranks) + 1, // hasta el 3º (ranks [1,2])
+    caparazonOdds: POS("caparazon").oddsDenom, // 1 en 4
+    golpeOdds: POS("golpe").oddsDenom, // 1 en 6
+    remontadaOdds: POS("remontada").oddsDenom, // 1 en 5
+  },
 };
 
 /** Máximo de cartas en mano por prode: con la mano llena no se puede reclamar la del día. */

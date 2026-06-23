@@ -22,6 +22,11 @@ const DEFAULT_CONFIG_ROW = {
   weightRara: DEFAULT_FUN_CONFIG.weights.rara,
   weightLegendaria: DEFAULT_FUN_CONFIG.weights.legendaria,
   weightMaldicion: DEFAULT_FUN_CONFIG.weights.maldicion,
+  posRemontadaBottom: DEFAULT_FUN_CONFIG.positional.remontadaBottomN,
+  posGolpePodio: DEFAULT_FUN_CONFIG.positional.golpePodioN,
+  posCaparazonOdds: DEFAULT_FUN_CONFIG.positional.caparazonOdds,
+  posGolpeOdds: DEFAULT_FUN_CONFIG.positional.golpeOdds,
+  posRemontadaOdds: DEFAULT_FUN_CONFIG.positional.remontadaOdds,
 };
 
 /**
@@ -88,6 +93,13 @@ export async function getPoolFunConfig(poolId: string, db: Db = defaultDb): Prom
       extra: 0,
     },
     karmaTabla: row.karmaTabla,
+    positional: {
+      remontadaBottomN: row.posRemontadaBottom,
+      golpePodioN: row.posGolpePodio,
+      caparazonOdds: row.posCaparazonOdds,
+      golpeOdds: row.posGolpeOdds,
+      remontadaOdds: row.posRemontadaOdds,
+    },
   };
 }
 

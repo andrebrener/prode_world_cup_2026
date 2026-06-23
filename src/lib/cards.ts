@@ -27,6 +27,7 @@ import {
   type CardType,
   type FunConfig,
   type FunMatchOption,
+  type PositionalDraw,
 } from "./cardCatalog";
 
 /** IDs de partidos de eliminatoria (para distinguir el piso de puntos por fase). */
@@ -82,13 +83,51 @@ export type DeckRow = {
   restrictedTargetId?: string | null;
 };
 
-/** Resuelve filas del mazo con su mecánica del registro. Ignora mecánicas desconocidas. */
-export function resolveDeck(rows: DeckRow[]): DrawnCard[] {
+/**
+ * Pisa el PositionalDraw del catálogo con los valores configurables del prode:
+ * Remontada (últimos N), Golpe al Podio (del 2º al Nº puesto) y la probabilidad
+ * (1 en X) de las tres posicionales. minPlayers se deriva para que siempre quede al
+ * menos un jugador fuera del rango. El resto del draw (fromBottom, etc.) no se toca.
+ */
+function applyPositionalConfig(card: DrawnCard, cfg: FunConfig): PositionalDraw | undefined {
+  const p = card.positional;
+  if (!p) return undefined;
+  const pc = cfg.positional;
+  switch (card.type) {
+    case "caparazon":
+      return { ...p, oddsDenom: pc.caparazonOdds };
+    case "golpe":
+      // Del 2º (rank 1) hasta el Nº puesto (rank N-1), contando desde arriba.
+      return {
+        ...p,
+        ranks: Array.from({ length: Math.max(0, pc.golpePodioN - 1) }, (_, i) => i + 1),
+        minPlayers: pc.golpePodioN,
+        oddsDenom: pc.golpeOdds,
+      };
+    case "remontada":
+      // Los últimos N, contando desde el fondo (rank 0 = último).
+      return {
+        ...p,
+        ranks: Array.from({ length: pc.remontadaBottomN }, (_, i) => i),
+        minPlayers: pc.remontadaBottomN + 1,
+        oddsDenom: pc.remontadaOdds,
+      };
+    default:
+      return p;
+  }
+}
+
+/**
+ * Resuelve filas del mazo con su mecánica del registro. Ignora mecánicas
+ * desconocidas. Aplica la config posicional del prode (puestos + probabilidad de las
+ * cartas posicionales); sin config usa los valores oficiales del catálogo.
+ */
+export function resolveDeck(rows: DeckRow[], config: FunConfig = DEFAULT_FUN_CONFIG): DrawnCard[] {
   const out: DrawnCard[] = [];
   for (const r of rows) {
     const base = CARD_CATALOG[r.mechanic as CardType];
     if (!base) continue;
-    out.push({
+    const card: DrawnCard = {
       ...base,
       name: r.name,
       emoji: r.emoji,
@@ -96,7 +135,9 @@ export function resolveDeck(rows: DeckRow[]): DrawnCard[] {
       rarity: r.rarity as CardRarity,
       defId: r.id,
       restrictedTargetId: r.restrictedTargetId ?? null,
-    });
+    };
+    card.positional = applyPositionalConfig(card, config);
+    out.push(card);
   }
   return out;
 }

@@ -979,23 +979,37 @@ export type FunConfigPatch = {
   weightLegendaria: number;
   weightMaldicion: number;
   karmaTabla: boolean;
+  // Cartas posicionales: puestos a los que le caen + probabilidad (1 en X).
+  posRemontadaBottom: number;
+  posGolpePodio: number;
+  posCaparazonOdds: number;
+  posGolpeOdds: number;
+  posRemontadaOdds: number;
 };
 
-/** Edita la config de sorteo del prode (% sin efecto + pesos de rareza). */
+/** Edita la config de sorteo del prode (pesos de rareza + karma + posicionales). */
 export async function updateFunConfigAction(
   slug: string,
   cfg: FunConfigPatch,
 ): Promise<{ ok: boolean; error?: string }> {
   const gate = await manageGate(slug);
   if ("error" in gate) return { ok: false, error: gate.error };
-  const clamp = (n: number, max: number) => Math.max(0, Math.min(max, Math.trunc(Number(n) || 0)));
+  const clamp = (n: number, min: number, max: number) =>
+    Math.max(min, Math.min(max, Math.trunc(Number(n) || min)));
   const values = {
     poolId: gate.pool.id,
-    weightComun: clamp(cfg.weightComun, 1000),
-    weightRara: clamp(cfg.weightRara, 1000),
-    weightLegendaria: clamp(cfg.weightLegendaria, 1000),
-    weightMaldicion: clamp(cfg.weightMaldicion, 1000),
+    weightComun: clamp(cfg.weightComun, 0, 1000),
+    weightRara: clamp(cfg.weightRara, 0, 1000),
+    weightLegendaria: clamp(cfg.weightLegendaria, 0, 1000),
+    weightMaldicion: clamp(cfg.weightMaldicion, 0, 1000),
     karmaTabla: Boolean(cfg.karmaTabla),
+    // Remontada: al menos el último (1), tope sano. Golpe: arranca en el 2º (min 2).
+    posRemontadaBottom: clamp(cfg.posRemontadaBottom, 1, 50),
+    posGolpePodio: clamp(cfg.posGolpePodio, 2, 50),
+    // Probabilidad 1 en X: X≥1 (1 = todos los días) para no dividir por cero.
+    posCaparazonOdds: clamp(cfg.posCaparazonOdds, 1, 365),
+    posGolpeOdds: clamp(cfg.posGolpeOdds, 1, 365),
+    posRemontadaOdds: clamp(cfg.posRemontadaOdds, 1, 365),
   };
   await db
     .insert(poolFunConfig)
@@ -1444,7 +1458,7 @@ export async function claimDailyCardAction(slug: string): Promise<DrawResult> {
     getPoolDeckRows(pool.id),
     getPoolFunConfig(pool.id),
   ]);
-  const deck = resolveDeck(deckRows);
+  const deck = resolveDeck(deckRows, config);
   const today = funToday();
   // El snapshot CON EL QUE EMPEZÓ EL DÍA (congelado el primer reclamo del prode ese
   // día, no el del momento de reclamar — así tu propia carta no te mueve la posición

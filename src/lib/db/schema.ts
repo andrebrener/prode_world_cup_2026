@@ -147,6 +147,16 @@ export const poolFunConfig = sqliteTable("pool_fun_config", {
   // posición (1ro → más maldición / menos legendaria; último al revés). Off por
   // defecto: cada prode mantiene los pesos fijos hasta que el admin lo prenda.
   karmaTabla: integer("karma_tabla", { mode: "boolean" }).notNull().default(false),
+  // Cartas posicionales (Caparazón/Golpe/Remontada): a qué puestos le caen y con
+  // qué probabilidad. Pisan los valores del catálogo al resolver el mazo.
+  // Remontada: le cae a los últimos N de la tabla.
+  posRemontadaBottom: integer("pos_remontada_bottom").notNull().default(4),
+  // Golpe al Podio: pega del 2º hasta el Nº puesto (sin tocar al líder).
+  posGolpePodio: integer("pos_golpe_podio").notNull().default(3),
+  // Probabilidad de cada posicional: 1 en X días para un puesto elegible.
+  posCaparazonOdds: integer("pos_caparazon_odds").notNull().default(4),
+  posGolpeOdds: integer("pos_golpe_odds").notNull().default(6),
+  posRemontadaOdds: integer("pos_remontada_odds").notNull().default(5),
 });
 
 // Snapshot del ranking al arranque del día (para el "karma de tabla"). El sesgo

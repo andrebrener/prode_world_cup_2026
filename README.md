@@ -70,7 +70,7 @@ When creating a pool you can pick **Fun mode**: everything from a normal pool, p
 - **Positional cards (the "Extra" tier).** A handful of cards don't ride the rarity draw — they fall on **specific table positions** through their own per-position gate (a daily chance per targeted rank, only above a minimum player count), using the day's frozen position:
   - 🐚 **Caparazón Azul** — hits *only the leader*, ~1 day in 4: docks exactly enough to leave them tied with the last place.
   - 🥊 **Golpe al Podio** — hits the *2nd and 3rd*, ~1 in 6: −15 points.
-  - 🚀 **Remontada** — falls *only on the bottom three*, ~1 in 5: +20 points.
+  - 🚀 **Remontada** — falls *only on the bottom four*, ~1 in 5: +20 points.
   Because the negative ones are curses, **not claiming doesn't dodge them** (the daily sweep applies them anyway); the positive Remontada still needs you to claim the day's card.
 - **Self-curse: 🚿 Baño de realidad.** A `frozen_delta` card that, on play, adds or subtracts exactly enough to leave you at your **Puro** (real points without cards) at that instant — if cards inflated you, you drop; if they hurt you, you rise. It's a one-shot snapshot, frozen there; the table goes on normally afterward.
 - **Sai Bamba is unique.** 🔮 Sai Bamba (cash the champion's points) can only be held by one player at a time — when someone plays it, the previous holder gets it **stolen** (only the last to play it keeps the bonus).
