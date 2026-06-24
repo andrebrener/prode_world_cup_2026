@@ -951,7 +951,9 @@ function resolveFun(
     kickoffOf(id),
   );
   resolvedIds.sort(
-    (a, b) => new Date(kickoffOf(a)!).getTime() - new Date(kickoffOf(b)!).getTime(),
+    (a, b) =>
+      new Date(kickoffOf(a)!).getTime() - new Date(kickoffOf(b)!).getTime() ||
+      a.localeCompare(b),
   );
   const kickoffById = Object.fromEntries(resolvedIds.map((id) => [id, kickoffOf(id)!]));
 

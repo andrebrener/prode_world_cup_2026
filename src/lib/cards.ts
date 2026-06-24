@@ -400,7 +400,9 @@ export function fullSchedule(): ScheduledMatch[] {
     return k ? [{ id: m.id, kickoff: k }] : [];
   });
   return [...group, ...ko].sort(
-    (a, b) => new Date(a.kickoff).getTime() - new Date(b.kickoff).getTime(),
+    (a, b) =>
+      new Date(a.kickoff).getTime() - new Date(b.kickoff).getTime() ||
+      a.id.localeCompare(b.id),
   );
 }
 
