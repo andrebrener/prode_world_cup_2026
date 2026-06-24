@@ -1476,11 +1476,15 @@ export async function claimDailyCardAction(slug: string): Promise<DrawResult> {
   // Se calcula si hay cualquiera de los dos.
   const hasPositional = deck.some((c) => c.positional);
   let pos: { rank: number; total: number; luckScore: number } | undefined;
+  // Semilla random del día (del snapshot): entra al seed para que el sorteo no se
+  // pueda pre-calcular. Solo existe si hay snapshot (karma o posicionales).
+  let daySalt: string | null = null;
   if (config.karmaTabla || hasPositional) {
     const snap = await getDayRankSnapshot(pool, today);
-    pos = snap.get(id);
+    pos = snap.ranks.get(id);
+    daySalt = snap.salt;
   }
-  const seed = { poolId: pool.id, participantId: id, date: today };
+  const seed = { poolId: pool.id, participantId: id, date: today, salt: daySalt };
   // Las posicionales corren ANTES del sorteo normal: si te toca una (le cae solo a
   // tu puesto, con su propia probabilidad), reemplaza la carta del día. Si no, va el
   // sorteo normal por rareza.

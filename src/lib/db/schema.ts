@@ -181,6 +181,14 @@ export const poolDayRank = sqliteTable(
     // se normaliza contra el grupo al leer (→ luckScore en [-1,1]). 0 en snapshots
     // viejos (pre-migración): ese día no hay sesgo por cartas, solo por posición.
     luck: integer("luck").notNull().default(0),
+    // Semilla aleatoria del día: se mintea (random) al congelar el snapshot —el
+    // primer reclamo del prode ese día— y queda fija. Entra al seed del sorteo
+    // (posicionales + carta normal) para que NADIE pueda pre-calcular qué va a
+    // salir días antes: no existe hasta que el día arranca y es impredecible. Como
+    // se guarda y es la MISMA para el reclamo y el barrido de fin de día, el sorteo
+    // sigue siendo reproducible y la maldición no se puede esquivar no reclamando.
+    // Null en snapshots viejos (pre-migración): ese día el sorteo no se saltea.
+    seed: text("seed"),
   },
   (t) => [primaryKey({ columns: [t.poolId, t.date, t.participantId] })],
 );

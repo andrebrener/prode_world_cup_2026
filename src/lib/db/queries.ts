@@ -1,3 +1,4 @@
+import { randomUUID } from "crypto";
 import { db } from "./index";
 import {
   participants,
@@ -720,13 +721,24 @@ const KARMA_CARDS_MIN_SCALE = 10;
  * Congela también `luck` = cuánto se benefició cada uno de la capa Fun (Total − Puro
  * = cartas + racha). Al leer lo normaliza contra el grupo (media y desvío del día,
  * con piso KARMA_CARDS_MIN_SCALE) → `luckScore` en [-1, 1]: +1 el más inflado por
- * timba, -1 al que más lo perjudicó, 0 en la media. Devuelve un mapa
- * participantId → { rank (0-based), total, luckScore }.
+ * timba, -1 al que más lo perjudicó, 0 en la media.
+ *
+ * Congela además una `salt` aleatoria del día (la misma para todas las filas): se
+ * mintea al crear el snapshot y entra al seed del sorteo (ver pickDailyCard /
+ * pickPositionalCard) para que el resultado no sea pre-calculable días antes. Como
+ * queda guardada y es idéntica para el reclamo y el barrido de fin de día, el
+ * sorteo sigue siendo reproducible y la maldición no se esquiva no reclamando.
+ *
+ * Devuelve `{ salt, ranks }`, con ranks = mapa participantId → { rank (0-based),
+ * total, luckScore }. `salt` es null en snapshots viejos (pre-migración).
  */
 export async function getDayRankSnapshot(
   pool: Pool,
   date: string,
-): Promise<Map<string, { rank: number; total: number; luckScore: number }>> {
+): Promise<{
+  salt: string | null;
+  ranks: Map<string, { rank: number; total: number; luckScore: number }>;
+}> {
   const read = async () =>
     db
       .select({
@@ -734,6 +746,7 @@ export async function getDayRankSnapshot(
         rank: poolDayRank.rank,
         total: poolDayRank.total,
         luck: poolDayRank.luck,
+        seed: poolDayRank.seed,
       })
       .from(poolDayRank)
       .where(and(eq(poolDayRank.poolId, pool.id), eq(poolDayRank.date, date)));
@@ -743,6 +756,10 @@ export async function getDayRankSnapshot(
     // Primer reclamo del día en este prode: congelá la tabla actual.
     const rows = await getLeaderboard(pool);
     if (rows.length > 0) {
+      // Semilla del día: una sola, random, compartida por todas las filas. Si dos
+      // reclamos corren a la par, gana el primero (onConflictDoNothing) y su salt
+      // es la que persiste; el re-read de abajo devuelve esa, idéntica para todos.
+      const salt = randomUUID();
       await db
         .insert(poolDayRank)
         .values(
@@ -755,6 +772,7 @@ export async function getDayRankSnapshot(
             // Lo que la timba (cartas + racha) le sumó/restó al Puro. Sin fun info,
             // pureTotal = total → luck 0 (no se benefició ni se perjudicó).
             luck: Math.round(r.total - (r.fun?.pureTotal ?? r.total)),
+            seed: salt,
           })),
         )
         .onConflictDoNothing();
@@ -768,16 +786,20 @@ export async function getDayRankSnapshot(
   const mean = lucks.length ? lucks.reduce((a, b) => a + b, 0) / lucks.length : 0;
   const maxAbsDev = lucks.reduce((m, l) => Math.max(m, Math.abs(l - mean)), 0);
   const scale = Math.max(maxAbsDev, KARMA_CARDS_MIN_SCALE);
-  return new Map(
-    snap.map((r) => [
-      r.participantId,
-      {
-        rank: r.rank,
-        total: r.total,
-        luckScore: Math.max(-1, Math.min(1, (r.luck - mean) / scale)),
-      },
-    ]),
-  );
+  return {
+    // Todas las filas comparten la misma salt; null si el snapshot es pre-migración.
+    salt: snap[0]?.seed ?? null,
+    ranks: new Map(
+      snap.map((r) => [
+        r.participantId,
+        {
+          rank: r.rank,
+          total: r.total,
+          luckScore: Math.max(-1, Math.min(1, (r.luck - mean) / scale)),
+        },
+      ]),
+    ),
+  };
 }
 
 // ---------- Modo Diversión ----------

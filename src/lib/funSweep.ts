@@ -60,15 +60,16 @@ export async function autoCurseUnclaimed(
     .where(and(eq(funCards.poolId, pool.id), eq(funCards.drawDate, date)));
   const claimed = new Set(existing.map((r) => r.participantId));
 
-  // Posición congelada del día: la misma que usó el sorteo de los que sí jugaron.
-  const snap = await getDayRankSnapshot(pool, date);
+  // Posición y semilla congeladas del día: las mismas que usó el sorteo de los que
+  // sí jugaron, así el barrido reproduce exactamente su resultado (no esquivable).
+  const { salt: daySalt, ranks } = await getDayRankSnapshot(pool, date);
 
   const now = new Date();
   let cursed = 0;
   for (const participantId of memberIds) {
     if (claimed.has(participantId)) continue;
-    const seed = { poolId: pool.id, participantId, date };
-    const pos = snap.get(participantId);
+    const seed = { poolId: pool.id, participantId, date, salt: daySalt };
+    const pos = ranks.get(participantId);
     // Las posicionales corren primero (con o sin karma); si no pega ninguna y hay
     // karma, va el sorteo normal por rareza.
     const drawn =

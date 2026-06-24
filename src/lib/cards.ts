@@ -237,13 +237,17 @@ export function karmaWeights(
  * apagado, usa los pesos tal cual.
  */
 export function pickDailyCard(
-  seed: { poolId: string; participantId: string; date: string },
+  seed: { poolId: string; participantId: string; date: string; salt?: string | null },
   deck: DrawnCard[],
   config: FunConfig,
   pos?: { rank: number; total: number; luckScore?: number },
 ): DrawnCard | null {
   if (deck.length === 0) return null;
-  const parts = [seed.poolId, seed.participantId, seed.date];
+  // La semilla del día (si hay snapshot) entra al seed: el sorteo deja de ser
+  // pre-calculable días antes sin perder reproducibilidad (queda guardada).
+  const parts = seed.salt
+    ? [seed.poolId, seed.participantId, seed.date, seed.salt]
+    : [seed.poolId, seed.participantId, seed.date];
   const pickFrom = (opts: DrawnCard[]) => pickFromBucket(opts, parts);
 
   // Pesos de rareza: con karma prendido y posición conocida, sesgados por la tabla
@@ -291,11 +295,16 @@ export function pickDailyCard(
  * son maldiciones, el que no reclama igual se las come (funSweep.autoCurseUnclaimed).
  */
 export function pickPositionalCard(
-  seed: { poolId: string; participantId: string; date: string },
+  seed: { poolId: string; participantId: string; date: string; salt?: string | null },
   deck: DrawnCard[],
   pos: { rank: number; total: number },
 ): DrawnCard | null {
-  const parts = [seed.poolId, seed.participantId, seed.date];
+  // Misma semilla del día que pickDailyCard: la compuerta posicional (Caparazón/
+  // Golpe/Remontada) deja de ser pre-calculable, pero reclamo y barrido —que usan
+  // la misma fila guardada— siguen dando idéntico, así que no se puede esquivar.
+  const parts = seed.salt
+    ? [seed.poolId, seed.participantId, seed.date, seed.salt]
+    : [seed.poolId, seed.participantId, seed.date];
   for (const card of deck) {
     const p = card.positional;
     if (!p) continue;
