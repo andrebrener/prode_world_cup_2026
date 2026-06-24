@@ -75,12 +75,17 @@ export function groupStandings(
   return rankGroup(Object.values(table), groupMatches, results);
 }
 
-// ---------- Desempates (reglamento FIFA) ----------
+// ---------- Desempates (reglamento FIFA — Mundial 2026) ----------
+// Para 2026 el mano a mano va ANTES que la diferencia de gol general.
 // Orden de clasificación dentro del grupo:
-//   1) puntos · 2) diferencia de gol · 3) goles a favor   (en todos los partidos)
-// Si dos o más siguen empatados, entre ESOS equipos (mano a mano):
-//   4) puntos · 5) diferencia de gol · 6) goles a favor   (solo en los partidos entre ellos)
-// Si todavía empatan: fair play y sorteo FIFA — no son predecibles, así que se usa
+//   1) puntos (en todos los partidos)
+// Si dos o más equipos empatan en puntos, entre ESOS equipos (mano a mano):
+//   2) puntos · 3) diferencia de gol · 4) goles a favor   (solo en los partidos entre ellos)
+//      Si el mano a mano separa parcialmente, se reaplica SOLO entre los que siguen
+//      empatados (procedimiento FIFA).
+// Si el mano a mano no separa, se vuelve a los criterios generales:
+//   5) diferencia de gol general · 6) goles a favor general
+// Si todavía empatan: fair play y ranking FIFA — no son predecibles, así que se usa
 // el código alfabético como desempate determinista final.
 
 type Mini = { points: number; goalDiff: number; goalsFor: number };
@@ -117,14 +122,33 @@ const sameMini = (x: Mini, y: Mini) =>
   x.points === y.points && x.goalDiff === y.goalDiff && x.goalsFor === y.goalsFor;
 
 /**
- * Ordena un conjunto de equipos empatados aplicando el mano a mano. Si el mano a mano
- * separa parcialmente, se recalcula recursivamente SOLO entre los que siguen empatados
- * (procedimiento FIFA). Si no separa nada, cae al desempate alfabético.
+ * Desempate general (cuando el mano a mano no separa): diferencia de gol general,
+ * luego goles a favor general y, como cierre determinista (fair play / ranking FIFA no
+ * son predecibles), el código alfabético.
+ */
+function rankByOverall(
+  codes: string[],
+  byCode: Record<string, TeamStanding>,
+): string[] {
+  return [...codes].sort(
+    (a, b) =>
+      byCode[b].goalDiff - byCode[a].goalDiff ||
+      byCode[b].goalsFor - byCode[a].goalsFor ||
+      a.localeCompare(b),
+  );
+}
+
+/**
+ * Ordena un conjunto de equipos empatados EN PUNTOS aplicando primero el mano a mano
+ * (puntos · diferencia de gol · goles a favor entre ellos). Si el mano a mano separa
+ * parcialmente, se reaplica recursivamente SOLO entre los que siguen empatados
+ * (procedimiento FIFA). Si no separa a nadie, se pasa a los criterios generales.
  */
 function rankCluster(
   codes: string[],
   matches: Match[],
   results: Record<string, Score>,
+  byCode: Record<string, TeamStanding>,
 ): string[] {
   if (codes.length <= 1) return codes;
   const mini = headToHead(new Set(codes), matches, results);
@@ -133,7 +157,7 @@ function rankCluster(
       mini[b].points - mini[a].points ||
       mini[b].goalDiff - mini[a].goalDiff ||
       mini[b].goalsFor - mini[a].goalsFor ||
-      a.localeCompare(b),
+      0,
   );
 
   const out: string[] = [];
@@ -143,11 +167,11 @@ function rankCluster(
     while (j < sorted.length && sameMini(mini[sorted[i]], mini[sorted[j]])) j++;
     const sub = sorted.slice(i, j);
     if (sub.length === codes.length) {
-      // El mano a mano no separó a nadie → fair play / sorteo (no predecible): alfabético.
-      out.push(...[...sub].sort((a, b) => a.localeCompare(b)));
+      // El mano a mano no separó a nadie → criterios generales.
+      out.push(...rankByOverall(sub, byCode));
     } else if (sub.length > 1) {
-      // Separó parcialmente: recalcular el mano a mano solo entre los que siguen empatados.
-      out.push(...rankCluster(sub, matches, results));
+      // Separó parcialmente: reaplicar el mano a mano solo entre los que siguen empatados.
+      out.push(...rankCluster(sub, matches, results, byCode));
     } else {
       out.push(sub[0]);
     }
@@ -156,7 +180,7 @@ function rankCluster(
   return out;
 }
 
-/** Ordena la tabla del grupo: criterios globales y, ante empate, mano a mano. */
+/** Ordena la tabla del grupo: por puntos y, ante empate en puntos, mano a mano (FIFA 2026). */
 function rankGroup(
   rows: TeamStanding[],
   matches: Match[],
@@ -164,27 +188,19 @@ function rankGroup(
 ): TeamStanding[] {
   const byCode = Object.fromEntries(rows.map((r) => [r.code, r]));
   const base = [...rows].sort(
-    (a, b) =>
-      b.points - a.points ||
-      b.goalDiff - a.goalDiff ||
-      b.goalsFor - a.goalsFor ||
-      a.code.localeCompare(b.code),
+    (a, b) => b.points - a.points || a.code.localeCompare(b.code),
   );
 
   const result: TeamStanding[] = [];
   let i = 0;
   while (i < base.length) {
     let j = i + 1;
-    while (
-      j < base.length &&
-      base[i].points === base[j].points &&
-      base[i].goalDiff === base[j].goalDiff &&
-      base[i].goalsFor === base[j].goalsFor
-    )
-      j++;
+    while (j < base.length && base[i].points === base[j].points) j++;
     const clusterCodes = base.slice(i, j).map((r) => r.code);
     const ordered =
-      clusterCodes.length > 1 ? rankCluster(clusterCodes, matches, results) : clusterCodes;
+      clusterCodes.length > 1
+        ? rankCluster(clusterCodes, matches, results, byCode)
+        : clusterCodes;
     for (const code of ordered) result.push(byCode[code]);
     i = j;
   }

@@ -142,6 +142,27 @@ describe("desempate mano a mano (criterios FIFA 4-6)", () => {
     expect(table.map((t) => t.code)).toEqual(["RSA", "MEX", "KOR", "CZE"]);
   });
 
+  it("FIFA 2026: el mano a mano manda sobre la diferencia de gol general", () => {
+    // MEX y KOR empatan en puntos (6). KOR tiene MUCHO mejor dif de gol general (+7 vs +1)
+    // por golear a los débiles, pero MEX le ganó 1-0 el cruce directo (A3).
+    // Reglamento viejo: primero KOR (mejor dif). Reglamento 2026: primero MEX (mano a mano).
+    const results: Record<string, Score> = {
+      A1: { homeGoals: 1, awayGoals: 0 }, // MEX 1-0 RSA
+      A2: { homeGoals: 5, awayGoals: 0 }, // KOR 5-0 CZE
+      A3: { homeGoals: 1, awayGoals: 0 }, // MEX 1-0 KOR  (mano a mano)
+      A4: { homeGoals: 0, awayGoals: 0 }, // CZE 0-0 RSA
+      A5: { homeGoals: 1, awayGoals: 0 }, // CZE 1-0 MEX
+      A6: { homeGoals: 0, awayGoals: 3 }, // RSA 0-3 KOR
+    };
+    const table = groupStandings("A", results);
+    const mex = table.find((t) => t.code === "MEX")!;
+    const kor = table.find((t) => t.code === "KOR")!;
+    expect([mex.points, mex.goalDiff]).toEqual([6, 1]);
+    expect([kor.points, kor.goalDiff]).toEqual([6, 7]);
+    // Pese a la peor dif de gol, MEX va primero por haber ganado el cruce directo.
+    expect(table.slice(0, 2).map((t) => t.code)).toEqual(["MEX", "KOR"]);
+  });
+
   it("empate total con cruce directo empatado → cae a alfabético", () => {
     // Dos empates separados: MEX=KOR (dif +1) y CZE=RSA (dif -1), los cuatro con 4 pts.
     // Ambos cruces directos (A3 y A4) fueron empate → desempate alfabético en cada par.
