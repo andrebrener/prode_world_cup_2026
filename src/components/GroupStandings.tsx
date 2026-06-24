@@ -15,13 +15,19 @@ export default function GroupStandings({
       <div className="grid gap-3 sm:grid-cols-2">
         {GROUPS.map((g) => {
           const rows = standings[g.letter];
+          const closed = rows.length > 0 && rows.every((r) => r.played === 3);
           return (
             <div
               key={g.letter}
               className="overflow-hidden rounded-2xl border border-border bg-surface"
             >
-              <div className="border-b border-border px-4 py-2 font-bold">
-                Grupo {g.letter}
+              <div className="flex items-center justify-between border-b border-border px-4 py-2 font-bold">
+                <span>Grupo {g.letter}</span>
+                {closed && (
+                  <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
+                    Cerrado
+                  </span>
+                )}
               </div>
               <table className="w-full text-xs">
                 <thead>
