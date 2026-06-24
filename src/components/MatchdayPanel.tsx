@@ -306,8 +306,13 @@ export default function MatchdayPanel({
                 {/* Cabecera del partido */}
                 <div className="border-b border-border px-4 py-3">
                   <div className="mb-2 flex items-start justify-between gap-3 text-xs text-muted">
-                    <span className="shrink-0 rounded-md bg-background px-2 py-0.5 font-semibold">
-                      Grupo {m.group}
+                    <span className="flex shrink-0 items-center gap-1.5">
+                      <span className="rounded-md bg-background px-2 py-0.5 font-semibold">
+                        Grupo {m.group}
+                      </span>
+                      <span className="rounded-md bg-background px-2 py-0.5 font-mono font-semibold text-muted/70">
+                        {m.id}
+                      </span>
                     </span>
                     <div className="flex min-w-0 flex-col items-end gap-0.5 text-right">
                       <span className="font-medium text-foreground">
