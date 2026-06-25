@@ -95,4 +95,17 @@ describe("computeStreak", () => {
     expect(r.milestones).toEqual([3, 5]);
     expect(r.bonus).toBe(3 + 6);
   });
+
+  it("override 'break' (piso del costillar sobre fallado): corta aunque haya puntos", () => {
+    const r = computeStreak({
+      points: { M1: 3, M2: 3, M3: 3, M4: 3, M5: 3, M6: 3 },
+      matchOrder: ORDER,
+      kickoffById: KICKOFFS,
+      overrides: { M3: "break" },
+    });
+    // M3 tiene puntos (piso) pero está fallado: corta. La racha arranca en M4.
+    expect(r.current).toBe(3); // M4, M5, M6
+    expect(r.best).toBe(3); // máximo entre M1,M2 (2) y M4..M6 (3)
+    expect(r.protectedMatchIds).toEqual([]);
+  });
 });

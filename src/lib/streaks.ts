@@ -37,7 +37,8 @@ export function computeStreak(opts: {
   /**
    * Overrides por partido (de cartas de día):
    * "protect" = un 0 no corta la racha (Fernet de Fernemo / "Le tirás a otro para que no sume") ·
-   * "skip" = el partido no cuenta ni a favor ni en contra (Filtro 5mm).
+   * "skip" = el partido no cuenta ni a favor ni en contra (Filtro 5mm) ·
+   * "break" = corta la racha aunque haya puntos (piso del Costillar sobre un partido fallado).
    */
   overrides?: Record<string, StreakOverride>;
 }): StreakResult {
@@ -52,7 +53,9 @@ export function computeStreak(opts: {
     const ov = opts.overrides?.[matchId];
     if (ov === "skip") continue; // el partido no existe para la racha
 
-    const pts = opts.points[matchId] ?? 0;
+    // "break": el partido corta la racha aunque tenga puntos (piso del Costillar
+    // sobre un partido que fallaste: cobrás el piso, pero no te cuenta la racha).
+    const pts = ov === "break" ? 0 : (opts.points[matchId] ?? 0);
     if (pts > 0) {
       run++;
       best = Math.max(best, run);

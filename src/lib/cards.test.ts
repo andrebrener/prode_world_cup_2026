@@ -633,7 +633,8 @@ describe("applyCardEffects", () => {
     });
     expect(r.points.beto.M1).toBe(5); // ya tenía más que el piso: intacto
     expect(r.points.beto.M2).toBe(3); // tenía 0 → sube al piso
-    expect(r.streakOverrides.beto?.M2).toBeUndefined(); // sin override: el piso protege solo
+    expect(r.streakOverrides.beto?.M1).toBeUndefined(); // acertó: la racha corre normal
+    expect(r.streakOverrides.beto?.M2).toBe("break"); // fallado: cobra el piso pero corta la racha
   });
 
   it("una maldición pisa a la cábala (los ceros ganan)", () => {

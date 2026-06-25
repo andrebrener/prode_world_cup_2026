@@ -262,23 +262,26 @@ describe("auditoría: escenarios cruzados", () => {
     expect(r.flat.ana).toBe(10);
   });
 
-  it("costillar pone piso de puntos y con eso la racha sobrevive el día", () => {
-    // ana falló M1 y M2 (0 y 0). El costillar le pone piso 3 en ambos.
+  it("costillar pone piso de puntos pero los partidos fallados no cuentan para la racha", () => {
+    // ana falló M1 y M2 (0 y 0). El costillar le pone piso 3 en ambos para el
+    // puntaje, pero como los falló cortan la racha igual (override "break").
     const r = applyCardEffects({
       base: { ana: { M1: 0, M2: 0, M3: 3 } },
       matchOrder: ORDER,
       kickoffById: KICKOFFS,
       cards: [played("costillar", { effectDate: DAY_1, playedAt: NOW })],
     });
-    expect(r.points.ana.M1).toBe(3); // 0 → piso
+    expect(r.points.ana.M1).toBe(3); // 0 → piso (cuenta para el puntaje)
     expect(r.points.ana.M2).toBe(3); // 0 → piso
-    expect(r.streakOverrides.ana).toBeUndefined(); // ya no usa override
+    expect(r.streakOverrides.ana?.M1).toBe("break"); // fallado: no le cuenta la racha
+    expect(r.streakOverrides.ana?.M2).toBe("break");
     const s = computeStreak({
       points: r.points.ana,
       matchOrder: ORDER,
       kickoffById: KICKOFFS,
+      overrides: r.streakOverrides.ana,
     });
-    expect(s.current).toBe(3); // M1, M2 (pisados) + M3 → racha de 3, sin protecciones
+    expect(s.current).toBe(1); // M1 y M2 fallados cortan; solo M3 (acertado) suma
   });
 
   it("un escudo del día (secreto, no se consume) anula cada ataque que reciba", () => {

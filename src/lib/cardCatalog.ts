@@ -267,7 +267,7 @@ export const CARD_CATALOG: Record<CardType, CardDef> = {
     target: "self",
     window: "day",
     blockable: false,
-    description: "Desayunaste costillar a las 7 AM y estás imparable: hoy en cada partido sumás al menos lo de acertar el resultado (3 en grupos, 4 en eliminatoria), pegues o falles. Si acertás más, te quedás con lo tuyo. La racha del día queda blindada.",
+    description: "Desayunaste costillar a las 7 AM y estás imparable: hoy en cada partido sumás al menos lo de acertar el resultado (3 en grupos, 4 en eliminatoria), pegues o falles. Si acertás más, te quedás con lo tuyo. Ojo: los partidos que falles te dan el piso pero no te cuentan para la racha.",
   }),
   cabala: c({
     type: "cabala",

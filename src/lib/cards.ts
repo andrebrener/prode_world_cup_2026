@@ -653,7 +653,7 @@ export type PlayedCardEffect = {
 /** matchId → puntos del miembro en ese partido. */
 export type MatchPointsMap = Record<string, number>;
 
-export type StreakOverride = "protect" | "skip";
+export type StreakOverride = "protect" | "skip" | "break";
 
 export type FunEffects = {
   /** Puntos por partido DESPUÉS de aplicar cartas (por miembro). */
@@ -767,10 +767,15 @@ export function applyCardEffects(opts: {
       case "floor_match_points": {
         // Piso de puntos: en cada partido del día sumás al menos lo de acertar
         // el resultado (3 grupos / 4 eliminatoria), pegues o falles. Si ya tenías
-        // más, te lo quedás. Como todos quedan ≥ piso (> 0), la racha del día
-        // queda protegida sola (sin override). Costillar.
+        // más, te lo quedás. Pero el piso NO te blinda la racha: un partido que
+        // fallaste (base 0) suma los puntos del piso para el puntaje, pero corta
+        // la racha igual que cualquier 0 (override "break"). Costillar.
         const m = map(affected);
-        for (const id of dayIds(card)) m[id] = Math.max(m[id] ?? 0, matchFloor(id));
+        for (const id of dayIds(card)) {
+          const scored = (m[id] ?? 0) > 0;
+          m[id] = Math.max(m[id] ?? 0, matchFloor(id));
+          if (!scored) override(affected, id, "break");
+        }
         break;
       }
       case "zero_day": {
