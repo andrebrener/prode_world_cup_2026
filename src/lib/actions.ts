@@ -22,7 +22,13 @@ import {
 } from "./db/schema";
 import { eq, and, inArray } from "drizzle-orm";
 import { getParticipantId, setParticipantId } from "./session";
-import { MATCHES, predictionsLockedForName, teamName } from "./fixtures";
+import {
+  MATCHES,
+  effectivePredictionsDeadline,
+  matchStarted,
+  predictionsLockedForName,
+  teamName,
+} from "./fixtures";
 import { allGroupStandings } from "./standings";
 import { computeR32, KO_MATCHES_BY_ID } from "./bracket";
 import {
@@ -33,6 +39,7 @@ import {
   getPoolBySlug,
   getPoolByCode,
   isPoolMember,
+  getParticipantPoolStartDates,
   getPlayContext,
   getPoolMemberIds,
   getDayRankSnapshot,
@@ -347,12 +354,16 @@ export async function savePredictionsAction(
   if (!id) return { ok: false, error: "Primero ingresá tu nombre." };
   const found = await db.select().from(participants).where(eq(participants.id, id));
   if (!found[0]) return { ok: false, error: "Sesión inválida, volvé a ingresar tu nombre." };
-  if (predictionsLockedForName(found[0].name)) {
+  const deadlineISO = effectivePredictionsDeadline(await getParticipantPoolStartDates(id));
+  if (predictionsLockedForName(found[0].name, deadlineISO)) {
     return { ok: false, error: "El Mundial ya empezó: los pronósticos están cerrados." };
   }
 
   for (const m of input.matches) {
     if (!VALID_MATCH_IDS.has(m.matchId)) continue;
+    // Partido ya arrancado: su pronóstico queda congelado aunque el form siga
+    // abierto (prodes que arrancan a mitad de camino no tocan lo ya jugado).
+    if (matchStarted(m.matchId)) continue;
     const home = clampGoals(m.home);
     const away = clampGoals(m.away);
     await db

@@ -12,8 +12,13 @@ import {
   getParticipantKoPredictions,
   getPoolBySlug,
   isPoolMember,
+  getParticipantPoolStartDates,
 } from "@/lib/db/queries";
-import { PREDICTIONS_DEADLINE, predictionsLockedForName } from "@/lib/fixtures";
+import {
+  effectivePredictionsDeadline,
+  predictionsLockedForName,
+  startedMatchIds,
+} from "@/lib/fixtures";
 
 export const dynamic = "force-dynamic";
 
@@ -57,12 +62,16 @@ export default async function JugarPage({
     );
   }
 
-  const [predictions, extras, bracket, koPreds] = await Promise.all([
+  const [predictions, extras, bracket, koPreds, poolStartDates] = await Promise.all([
     getParticipantPredictions(participant.id),
     getParticipantExtras(participant.id),
     getBracketState(),
     getParticipantKoPredictions(participant.id),
+    getParticipantPoolStartDates(participant.id),
   ]);
+
+  // Cierre global: el más temprano entre todos los prodes del participante.
+  const deadlineISO = effectivePredictionsDeadline(poolStartDates);
 
   const hasSaved =
     Object.keys(predictions).length > 0 ||
@@ -79,8 +88,9 @@ export default async function JugarPage({
         initialPredictions={predictions}
         initialExtras={extras}
         hasSaved={hasSaved}
-        locked={predictionsLockedForName(participant.name)}
-        deadlineISO={PREDICTIONS_DEADLINE}
+        locked={predictionsLockedForName(participant.name, deadlineISO)}
+        deadlineISO={deadlineISO}
+        lockedMatchIds={startedMatchIds()}
       />
       {bracket.generated && (
         <KnockoutPredict matches={bracket.matches} initial={koPreds} />

@@ -230,6 +230,26 @@ export async function getUserPools(participantId: string): Promise<PoolSummary[]
     .sort((a, b) => a.name.localeCompare(b.name, "es"));
 }
 
+/**
+ * Fechas de inicio de todos los prodes del participante. Para el cierre global de
+ * pronósticos: como valen en todos sus prodes, cierra el más temprano de todos.
+ */
+export async function getParticipantPoolStartDates(
+  participantId: string,
+): Promise<(string | null)[]> {
+  const memberRows = await db
+    .select({ poolId: poolMembers.poolId })
+    .from(poolMembers)
+    .where(eq(poolMembers.participantId, participantId));
+  const ids = memberRows.map((r) => r.poolId);
+  if (ids.length === 0) return [];
+  const rows = await db
+    .select({ startDate: pools.startDate })
+    .from(pools)
+    .where(inArray(pools.id, ids));
+  return rows.map((r) => r.startDate ?? null);
+}
+
 /** Prodes públicos (para el listado de la home). */
 export async function getPublicPools(): Promise<PoolSummary[]> {
   const poolRows = await db.select().from(pools).where(eq(pools.isPublic, true));

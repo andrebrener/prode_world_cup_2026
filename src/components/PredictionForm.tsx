@@ -35,6 +35,7 @@ export default function PredictionForm({
   hasSaved,
   locked,
   deadlineISO,
+  lockedMatchIds = [],
 }: {
   name: string;
   initialPredictions: Record<string, { homeGoals: number; awayGoals: number }>;
@@ -47,7 +48,10 @@ export default function PredictionForm({
   hasSaved: boolean;
   locked: boolean;
   deadlineISO: string;
+  /** Partidos ya arrancados: congelados aunque el form siga abierto. */
+  lockedMatchIds?: string[];
 }) {
+  const lockedSet = useMemo(() => new Set(lockedMatchIds), [lockedMatchIds]);
   const initialGoals = useMemo<GoalState>(() => {
     const s: GoalState = {};
     for (const m of MATCHES) {
@@ -97,6 +101,7 @@ export default function PredictionForm({
   function save() {
     const matches: PredictionInput["matches"] = [];
     for (const m of MATCHES) {
+      if (lockedSet.has(m.id)) continue; // partido jugado: congelado
       const g = goals[m.id];
       if (g.home !== "" && g.away !== "") {
         matches.push({ matchId: m.id, home: Number(g.home), away: Number(g.away) });
@@ -238,10 +243,15 @@ export default function PredictionForm({
                 </span>
               </div>
               <div className="divide-y divide-border">
-                {matches.map((m) => (
-                  <div key={m.id} className="flex items-center gap-2 px-3 py-2.5 sm:px-5">
+                {matches.map((m) => {
+                  const matchLocked = lockedSet.has(m.id);
+                  return (
+                  <div
+                    key={m.id}
+                    className={`flex items-center gap-2 px-3 py-2.5 sm:px-5 ${matchLocked ? "opacity-60" : ""}`}
+                  >
                     <div className="w-16 shrink-0 text-[11px] leading-tight text-muted">
-                      {fmtDate(m.date)}
+                      {matchLocked ? "🔒 jugado" : fmtDate(m.date)}
                     </div>
                     <div className="flex min-w-0 flex-1 flex-col items-end gap-1">
                       <div className="flex max-w-full items-center gap-2 text-right text-sm">
@@ -254,11 +264,13 @@ export default function PredictionForm({
                       <GoalInput
                         value={goals[m.id]?.home ?? ""}
                         onChange={(v) => setGoal(m.id, "home", v)}
+                        disabled={matchLocked}
                       />
                       <span className="text-muted">-</span>
                       <GoalInput
                         value={goals[m.id]?.away ?? ""}
                         onChange={(v) => setGoal(m.id, "away", v)}
+                        disabled={matchLocked}
                       />
                     </div>
                     <div className="flex min-w-0 flex-1 flex-col items-start gap-1">
@@ -269,7 +281,8 @@ export default function PredictionForm({
                       <FormDots code={m.awayCode} align="start" />
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </section>
           );

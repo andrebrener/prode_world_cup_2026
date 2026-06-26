@@ -394,6 +394,25 @@ export function predictionsLocked(
   return now.getTime() >= new Date(deadlineISO).getTime();
 }
 
+const KICKOFF_BY_MATCH: Record<string, string> = Object.fromEntries(
+  MATCHES.map((m) => [m.id, m.kickoff]),
+);
+
+/**
+ * Un partido ya arrancó (su pronóstico queda congelado, no importa el cierre del
+ * prode). Vale aun cuando el form sigue abierto: en prodes que arrancan a mitad
+ * de camino no podés tocar los partidos ya jugados.
+ */
+export function matchStarted(matchId: string, now: Date = new Date()): boolean {
+  const k = KICKOFF_BY_MATCH[matchId];
+  return k ? now.getTime() >= new Date(k).getTime() : false;
+}
+
+/** IDs de los partidos de grupo que ya arrancaron a la hora dada. */
+export function startedMatchIds(now: Date = new Date()): string[] {
+  return MATCHES.filter((m) => now.getTime() >= new Date(m.kickoff).getTime()).map((m) => m.id);
+}
+
 // Participantes con permiso para editar sus pronósticos incluso después del cierre.
 // Se compara por token del nombre, sin distinguir mayúsculas (ej "Oscar Brener" → "oscar").
 const EDIT_AFTER_DEADLINE_NAMES = new Set<string>();
