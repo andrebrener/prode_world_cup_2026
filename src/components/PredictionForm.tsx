@@ -36,6 +36,7 @@ export default function PredictionForm({
   locked,
   deadlineISO,
   lockedMatchIds = [],
+  extrasLocked = false,
 }: {
   name: string;
   initialPredictions: Record<string, { homeGoals: number; awayGoals: number }>;
@@ -50,6 +51,8 @@ export default function PredictionForm({
   deadlineISO: string;
   /** Partidos ya arrancados: congelados aunque el form siga abierto. */
   lockedMatchIds?: string[];
+  /** Apuestas grandes congeladas: el Mundial ya arrancó (aunque el prode arranque después). */
+  extrasLocked?: boolean;
 }) {
   const lockedSet = useMemo(() => new Set(lockedMatchIds), [lockedMatchIds]);
   const initialGoals = useMemo<GoalState>(() => {
@@ -173,15 +176,21 @@ export default function PredictionForm({
         </div>
       )}
 
-      <fieldset disabled={readOnly} className="contents">
-        {/* Extras */}
+      {/* Extras: congeladas al arrancar el Mundial, aunque el prode arranque después */}
+      <fieldset disabled={readOnly || extrasLocked} className="contents">
         <section className="rounded-2xl border border-gold/40 bg-surface p-5">
           <h2 className="mb-1 flex items-center gap-2 font-bold text-gold">
             ⭐ Apuestas grandes
           </h2>
-          <p className="mb-4 text-xs text-muted">
-            Las que más puntos dan. Goleador y figura: escribí el nombre del jugador.
-          </p>
+          {extrasLocked && !locked ? (
+            <p className="mb-4 text-xs text-danger">
+              🔒 Cerradas: el Mundial ya arrancó. Esto es lo que dejaste cargado.
+            </p>
+          ) : (
+            <p className="mb-4 text-xs text-muted">
+              Las que más puntos dan. Goleador y figura: escribí el nombre del jugador.
+            </p>
+          )}
           <div className="grid gap-4 sm:grid-cols-2">
             <TeamSelect
               label="🏆 Campeón"
@@ -219,8 +228,10 @@ export default function PredictionForm({
             />
           </div>
         </section>
+      </fieldset>
 
-        {/* Grupos */}
+      {/* Grupos */}
+      <fieldset disabled={readOnly} className="contents">
         {GROUPS.map((group) => {
           const matches = MATCHES.filter((m) => m.group === group.letter);
           const done = matches.filter(

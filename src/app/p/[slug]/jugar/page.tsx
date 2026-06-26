@@ -15,6 +15,7 @@ import {
   getParticipantPoolStartDates,
 } from "@/lib/db/queries";
 import {
+  PREDICTIONS_DEADLINE,
   effectivePredictionsDeadline,
   predictionsLockedForName,
   startedMatchIds,
@@ -91,6 +92,7 @@ export default async function JugarPage({
         locked={predictionsLockedForName(participant.name, deadlineISO)}
         deadlineISO={deadlineISO}
         lockedMatchIds={startedMatchIds()}
+        extrasLocked={predictionsLockedForName(participant.name, PREDICTIONS_DEADLINE)}
       />
       {bracket.generated && (
         <KnockoutPredict matches={bracket.matches} initial={koPreds} />

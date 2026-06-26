@@ -24,6 +24,7 @@ import { eq, and, inArray } from "drizzle-orm";
 import { getParticipantId, setParticipantId } from "./session";
 import {
   MATCHES,
+  PREDICTIONS_DEADLINE,
   effectivePredictionsDeadline,
   matchStarted,
   predictionsLockedForName,
@@ -375,25 +376,29 @@ export async function savePredictionsAction(
       });
   }
 
-  const e = input.extras;
-  await db
-    .insert(extraPredictions)
-    .values({
-      participantId: id,
-      champion: e.champion ?? null,
-      runnerUp: e.runnerUp ?? null,
-      topScorer: e.topScorer?.trim().slice(0, 60) ?? null,
-      figure: e.figure?.trim().slice(0, 60) ?? null,
-    })
-    .onConflictDoUpdate({
-      target: extraPredictions.participantId,
-      set: {
+  // Las apuestas grandes (campeón, goleador, etc.) son de todo el torneo: quedan
+  // congeladas al arrancar el Mundial, aunque el prode arranque más tarde.
+  if (!predictionsLockedForName(found[0].name, PREDICTIONS_DEADLINE)) {
+    const e = input.extras;
+    await db
+      .insert(extraPredictions)
+      .values({
+        participantId: id,
         champion: e.champion ?? null,
         runnerUp: e.runnerUp ?? null,
         topScorer: e.topScorer?.trim().slice(0, 60) ?? null,
         figure: e.figure?.trim().slice(0, 60) ?? null,
-      },
-    });
+      })
+      .onConflictDoUpdate({
+        target: extraPredictions.participantId,
+        set: {
+          champion: e.champion ?? null,
+          runnerUp: e.runnerUp ?? null,
+          topScorer: e.topScorer?.trim().slice(0, 60) ?? null,
+          figure: e.figure?.trim().slice(0, 60) ?? null,
+        },
+      });
+  }
 
   revalidatePath("/", "layout");
   return { ok: true };
