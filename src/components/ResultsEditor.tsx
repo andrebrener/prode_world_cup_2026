@@ -78,6 +78,35 @@ export default function ResultsEditor({
       }));
   }, []);
 
+  const isFilled = (matchId: string) =>
+    goals[matchId]?.home !== "" && goals[matchId]?.away !== "";
+
+  // Estado de carga por día (en vivo, según lo que hay tipeado ahora).
+  const dayStat = (matches: typeof MATCHES) => {
+    const done = matches.filter((m) => isFilled(m.id)).length;
+    return { done, total: matches.length, complete: done === matches.length };
+  };
+
+  // Filtro: ocultar los días 100% cargados.
+  const [onlyPending, setOnlyPending] = useState(true);
+
+  // Días completos arrancan colapsados; los que tienen pendientes, abiertos.
+  // Se calcula una sola vez con el estado guardado al montar.
+  const [openDays, setOpenDays] = useState<Record<string, boolean>>(() => {
+    const o: Record<string, boolean> = {};
+    for (const { date, matches } of days) {
+      o[date] = !matches.every((m) => initialResults[m.id]);
+    }
+    return o;
+  });
+  const toggleDay = (date: string) =>
+    setOpenDays((o) => ({ ...o, [date]: !o[date] }));
+
+  const visibleDays = onlyPending
+    ? days.filter(({ matches }) => !dayStat(matches).complete)
+    : days;
+  const pendingDays = days.filter(({ matches }) => !dayStat(matches).complete).length;
+
   function setGoal(matchId: string, side: "home" | "away", value: string) {
     const clean = value.replace(/[^0-9]/g, "").slice(0, 2);
     setGoals((g) => ({ ...g, [matchId]: { ...g[matchId], [side]: clean } }));
@@ -137,6 +166,26 @@ export default function ResultsEditor({
         </div>
       )}
 
+      {/* Filtro de días */}
+      <div className="flex items-center justify-between gap-3">
+        <button
+          type="button"
+          onClick={() => setOnlyPending((v) => !v)}
+          className={`inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-sm font-semibold transition ${
+            onlyPending
+              ? "border-primary bg-primary text-primary-ink"
+              : "border-border bg-surface text-muted hover:text-foreground"
+          }`}
+        >
+          {onlyPending ? "● Solo pendientes" : "○ Mostrar todos"}
+        </button>
+        <span className="text-xs text-muted">
+          {pendingDays === 0
+            ? "Todo cargado 🎉"
+            : `${pendingDays} ${pendingDays === 1 ? "día" : "días"} con partidos sin cargar`}
+        </span>
+      </div>
+
       <fieldset disabled={!canEdit || pending} className="contents">
         {/* Resultado del torneo */}
         <section className="rounded-2xl border border-gold/40 bg-surface p-5">
@@ -178,14 +227,43 @@ export default function ResultsEditor({
         </section>
 
         {/* Partidos por día */}
-        {days.map(({ date, matches }) => (
+        {onlyPending && visibleDays.length === 0 && (
+          <section className="rounded-2xl border border-primary/40 bg-surface p-6 text-center text-sm">
+            <p className="font-semibold text-primary">¡No queda nada pendiente! 🎉</p>
+            <p className="mt-1 text-muted">
+              Tocá <strong className="text-foreground">Mostrar todos</strong> para ver o
+              corregir cualquier resultado ya cargado.
+            </p>
+          </section>
+        )}
+        {visibleDays.map(({ date, matches }) => {
+          const stat = dayStat(matches);
+          const open = openDays[date] ?? !stat.complete;
+          return (
           <section
             key={date}
             className="overflow-hidden rounded-2xl border border-border bg-surface"
           >
-            <div className="border-b border-border px-5 py-3 font-bold">
-              📅 {fmtDay(date)}
-            </div>
+            <button
+              type="button"
+              onClick={() => toggleDay(date)}
+              className="flex w-full items-center justify-between gap-3 border-b border-border px-5 py-3 text-left font-bold"
+            >
+              <span>📅 {fmtDay(date)}</span>
+              <span className="flex items-center gap-2 text-xs font-semibold">
+                {stat.complete ? (
+                  <span className="rounded-full bg-primary/15 px-2 py-0.5 text-primary">
+                    ✓ Completo
+                  </span>
+                ) : (
+                  <span className="rounded-full bg-gold/15 px-2 py-0.5 text-gold">
+                    {stat.done}/{stat.total}
+                  </span>
+                )}
+                <span className="text-muted">{open ? "▲" : "▼"}</span>
+              </span>
+            </button>
+            {open && (
             <div className="divide-y divide-border">
               {matches.map((m) => (
                 <div key={m.id} className="flex items-center gap-2 px-3 py-2.5 sm:px-5">
@@ -217,8 +295,10 @@ export default function ResultsEditor({
                 </div>
                 ))}
             </div>
+            )}
           </section>
-        ))}
+          );
+        })}
       </fieldset>
 
       {/* Barra de guardado (inline) */}

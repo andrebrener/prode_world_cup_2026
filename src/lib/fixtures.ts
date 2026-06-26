@@ -329,10 +329,69 @@ export function teamFlag(code: string): string {
 
 // El primer partido (México vs Sudáfrica) arranca 11 jun 2026, 13:00 hora de México (UTC-6).
 // Hasta ese momento se pueden cargar/editar pronósticos. Después, cerrado.
+// Es también el cierre por defecto: para un prode sin fecha de inicio (arranca
+// con el torneo) los pronósticos se cierran acá.
 export const PREDICTIONS_DEADLINE = "2026-06-11T13:00:00-06:00";
 
-export function predictionsLocked(now: Date = new Date()): boolean {
-  return now.getTime() >= new Date(PREDICTIONS_DEADLINE).getTime();
+const TOURNAMENT_TZ = "America/Mexico_City";
+function tournamentDay(kickoffIso: string): string {
+  // yyyy-mm-dd en el huso del torneo (en-CA formatea ISO).
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: TOURNAMENT_TZ,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date(kickoffIso));
+}
+
+/**
+ * Cierre de pronósticos para un prode según su fecha de inicio (startDate, el día
+ * desde el cual los partidos suman). Es el kickoff del primer partido que cuenta
+ * para ese prode. null = arranca con el torneo → PREDICTIONS_DEADLINE.
+ */
+export function predictionsDeadlineFor(startDate?: string | null): string {
+  if (!startDate) return PREDICTIONS_DEADLINE;
+  let earliest: string | null = null;
+  let earliestT = Infinity;
+  for (const m of MATCHES) {
+    if (tournamentDay(m.kickoff) < startDate) continue;
+    const t = new Date(m.kickoff).getTime();
+    if (t < earliestT) {
+      earliestT = t;
+      earliest = m.kickoff;
+    }
+  }
+  // Si la fecha cae después de toda la fase de grupos, cerramos al arrancar ese día.
+  return earliest ?? `${startDate}T00:00:00-06:00`;
+}
+
+/**
+ * Los pronósticos son globales (valen en TODOS tus prodes), así que el cierre es
+ * el más temprano entre todos los prodes en los que estás: en cuanto arranca el
+ * primero, no podés editar (afectaría a los que ya empezaron). Lista vacía =
+ * cierre por defecto del torneo.
+ */
+export function effectivePredictionsDeadline(
+  startDates: ReadonlyArray<string | null>,
+): string {
+  let min: string | null = null;
+  let minT = Infinity;
+  for (const sd of startDates) {
+    const d = predictionsDeadlineFor(sd);
+    const t = new Date(d).getTime();
+    if (t < minT) {
+      minT = t;
+      min = d;
+    }
+  }
+  return min ?? PREDICTIONS_DEADLINE;
+}
+
+export function predictionsLocked(
+  deadlineISO: string = PREDICTIONS_DEADLINE,
+  now: Date = new Date(),
+): boolean {
+  return now.getTime() >= new Date(deadlineISO).getTime();
 }
 
 // Participantes con permiso para editar sus pronósticos incluso después del cierre.
@@ -350,10 +409,11 @@ export function canEditAfterDeadline(name: string | null | undefined): boolean {
 /** Como predictionsLocked, pero deja pasar a los participantes con permiso especial. */
 export function predictionsLockedForName(
   name: string | null | undefined,
+  deadlineISO: string = PREDICTIONS_DEADLINE,
   now: Date = new Date(),
 ): boolean {
   if (canEditAfterDeadline(name)) return false;
-  return predictionsLocked(now);
+  return predictionsLocked(deadlineISO, now);
 }
 
 // Puntajes del prode.
