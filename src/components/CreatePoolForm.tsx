@@ -9,6 +9,7 @@ export default function CreatePoolForm() {
   const [name, setName] = useState("");
   const [isPublic, setIsPublic] = useState(false);
   const [mode, setMode] = useState<PoolMode>("normal");
+  const [startDate, setStartDate] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
   const router = useRouter();
@@ -17,7 +18,7 @@ export default function CreatePoolForm() {
     e.preventDefault();
     setError(null);
     start(async () => {
-      const res = await createPoolAction(name, isPublic, mode);
+      const res = await createPoolAction(name, isPublic, mode, startDate || null);
       if (!res.ok) setError(res.error ?? "No se pudo crear.");
       else {
         router.push(`/p/${res.slug}`);
@@ -84,6 +85,23 @@ export default function CreatePoolForm() {
           </div>
         </button>
       </div>
+
+      {/* Desde qué día suman los puntos. Vacío = desde el principio del torneo.
+          Útil si armás el prode a mitad de camino: así los que entran no arrastran
+          resultados de antes y todos compiten parejos desde esa fecha. */}
+      <label className="mt-5 block text-sm font-semibold text-foreground">
+        Suma puntos desde
+        <input
+          type="date"
+          value={startDate}
+          onChange={(e) => setStartDate(e.target.value)}
+          className="mt-1 w-full rounded-xl border border-border bg-background px-4 py-3 text-foreground outline-none focus:border-primary"
+        />
+        <span className="mt-1 block text-xs font-normal text-muted">
+          Opcional. Dejalo vacío para contar desde el principio del Mundial. Si lo
+          armás a mitad de camino, poné una fecha y los partidos de antes no suman.
+        </span>
+      </label>
 
       <label className="mt-4 flex items-center gap-2 text-sm text-foreground">
         <input

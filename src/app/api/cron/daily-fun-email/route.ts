@@ -56,6 +56,7 @@ export async function GET(req: NextRequest) {
       code: poolRow.code,
       isPublic: poolRow.isPublic,
       mode: "fun",
+      startDate: poolRow.startDate ?? null,
       createdBy: poolRow.createdBy,
     };
 

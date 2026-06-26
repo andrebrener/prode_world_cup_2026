@@ -14,6 +14,7 @@ import {
   setCardTargetAction,
   updateFunConfigAction,
   setMemberRolesAction,
+  updatePoolStartDateAction,
   type CardDefPatch,
 } from "@/lib/actions";
 import { RARITY_LABEL, type CardRarity, type MechanicOption } from "@/lib/cardCatalog";
@@ -30,6 +31,7 @@ export default function PoolAdmin({
   slug,
   poolName,
   isFun,
+  startDate,
   myRole,
   meId,
   data,
@@ -38,6 +40,7 @@ export default function PoolAdmin({
   slug: string;
   poolName: string;
   isFun: boolean;
+  startDate: string | null;
   myRole: PoolRole;
   meId: string;
   data: PoolAdminData;
@@ -83,6 +86,8 @@ export default function PoolAdmin({
         </div>
       )}
 
+      <StartDate slug={slug} startDate={startDate} busy={busy} run={run} />
+
       {isFun ? (
         <>
           <SorteoConfig slug={slug} config={data.config} deck={data.deck} busy={busy} run={run} />
@@ -104,6 +109,63 @@ export default function PoolAdmin({
 
       <Members slug={slug} members={data.members} myRole={myRole} meId={meId} busy={busy} run={run} />
     </div>
+  );
+}
+
+// ---------- Fecha de inicio (desde cuándo suman los puntos) ----------
+
+function StartDate({
+  slug,
+  startDate,
+  busy,
+  run,
+}: {
+  slug: string;
+  startDate: string | null;
+  busy: boolean;
+  run: (fn: () => Promise<{ ok: boolean; error?: string }>, okText: string) => void;
+}) {
+  const [date, setDate] = useState(startDate ?? "");
+  const dirty = (date || null) !== (startDate || null);
+
+  return (
+    <section className="rounded-2xl border border-border bg-surface p-5">
+      <h2 className="wordmark text-2xl">Inicio del prode 📅</h2>
+      <p className="mt-1 text-sm text-muted">
+        Los partidos de días anteriores a esta fecha no suman puntos. Útil si armaste el prode a
+        mitad de camino: así los que se suman compiten parejos y nadie arrastra resultados de antes.
+        Dejala vacía para contar desde el principio del Mundial.
+      </p>
+
+      <div className="mt-4 flex flex-wrap items-end gap-3">
+        <label className="block">
+          <span className="text-xs font-semibold text-muted">Suma puntos desde</span>
+          <input
+            type="date"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            className="mt-1 block rounded-lg border border-border bg-background px-3 py-2 text-sm"
+          />
+        </label>
+        {date && (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => setDate("")}
+            className="rounded-lg border border-border px-3 py-2 text-xs font-semibold text-foreground transition hover:bg-background disabled:opacity-50"
+          >
+            Desde el principio
+          </button>
+        )}
+        <button
+          disabled={busy || !dirty}
+          onClick={() => run(() => updatePoolStartDateAction(slug, date || null), "Fecha guardada.")}
+          className="rounded-xl bg-primary px-4 py-2 text-sm font-bold text-primary-ink transition hover:brightness-110 disabled:opacity-40"
+        >
+          Guardar fecha
+        </button>
+      </div>
+    </section>
   );
 }
 

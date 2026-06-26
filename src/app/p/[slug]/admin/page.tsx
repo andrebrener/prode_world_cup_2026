@@ -43,6 +43,7 @@ export default async function PoolAdminPage({
       slug={pool.slug}
       poolName={pool.name}
       isFun={pool.mode === "fun"}
+      startDate={pool.startDate}
       myRole={role}
       meId={pid!}
       data={data}

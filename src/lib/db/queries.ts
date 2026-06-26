@@ -62,6 +62,8 @@ export type Pool = {
   code: string;
   isPublic: boolean;
   mode: PoolMode;
+  /** yyyy-mm-dd (huso del torneo) desde el que suman los partidos. null = desde el principio. */
+  startDate: string | null;
   createdBy: string | null;
 };
 
@@ -73,6 +75,7 @@ function toPool(row: typeof pools.$inferSelect): Pool {
     code: row.code,
     isPublic: row.isPublic,
     mode: row.mode === "fun" ? "fun" : "normal",
+    startDate: row.startDate ?? null,
     createdBy: row.createdBy,
   };
 }
@@ -448,6 +451,16 @@ async function computePoolScores(pool: Pool) {
     }
   }
 
+  // Fecha de arranque del prode: los partidos de días anteriores no suman (su
+  // resultado ya estaba cuando el prode arrancó, no se podían cambiar). null =
+  // desde el principio. Se compara contra el día del torneo de cada kickoff.
+  const startDate = pool.startDate;
+  const countsForPool = (matchId: string): boolean => {
+    if (!startDate) return true;
+    const k = kickoffOf(matchId);
+    return !k || matchDay(k) >= startDate;
+  };
+
   // Puntos por partido por miembro (todo partido CON resultado tiene entrada,
   // aunque sea 0). Es la base sobre la que el modo Diversión aplica cartas.
   const groupResultIds = new Set(Object.keys(results));
@@ -462,6 +475,7 @@ async function computePoolScores(pool: Pool) {
     let exact = 0;
     let pure = 0;
     for (const [matchId, real] of Object.entries(results)) {
+      if (!countsForPool(matchId)) continue;
       const caldeador = caldeadoBy[`${person.id}:${matchId}`];
       const flipped = flippedBy[`${person.id}:${matchId}`];
       const purePts = matchPoints(preds[matchId], real);
@@ -475,6 +489,7 @@ async function computePoolScores(pool: Pool) {
     }
     for (const km of bracket.matches) {
       if (!km.result || !km.home || !km.away) continue;
+      if (!countsForPool(km.id)) continue;
       const caldeador = caldeadoBy[`${person.id}:${km.id}`];
       const flipped = flippedBy[`${person.id}:${km.id}`];
       const purePts = knockoutPoints(koPreds[km.id], km.result as KoReal, km.home, km.away);

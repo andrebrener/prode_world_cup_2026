@@ -52,6 +52,11 @@ export const pools = sqliteTable("pools", {
   isPublic: integer("is_public", { mode: "boolean" }).notNull().default(false),
   // "normal" | "fun" — se elige al crear y no cambia. Fun = cartas + rachas.
   mode: text("mode").notNull().default("normal"),
+  // Fecha (yyyy-mm-dd, huso del torneo) desde la cual los partidos suman puntos.
+  // null = desde el principio del torneo. Para prodes que arrancan a mitad de
+  // camino: así nadie arrastra resultados de antes (los que no se pueden ya
+  // cambiar) y los que se suman compiten parejos desde esa fecha.
+  startDate: text("start_date"),
   createdBy: text("created_by").references(() => participants.id),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
 });

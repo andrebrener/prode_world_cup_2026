@@ -219,11 +219,22 @@ async function uniqueCode(): Promise<string> {
   return code;
 }
 
+/** yyyy-mm-dd válido, o null. Devuelve `false` si el texto vino mal formado. */
+function parseStartDate(input: string | null | undefined): string | null | false {
+  if (input == null) return null;
+  const s = input.trim();
+  if (!s) return null;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s) || Number.isNaN(new Date(`${s}T00:00:00Z`).getTime()))
+    return false;
+  return s;
+}
+
 /** Crea un prode y suma al participante actual como primer miembro. */
 export async function createPoolAction(
   name: string,
   isPublic: boolean,
   mode: PoolMode = "normal",
+  startDate: string | null = null,
 ): Promise<{ ok: boolean; error?: string; slug?: string }> {
   const id = await getParticipantId();
   if (!id) return { ok: false, error: "Primero ingresá tu nombre." };
@@ -232,6 +243,9 @@ export async function createPoolAction(
 
   const clean = name.trim().slice(0, 40);
   if (clean.length < 2) return { ok: false, error: "Poné un nombre para el prode (mín. 2 letras)." };
+
+  const start = parseStartDate(startDate);
+  if (start === false) return { ok: false, error: "Fecha de inicio inválida." };
 
   const slug = await uniqueSlug(slugify(clean));
   const code = await uniqueCode();
@@ -245,6 +259,7 @@ export async function createPoolAction(
     code,
     isPublic: !!isPublic,
     mode: mode === "fun" ? "fun" : "normal",
+    startDate: start,
     createdBy: id,
     createdAt: now,
   });
@@ -483,6 +498,7 @@ export async function sendResultNotifications(
           code: pools.code,
           isPublic: pools.isPublic,
           mode: pools.mode,
+          startDate: pools.startDate,
           createdBy: pools.createdBy,
           participantId: poolMembers.participantId,
         })
@@ -503,6 +519,7 @@ export async function sendResultNotifications(
               code: r.code,
               isPublic: r.isPublic,
               mode: r.mode as PoolMode,
+              startDate: r.startDate ?? null,
               createdBy: r.createdBy,
             },
             parts: new Set<string>(),
@@ -1021,6 +1038,23 @@ export async function updateFunConfigAction(
 }
 
 /**
+ * Cambia la fecha desde la que el prode empieza a sumar puntos (owner/admin).
+ * `startDate` = yyyy-mm-dd, o "" / null para volver a contar desde el principio.
+ */
+export async function updatePoolStartDateAction(
+  slug: string,
+  startDate: string | null,
+): Promise<{ ok: boolean; error?: string }> {
+  const gate = await manageGate(slug);
+  if ("error" in gate) return { ok: false, error: gate.error };
+  const start = parseStartDate(startDate);
+  if (start === false) return { ok: false, error: "Fecha de inicio inválida." };
+  await db.update(pools).set({ startDate: start }).where(eq(pools.id, gate.pool.id));
+  revalidatePath(`/p/${gate.pool.slug}`, "layout");
+  return { ok: true };
+}
+
+/**
  * Guarda en lote los roles que cambiaron. Solo un owner puede, y el prode no puede
  * quedar sin ningún owner tras aplicar todos los cambios.
  */
@@ -1239,7 +1273,7 @@ async function executePlay(
   // Blanco fijo (config del admin): la víctima la decide el admin, no el cliente.
   // Forzamos el blanco server-side (el que juega no puede elegir otro) y pedimos el
   // contexto de defensas de ESA víctima.
-  let finalTargetId = restrictedTargetId ?? targetId;
+  const finalTargetId = restrictedTargetId ?? targetId;
 
   const ctx = await getPlayContext(pool, ownerId, finalTargetId);
 

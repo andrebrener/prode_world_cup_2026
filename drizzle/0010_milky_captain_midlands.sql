@@ -1,0 +1,1 @@
+ALTER TABLE `pools` ADD `start_date` text;

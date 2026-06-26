@@ -4,7 +4,7 @@
 // No hay mano: la carta se juega al salir. Si pide víctima/apodo/foto, el modal
 // se abre al toque y no se puede esquivar — hasta no resolverla no hay otro sorteo.
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import confetti from "canvas-confetti";
 import { claimDailyCardAction, playCardAction } from "@/lib/actions";
@@ -207,10 +207,9 @@ export default function FunZone({
   const lockedValid = !!lockedTarget && rivals.some((m) => m.id === lockedTarget);
   const lockedName = lockedTarget ? (members.find((m) => m.id === lockedTarget)?.name ?? null) : null;
 
-  // Con blanco fijo válido, autoseleccionamos a esa persona (no hay otra opción).
-  useEffect(() => {
-    if (lockedValid && lockedTarget) setTargetId(lockedTarget);
-  }, [lockedValid, lockedTarget, playing?.id]);
+  // Con blanco fijo válido, el blanco es esa persona y no se puede elegir otra
+  // (derivado: no hace falta sincronizar estado). Si no, vale lo que elegiste.
+  const effectiveTarget = lockedValid && lockedTarget ? lockedTarget : targetId;
 
   // Historial agrupado por día (hoy expandido, el resto colapsado).
   const feedByDay = useMemo(() => {
@@ -271,7 +270,7 @@ export default function FunZone({
     const { id, def } = playing;
     setError(null);
     start(async () => {
-      const res = await playCardAction(slug, id, def.target === "other" ? targetId : null, {
+      const res = await playCardAction(slug, id, def.target === "other" ? effectiveTarget : null, {
         apodo: apodo || undefined,
         mensaje: mensaje || undefined,
         imagen: imagen || undefined,
@@ -318,7 +317,7 @@ export default function FunZone({
       (playing.def.input === "imagen" && !!imagen) ||
       (playing.def.input === "partido" && (!!matchId || matchOptions.length === 0))) &&
     (playing?.def.target !== "other" ||
-      !!targetId ||
+      !!effectiveTarget ||
       rivals.length === 0 ||
       (!!lockedTarget && !lockedValid));
 
@@ -603,7 +602,7 @@ export default function FunZone({
                       className={`flex items-center gap-3 rounded-xl border px-3 py-2 text-left transition ${
                         disabled
                           ? "cursor-not-allowed border-border/40 bg-background/30 opacity-40"
-                          : targetId === m.id
+                          : effectiveTarget === m.id
                             ? "border-primary bg-background"
                             : "border-border bg-background/50 hover:border-primary/50"
                       }`}
@@ -616,7 +615,7 @@ export default function FunZone({
                       <span className="ml-auto shrink-0 text-xs font-semibold tabular-nums text-muted">
                         {m.total} pts
                       </span>
-                      {targetId === m.id && <span className="shrink-0">🎯</span>}
+                      {effectiveTarget === m.id && <span className="shrink-0">🎯</span>}
                     </button>
                   );
                 })}
