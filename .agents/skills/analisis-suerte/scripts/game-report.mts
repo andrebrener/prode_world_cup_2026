@@ -385,6 +385,22 @@ async function processPool(pool: any, explicitJokes: string | null) {
   for (const p of players) { const e = estadoDe(p.score).label; counts[e] = (counts[e] || 0) + 1; }
   const chips = Object.entries(counts).map(([k, v]) => `<span class="chip">${esc(k)}: <b>${v}</b></span>`).join("");
 
+  // ---------- "No tan (fun)": chiste para los que más mala suerte tuvieron ----------
+  // El prode se llama Fun, pero de divertido tiene poco cuando siempre te embocan a vos.
+  const fmtNames = (ns: string[]) =>
+    ns.length <= 1 ? (ns[0] ?? "") : ns.slice(0, -1).join(", ") + " y " + ns[ns.length - 1];
+  const noFun = (() => {
+    const muyMal = players.filter((p) => estadoDe(p.score).cls === "muy-mal");
+    const last = players[players.length - 1];
+    const list = muyMal.length ? muyMal : last && last.score < -0.5 ? [last] : [];
+    if (!list.length) return "";
+    const names = esc(fmtNames(list.map((p) => p.name)));
+    const txt = list.length === 1
+      ? `A <b>${names}</b> el prode se le hizo cuesta arriba: dice <b>Fun</b> en el nombre, pero de divertido tiene poco cuando el barrio entero te emboca a vos.`
+      : `Para <b>${names}</b> esto no tuvo nada de divertido. Sí, el prode se llama <b>Fun</b>… pero de <em>fun</em> tiene poco cuando siempre te embocan a vos.`;
+    return `<div class="nofun"><span class="nf-emoji">😵‍💫</span><div class="nf-body"><div class="nf-title">No tan (fun)</div><div class="nf-txt">${txt}</div></div></div>`;
+  })();
+
   // ---------- tabla única ----------
   const rowsHtml = players
     .map((p, i) => {
@@ -396,16 +412,45 @@ async function processPool(pool: any, explicitJokes: string | null) {
         : "—";
       return `
       <tr class="${e.cls}">
-        <td class="rank">${i + 1}</td>
-        <td class="name">${esc(p.name)}${p.rank ? `<span class="tablepos">tabla ${p.rank}º/${p.total}</span>` : ""}</td>
-        <td class="num ${p.cartas >= 0 ? "pos" : "neg"}">${sgn(p.cartas)}</td>
-        <td class="num ${p.streakBest >= 5 ? "pos" : ""}">${streakCell}</td>
-        <td class="num ${p.juego >= 0 ? "pos" : "neg"}">${sgn(+p.juego.toFixed(1))}</td>
-        <td class="score ${scoreCls}">${sgn(p.score)}</td>
-        <td><span class="badge ${e.cls}">${e.emoji} ${e.label}</span></td>
-        <td class="why">${esc(porQue(p))}</td>
-        ${hasJokes ? `<td class="joke">${joke ? "🎤 " + esc(joke) : ""}</td>` : ""}
+        <td class="rank" data-label="#">${i + 1}</td>
+        <td class="name" data-label="">${esc(p.name)}${p.rank ? `<span class="tablepos">tabla ${p.rank}º/${p.total}</span>` : ""}</td>
+        <td class="num ${p.cartas >= 0 ? "pos" : "neg"}" data-label="🍀 Cartas">${sgn(p.cartas)}</td>
+        <td class="num ${p.streakBest >= 5 ? "pos" : ""}" data-label="🔥 Racha">${streakCell}</td>
+        <td class="num ${p.juego >= 0 ? "pos" : "neg"}" data-label="⚔️ Juego">${sgn(+p.juego.toFixed(1))}</td>
+        <td class="score ${scoreCls}" data-label="Score">${sgn(p.score)}</td>
+        <td data-label="Estado"><span class="badge ${e.cls}">${e.emoji} ${e.label}</span></td>
+        <td class="why" data-label="Por qué">${esc(porQue(p))}</td>
+        ${hasJokes ? `<td class="joke" data-label="🎤 Bicho dice">${joke ? esc(joke) : ""}</td>` : ""}
       </tr>`;
+    })
+    .join("");
+
+  // Acordeón para mobile (mismas filas, colapsables; todas cerradas por defecto).
+  const accHtml = players
+    .map((p, i) => {
+      const e = estadoDe(p.score);
+      const joke = jokes[p.name.toLowerCase()] || "";
+      const scoreCls = p.score > 0.5 ? "pos" : p.score < -0.5 ? "neg" : "neu";
+      const streakCell = p.streakBest > 0
+        ? `${p.streakBest}${p.streakBonus > 0 ? `<span class="dim"> +${p.streakBonus}🔥</span>` : ""}`
+        : "—";
+      return `
+      <details class="acc ${e.cls}">
+        <summary>
+          <span class="acc-rank">${i + 1}</span>
+          <span class="acc-name">${esc(p.name)}${p.rank ? `<span class="tablepos">tabla ${p.rank}º/${p.total}</span>` : ""}</span>
+          <span class="acc-score ${scoreCls}">${sgn(p.score)}</span>
+          <span class="acc-chev">▾</span>
+        </summary>
+        <div class="acc-body">
+          <div class="acc-row"><span class="lbl">Estado</span><span class="badge ${e.cls}">${e.emoji} ${e.label}</span></div>
+          <div class="acc-row"><span class="lbl">🍀 Cartas</span><span class="${p.cartas >= 0 ? "pos" : "neg"}">${sgn(p.cartas)}</span></div>
+          <div class="acc-row"><span class="lbl">🔥 Racha</span><span>${streakCell}</span></div>
+          <div class="acc-row"><span class="lbl">⚔️ Juego</span><span class="${p.juego >= 0 ? "pos" : "neg"}">${sgn(+p.juego.toFixed(1))}</span></div>
+          <div class="acc-why">${esc(porQue(p))}</div>
+          ${hasJokes && joke ? `<div class="acc-joke">🎤 ${esc(joke)}</div>` : ""}
+        </div>
+      </details>`;
     })
     .join("");
 
@@ -420,20 +465,52 @@ async function processPool(pool: any, explicitJokes: string | null) {
     --pos:#3fb950; --neg:#f85149; --neu:#8b949e; --gold:#e3b341; }
   *{box-sizing:border-box}
   body{margin:0;background:radial-gradient(1200px 600px at 50% -10%, #1b2330 0%, var(--bg) 60%);
-    color:var(--txt);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;padding:32px 16px}
+    color:var(--txt);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;padding:24px 18px 36px}
   .wrap{max-width:1180px;margin:0 auto}
-  header{text-align:center;margin-bottom:24px}
-  h1{margin:0 0 6px;font-size:28px;letter-spacing:.3px}
+  header{text-align:center;margin-bottom:22px}
+  h1{margin:0 0 6px;font-size:26px;letter-spacing:.3px}
+  /* Acordeón (mobile): una tarjeta colapsable por jugador, todas cerradas. */
+  .accordion{display:none;flex-direction:column;gap:8px}
+  .acc{background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+  .acc[open]{border-color:#3a4250}
+  .acc summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:10px;padding:12px 14px}
+  .acc summary::-webkit-details-marker{display:none}
+  .acc-rank{color:var(--dim);font-variant-numeric:tabular-nums;font-size:13px;min-width:16px}
+  .acc-name{font-weight:800;flex:1;min-width:0;line-height:1.25}
+  .acc-name .tablepos{display:block;font-weight:400;font-size:11px;color:var(--dim)}
+  .acc-score{font-weight:800;font-size:17px;font-variant-numeric:tabular-nums}
+  .acc-score.pos,.acc-row .pos{color:var(--pos)} .acc-score.neg,.acc-row .neg{color:var(--neg)} .acc-score.neu{color:var(--neu)}
+  .acc-chev{color:var(--dim);font-size:12px;transition:transform .15s}
+  .acc[open] .acc-chev{transform:rotate(180deg)}
+  .acc-body{padding:10px 14px 13px;border-top:1px solid var(--line)}
+  .acc-row{display:flex;justify-content:space-between;gap:12px;padding:3px 0;font-size:14px}
+  .acc-row .lbl{color:var(--dim)}
+  .acc-why{margin-top:9px;font-size:13px;color:var(--dim)}
+  .acc-joke{margin-top:9px;font-size:13px;font-style:italic;color:#d2a8ff}
+  @media (max-width:640px){
+    body{padding:14px 10px 28px}
+    h1{font-size:20px}
+    .awards{grid-template-columns:1fr;gap:8px}
+    .tablewrap{display:none}
+    .accordion{display:flex}
+    .legend{margin-top:18px}
+  }
   h1 .cup{filter:drop-shadow(0 2px 6px rgba(227,179,65,.4))}
   .sub{color:var(--dim);font-size:14px}
   .chips{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin:16px 0 4px}
   .chip{background:var(--card);border:1px solid var(--line);border-radius:999px;padding:5px 12px;font-size:13px;color:var(--dim)}
   .chip b{color:var(--txt)}
-  .awards{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px;margin:18px 0 6px}
-  .award{display:flex;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
-  .aw-emoji{font-size:24px;line-height:1}
+  .nofun{display:flex;align-items:center;gap:14px;background:rgba(248,81,73,.08);border:1px solid rgba(248,81,73,.3);border-radius:14px;padding:13px 16px;margin:14px 0 2px;text-align:left}
+  .nf-emoji{font-size:30px;line-height:1;flex:0 0 auto}
+  .nf-title{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#ff7b72;font-weight:700}
+  .nf-txt{font-size:14px;color:var(--txt);margin-top:2px}
+  .nf-txt b{color:#ff7b72}
+  .awards{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px;margin:18px 0 6px;text-align:left}
+  .award{display:flex;align-items:center;gap:12px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+  .aw-emoji{font-size:26px;line-height:1;flex:0 0 auto}
+  .aw-body{min-width:0}
   .aw-title{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--dim);font-weight:700}
-  .aw-who{font-weight:800;font-size:15px}
+  .aw-who{font-weight:800;font-size:15px;margin:1px 0}
   .aw-det{font-size:12px;color:var(--dim)}
   .tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:14px;background:var(--card);box-shadow:0 8px 30px rgba(0,0,0,.35)}
   table{border-collapse:collapse;width:100%;min-width:760px}
@@ -473,6 +550,7 @@ async function processPool(pool: any, explicitJokes: string | null) {
 
   <div class="sub" style="margin-bottom:10px">Qué tan afortunado fue cada uno con TODO el juego: las cartas que le tocaron, las rachas, y cómo lo trató el resto (ataques que le entraron, los que frenó, el bardeo).</div>
   <div class="chips">${chips}</div>
+  ${noFun}
   <div class="tablewrap" style="margin-top:12px">
     <table>
       <thead>
@@ -488,6 +566,7 @@ async function processPool(pool: any, explicitJokes: string | null) {
       </tbody>
     </table>
   </div>
+  <div class="accordion">${accHtml}</div>
   <div class="legend">
     <b>Cómo leer:</b>
     <code>🍀 Cartas</code> suerte del sorteo (legendarias de más + maldiciones y cartas muertas esquivadas) ·

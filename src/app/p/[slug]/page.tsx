@@ -116,7 +116,7 @@ export default async function PoolTabla({
               " Acá hay cartas y rachas: el total suma (o resta) lo que pase en la Zona de cartas."}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {isFun && (
             <Link
               href={`/p/${pool.slug}/informe`}

@@ -9,20 +9,47 @@
     --pos:#3fb950; --neg:#f85149; --neu:#8b949e; --gold:#e3b341; }
   *{box-sizing:border-box}
   body{margin:0;background:radial-gradient(1200px 600px at 50% -10%, #1b2330 0%, var(--bg) 60%);
-    color:var(--txt);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;padding:32px 16px}
+    color:var(--txt);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;padding:24px 18px 36px}
   .wrap{max-width:1180px;margin:0 auto}
-  header{text-align:center;margin-bottom:24px}
-  h1{margin:0 0 6px;font-size:28px;letter-spacing:.3px}
+  header{text-align:center;margin-bottom:22px}
+  h1{margin:0 0 6px;font-size:26px;letter-spacing:.3px}
+  /* Acordeón (mobile): una tarjeta colapsable por jugador, todas cerradas. */
+  .accordion{display:none;flex-direction:column;gap:8px}
+  .acc{background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+  .acc[open]{border-color:#3a4250}
+  .acc summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:10px;padding:12px 14px}
+  .acc summary::-webkit-details-marker{display:none}
+  .acc-rank{color:var(--dim);font-variant-numeric:tabular-nums;font-size:13px;min-width:16px}
+  .acc-name{font-weight:800;flex:1;min-width:0;line-height:1.25}
+  .acc-name .tablepos{display:block;font-weight:400;font-size:11px;color:var(--dim)}
+  .acc-score{font-weight:800;font-size:17px;font-variant-numeric:tabular-nums}
+  .acc-score.pos,.acc-row .pos{color:var(--pos)} .acc-score.neg,.acc-row .neg{color:var(--neg)} .acc-score.neu{color:var(--neu)}
+  .acc-chev{color:var(--dim);font-size:12px;transition:transform .15s}
+  .acc[open] .acc-chev{transform:rotate(180deg)}
+  .acc-body{padding:10px 14px 13px;border-top:1px solid var(--line)}
+  .acc-row{display:flex;justify-content:space-between;gap:12px;padding:3px 0;font-size:14px}
+  .acc-row .lbl{color:var(--dim)}
+  .acc-why{margin-top:9px;font-size:13px;color:var(--dim)}
+  .acc-joke{margin-top:9px;font-size:13px;font-style:italic;color:#d2a8ff}
+  @media (max-width:640px){
+    body{padding:14px 10px 28px}
+    h1{font-size:20px}
+    .awards{grid-template-columns:1fr;gap:8px}
+    .tablewrap{display:none}
+    .accordion{display:flex}
+    .legend{margin-top:18px}
+  }
   h1 .cup{filter:drop-shadow(0 2px 6px rgba(227,179,65,.4))}
   .sub{color:var(--dim);font-size:14px}
   .chips{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin:16px 0 4px}
   .chip{background:var(--card);border:1px solid var(--line);border-radius:999px;padding:5px 12px;font-size:13px;color:var(--dim)}
   .chip b{color:var(--txt)}
-  .awards{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px;margin:18px 0 6px}
-  .award{display:flex;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
-  .aw-emoji{font-size:24px;line-height:1}
+  .awards{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px;margin:18px 0 6px;text-align:left}
+  .award{display:flex;align-items:center;gap:12px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+  .aw-emoji{font-size:26px;line-height:1;flex:0 0 auto}
+  .aw-body{min-width:0}
   .aw-title{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--dim);font-weight:700}
-  .aw-who{font-weight:800;font-size:15px}
+  .aw-who{font-weight:800;font-size:15px;margin:1px 0}
   .aw-det{font-size:12px;color:var(--dim)}
   .tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:14px;background:var(--card);box-shadow:0 8px 30px rgba(0,0,0,.35)}
   table{border-collapse:collapse;width:100%;min-width:760px}
@@ -75,52 +102,117 @@
       </thead>
       <tbody>
       <tr class="normal">
-        <td class="rank">1</td>
-        <td class="name">droco forro<span class="tablepos">tabla 2º/4</span></td>
-        <td class="num pos">+1.4</td>
-        <td class="num ">4<span class="dim"> +12🔥</span></td>
-        <td class="num pos">0</td>
-        <td class="score pos">+1.4</td>
-        <td><span class="badge normal">😐 Normal</span></td>
-        <td class="why">lo cagaron a ataques (3 le entraron de 3); 3 legendarias, por encima de lo previsto.</td>
+        <td class="rank" data-label="#">1</td>
+        <td class="name" data-label="">droco forro<span class="tablepos">tabla 2º/4</span></td>
+        <td class="num pos" data-label="🍀 Cartas">+1.4</td>
+        <td class="num " data-label="🔥 Racha">4<span class="dim"> +12🔥</span></td>
+        <td class="num pos" data-label="⚔️ Juego">0</td>
+        <td class="score pos" data-label="Score">+1.4</td>
+        <td data-label="Estado"><span class="badge normal">😐 Normal</span></td>
+        <td class="why" data-label="Por qué">lo cagaron a ataques (3 le entraron de 3); 3 legendarias, por encima de lo previsto.</td>
         
       </tr>
       <tr class="normal">
-        <td class="rank">2</td>
-        <td class="name">Iwo Forro<span class="tablepos">tabla 1º/4</span></td>
-        <td class="num pos">+0.3</td>
-        <td class="num pos">5<span class="dim"> +39🔥</span></td>
-        <td class="num pos">0</td>
-        <td class="score neu">+0.3</td>
-        <td><span class="badge normal">😐 Normal</span></td>
-        <td class="why">lo cagaron a ataques (4 le entraron de 4); rachón de 5 seguidos (+39 de hitos).</td>
+        <td class="rank" data-label="#">2</td>
+        <td class="name" data-label="">Iwo Forro<span class="tablepos">tabla 1º/4</span></td>
+        <td class="num pos" data-label="🍀 Cartas">+0.3</td>
+        <td class="num pos" data-label="🔥 Racha">5<span class="dim"> +39🔥</span></td>
+        <td class="num pos" data-label="⚔️ Juego">0</td>
+        <td class="score neu" data-label="Score">+0.3</td>
+        <td data-label="Estado"><span class="badge normal">😐 Normal</span></td>
+        <td class="why" data-label="Por qué">lo cagaron a ataques (4 le entraron de 4); rachón de 5 seguidos (+39 de hitos).</td>
         
       </tr>
       <tr class="mal">
-        <td class="rank">3</td>
-        <td class="name">Juli forro<span class="tablepos">tabla 3º/4</span></td>
-        <td class="num neg">-0.9</td>
-        <td class="num pos">6<span class="dim"> +27🔥</span></td>
-        <td class="num neg">-0.3</td>
-        <td class="score neg">-1.2</td>
-        <td><span class="badge mal">😕 Perjudicado</span></td>
-        <td class="why">lo cagaron a ataques (5 le entraron de 6); 0 legendarias (le tocaban ~1); rachón de 6 seguidos (+27 de hitos).</td>
+        <td class="rank" data-label="#">3</td>
+        <td class="name" data-label="">Juli forro<span class="tablepos">tabla 3º/4</span></td>
+        <td class="num neg" data-label="🍀 Cartas">-0.9</td>
+        <td class="num pos" data-label="🔥 Racha">6<span class="dim"> +27🔥</span></td>
+        <td class="num neg" data-label="⚔️ Juego">-0.3</td>
+        <td class="score neg" data-label="Score">-1.2</td>
+        <td data-label="Estado"><span class="badge mal">😕 Perjudicado</span></td>
+        <td class="why" data-label="Por qué">lo cagaron a ataques (5 le entraron de 6); 0 legendarias (le tocaban ~1); rachón de 6 seguidos (+27 de hitos).</td>
         
       </tr>
       <tr class="mal">
-        <td class="rank">4</td>
-        <td class="name">Sai Bamba<span class="tablepos">tabla 4º/4</span></td>
-        <td class="num neg">-4.4</td>
-        <td class="num ">4<span class="dim"> +15🔥</span></td>
-        <td class="num pos">+2.4</td>
-        <td class="score neg">-2</td>
-        <td><span class="badge mal">😕 Perjudicado</span></td>
-        <td class="why">comió 5 maldiciones (le tocaban ~1.6); 1 legendarias (le tocaban ~2).</td>
+        <td class="rank" data-label="#">4</td>
+        <td class="name" data-label="">Sai Bamba<span class="tablepos">tabla 4º/4</span></td>
+        <td class="num neg" data-label="🍀 Cartas">-4.4</td>
+        <td class="num " data-label="🔥 Racha">4<span class="dim"> +15🔥</span></td>
+        <td class="num pos" data-label="⚔️ Juego">+2.4</td>
+        <td class="score neg" data-label="Score">-2</td>
+        <td data-label="Estado"><span class="badge mal">😕 Perjudicado</span></td>
+        <td class="why" data-label="Por qué">comió 5 maldiciones (le tocaban ~1.6); 1 legendarias (le tocaban ~2).</td>
         
       </tr>
       </tbody>
     </table>
   </div>
+  <div class="accordion">
+      <details class="acc normal">
+        <summary>
+          <span class="acc-rank">1</span>
+          <span class="acc-name">droco forro<span class="tablepos">tabla 2º/4</span></span>
+          <span class="acc-score pos">+1.4</span>
+          <span class="acc-chev">▾</span>
+        </summary>
+        <div class="acc-body">
+          <div class="acc-row"><span class="lbl">Estado</span><span class="badge normal">😐 Normal</span></div>
+          <div class="acc-row"><span class="lbl">🍀 Cartas</span><span class="pos">+1.4</span></div>
+          <div class="acc-row"><span class="lbl">🔥 Racha</span><span>4<span class="dim"> +12🔥</span></span></div>
+          <div class="acc-row"><span class="lbl">⚔️ Juego</span><span class="pos">0</span></div>
+          <div class="acc-why">lo cagaron a ataques (3 le entraron de 3); 3 legendarias, por encima de lo previsto.</div>
+          
+        </div>
+      </details>
+      <details class="acc normal">
+        <summary>
+          <span class="acc-rank">2</span>
+          <span class="acc-name">Iwo Forro<span class="tablepos">tabla 1º/4</span></span>
+          <span class="acc-score neu">+0.3</span>
+          <span class="acc-chev">▾</span>
+        </summary>
+        <div class="acc-body">
+          <div class="acc-row"><span class="lbl">Estado</span><span class="badge normal">😐 Normal</span></div>
+          <div class="acc-row"><span class="lbl">🍀 Cartas</span><span class="pos">+0.3</span></div>
+          <div class="acc-row"><span class="lbl">🔥 Racha</span><span>5<span class="dim"> +39🔥</span></span></div>
+          <div class="acc-row"><span class="lbl">⚔️ Juego</span><span class="pos">0</span></div>
+          <div class="acc-why">lo cagaron a ataques (4 le entraron de 4); rachón de 5 seguidos (+39 de hitos).</div>
+          
+        </div>
+      </details>
+      <details class="acc mal">
+        <summary>
+          <span class="acc-rank">3</span>
+          <span class="acc-name">Juli forro<span class="tablepos">tabla 3º/4</span></span>
+          <span class="acc-score neg">-1.2</span>
+          <span class="acc-chev">▾</span>
+        </summary>
+        <div class="acc-body">
+          <div class="acc-row"><span class="lbl">Estado</span><span class="badge mal">😕 Perjudicado</span></div>
+          <div class="acc-row"><span class="lbl">🍀 Cartas</span><span class="neg">-0.9</span></div>
+          <div class="acc-row"><span class="lbl">🔥 Racha</span><span>6<span class="dim"> +27🔥</span></span></div>
+          <div class="acc-row"><span class="lbl">⚔️ Juego</span><span class="neg">-0.3</span></div>
+          <div class="acc-why">lo cagaron a ataques (5 le entraron de 6); 0 legendarias (le tocaban ~1); rachón de 6 seguidos (+27 de hitos).</div>
+          
+        </div>
+      </details>
+      <details class="acc mal">
+        <summary>
+          <span class="acc-rank">4</span>
+          <span class="acc-name">Sai Bamba<span class="tablepos">tabla 4º/4</span></span>
+          <span class="acc-score neg">-2</span>
+          <span class="acc-chev">▾</span>
+        </summary>
+        <div class="acc-body">
+          <div class="acc-row"><span class="lbl">Estado</span><span class="badge mal">😕 Perjudicado</span></div>
+          <div class="acc-row"><span class="lbl">🍀 Cartas</span><span class="neg">-4.4</span></div>
+          <div class="acc-row"><span class="lbl">🔥 Racha</span><span>4<span class="dim"> +15🔥</span></span></div>
+          <div class="acc-row"><span class="lbl">⚔️ Juego</span><span class="pos">+2.4</span></div>
+          <div class="acc-why">comió 5 maldiciones (le tocaban ~1.6); 1 legendarias (le tocaban ~2).</div>
+          
+        </div>
+      </details></div>
   <div class="legend">
     <b>Cómo leer:</b>
     <code>🍀 Cartas</code> suerte del sorteo (legendarias de más + maldiciones y cartas muertas esquivadas) ·
