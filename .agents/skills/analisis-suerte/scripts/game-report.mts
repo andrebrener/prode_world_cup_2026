@@ -385,22 +385,6 @@ async function processPool(pool: any, explicitJokes: string | null) {
   for (const p of players) { const e = estadoDe(p.score).label; counts[e] = (counts[e] || 0) + 1; }
   const chips = Object.entries(counts).map(([k, v]) => `<span class="chip">${esc(k)}: <b>${v}</b></span>`).join("");
 
-  // ---------- "No tan (fun)": chiste para los que más mala suerte tuvieron ----------
-  // El prode se llama Fun, pero de divertido tiene poco cuando siempre te embocan a vos.
-  const fmtNames = (ns: string[]) =>
-    ns.length <= 1 ? (ns[0] ?? "") : ns.slice(0, -1).join(", ") + " y " + ns[ns.length - 1];
-  const noFun = (() => {
-    const muyMal = players.filter((p) => estadoDe(p.score).cls === "muy-mal");
-    const last = players[players.length - 1];
-    const list = muyMal.length ? muyMal : last && last.score < -0.5 ? [last] : [];
-    if (!list.length) return "";
-    const names = esc(fmtNames(list.map((p) => p.name)));
-    const txt = list.length === 1
-      ? `A <b>${names}</b> el prode se le hizo cuesta arriba: dice <b>Fun</b> en el nombre, pero de divertido tiene poco cuando el barrio entero te emboca a vos.`
-      : `Para <b>${names}</b> esto no tuvo nada de divertido. Sí, el prode se llama <b>Fun</b>… pero de <em>fun</em> tiene poco cuando siempre te embocan a vos.`;
-    return `<div class="nofun"><span class="nf-emoji">😵‍💫</span><div class="nf-body"><div class="nf-title">No tan (fun)</div><div class="nf-txt">${txt}</div></div></div>`;
-  })();
-
   // ---------- tabla única ----------
   const rowsHtml = players
     .map((p, i) => {
@@ -500,11 +484,6 @@ async function processPool(pool: any, explicitJokes: string | null) {
   .chips{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin:16px 0 4px}
   .chip{background:var(--card);border:1px solid var(--line);border-radius:999px;padding:5px 12px;font-size:13px;color:var(--dim)}
   .chip b{color:var(--txt)}
-  .nofun{display:flex;align-items:center;gap:14px;background:rgba(248,81,73,.08);border:1px solid rgba(248,81,73,.3);border-radius:14px;padding:13px 16px;margin:14px 0 2px;text-align:left}
-  .nf-emoji{font-size:30px;line-height:1;flex:0 0 auto}
-  .nf-title{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#ff7b72;font-weight:700}
-  .nf-txt{font-size:14px;color:var(--txt);margin-top:2px}
-  .nf-txt b{color:#ff7b72}
   .awards{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px;margin:18px 0 6px;text-align:left}
   .award{display:flex;align-items:center;gap:12px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
   .aw-emoji{font-size:26px;line-height:1;flex:0 0 auto}
@@ -550,7 +529,6 @@ async function processPool(pool: any, explicitJokes: string | null) {
 
   <div class="sub" style="margin-bottom:10px">Qué tan afortunado fue cada uno con TODO el juego: las cartas que le tocaron, las rachas, y cómo lo trató el resto (ataques que le entraron, los que frenó, el bardeo).</div>
   <div class="chips">${chips}</div>
-  ${noFun}
   <div class="tablewrap" style="margin-top:12px">
     <table>
       <thead>

@@ -86,7 +86,7 @@ export default function SiteNav({
             disabled={refreshing}
             aria-label="Actualizar"
             title="Actualizar"
-            className="grid h-10 w-10 place-items-center rounded-lg border border-border text-foreground transition hover:bg-surface disabled:opacity-60"
+            className="hidden h-10 w-10 place-items-center rounded-lg border border-border text-foreground transition hover:bg-surface disabled:opacity-60 sm:grid"
           >
             <svg
               viewBox="0 0 24 24"

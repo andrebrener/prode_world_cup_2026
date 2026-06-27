@@ -132,7 +132,7 @@ export default function Leaderboard({
                   </th>
                 </>
               )}
-              <th className="px-4 py-3 text-right">Total</th>
+              <th className="px-2 py-3 text-right sm:px-4">Total</th>
             </tr>
           </thead>
           <tbody>
@@ -170,9 +170,9 @@ export default function Leaderboard({
                   </span>
                   </div>
                 </td>
-                <td className="px-3 py-3 font-semibold text-foreground">
-                  <span className="flex items-center gap-2">
-                    <span>
+                <td className="min-w-0 px-3 py-3 font-semibold text-foreground">
+                  <span className="block min-w-0">
+                    <span className="block" style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}>
                       {row.name}
                       {row.fun?.overlay?.nickname && (
                         <span
@@ -238,7 +238,7 @@ export default function Leaderboard({
                     </td>
                   </>
                 )}
-                <td className="px-4 py-3 text-right text-lg font-black text-primary">
+                <td className="whitespace-nowrap px-2 py-3 text-right text-lg font-black text-primary sm:px-4">
                   {row.total}
                 </td>
               </tr>
