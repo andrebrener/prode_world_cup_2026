@@ -117,6 +117,14 @@ export default async function PoolTabla({
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {isFun && (
+            <Link
+              href={`/p/${pool.slug}/informe`}
+              className="rounded-xl border border-border bg-surface px-4 py-2 text-sm font-bold text-foreground transition hover:bg-background"
+            >
+              📊 Informe
+            </Link>
+          )}
           {canManage && (
             <Link
               href={`/p/${pool.slug}/admin`}

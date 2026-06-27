@@ -55,6 +55,9 @@ backups/
 
 # Scripts utilitarios de un solo uso (no van al repo)
 scripts/
+# ...salvo los scripts de las skills (parte del repo)
+!.agents/skills/**/scripts/
+!.agents/skills/**/scripts/**
 
 # Playwright MCP (snapshots/artefactos de prueba)
 .playwright-mcp/
