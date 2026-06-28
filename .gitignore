@@ -61,3 +61,6 @@ scripts/
 
 # Playwright MCP (snapshots/artefactos de prueba)
 .playwright-mcp/
+
+# scripts temporales/debug de la skill analisis-suerte
+.agents/skills/analisis-suerte/scripts/_*
