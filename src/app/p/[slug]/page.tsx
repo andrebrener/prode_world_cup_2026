@@ -5,6 +5,7 @@ import {
   getResultsMap,
   getTournamentResult,
   getPredictionsByMatch,
+  getKoPredictionsByMatch,
   getResolvedMatchPoints,
   getBracketState,
   getPoolBySlug,
@@ -80,12 +81,22 @@ export default async function PoolTabla({
   const canManage = role === "owner" || role === "admin";
 
   const isFun = pool.mode === "fun";
-  const [leaderboard, results, tourney, predictionsByMatch, bracket, funState, resolvedPts] =
+  const [
+    leaderboard,
+    results,
+    tourney,
+    predictionsByMatch,
+    koPredictionsByMatch,
+    bracket,
+    funState,
+    resolvedPts,
+  ] =
     await Promise.all([
       getLeaderboard(pool, participant.id),
       getResultsMap(),
       getTournamentResult(),
       getPredictionsByMatch(pool.id, isFun),
+      getKoPredictionsByMatch(pool.id, isFun),
       getBracketState(),
       isFun ? getFunState(pool, participant.id) : Promise.resolve(null),
       // Puntos reales post-cartas (con bloqueos/robos/multiplicadores aplicados):
@@ -190,6 +201,8 @@ export default async function PoolTabla({
       <MatchdayPanel
         predictionsByMatch={predictionsByMatch}
         resultsByMatch={results}
+        koMatches={bracket.generated ? bracket.matches : []}
+        koPredictionsByMatch={koPredictionsByMatch}
         leaderboard={leaderboard.map((r) => ({ id: r.id, name: r.name, total: r.total }))}
         resolvedPoints={resolvedPts?.resolved}
         annulledMatches={resolvedPts?.annulled}

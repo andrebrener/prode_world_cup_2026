@@ -1635,15 +1635,22 @@ export async function getParticipantKoPredictions(
 }
 
 export type KoPredictionRow = {
+  id: string;
   name: string;
   homeGoals: number;
   awayGoals: number;
   advance: string;
+  // Caldeador: pronóstico al azar (ya con el flip de la Piedrambre si hubo) que le pisó
+  // el cruce. Presente solo si la víctima recibió la carta ese día.
+  caldeado?: { homeGoals: number; awayGoals: number; advance: string };
+  // Piedrambre: el marcador se computa dado vuelta.
+  flipped?: boolean;
 };
 
 /** Pronósticos de knockout de los miembros del prode, agrupados por cruce. */
 export async function getKoPredictionsByMatch(
   poolId: string,
+  isFun = false,
 ): Promise<Record<string, KoPredictionRow[]>> {
   const memberIds = await getPoolMemberIds(poolId);
   if (memberIds.length === 0) return {};
@@ -1658,11 +1665,34 @@ export async function getKoPredictionsByMatch(
   for (const p of preds) {
     if (!(p.participantId in nameById)) continue;
     (byMatch[p.matchId] ??= []).push({
+      id: p.participantId,
       name: nameById[p.participantId] ?? "—",
       homeGoals: p.homeGoals,
       awayGoals: p.awayGoals,
       advance: p.advance,
     });
+  }
+  // Modo Diversión: pisar los pronósticos con el Caldeador / Piedrambre (igual que en grupos).
+  if (isFun) {
+    const bracket = await getBracketState();
+    const homeAway: Record<string, { home: string | null; away: string | null }> =
+      Object.fromEntries(bracket.matches.map((m) => [m.id, { home: m.home, away: m.away }]));
+    const { caldeadoBy, flippedBy } = await loadForecastOverrides(poolId, bracket);
+    for (const [matchId, rows] of Object.entries(byMatch)) {
+      const ha = homeAway[matchId];
+      for (const row of rows) {
+        const cId = caldeadoBy[`${row.id}:${matchId}`];
+        const flip = flippedBy.has(`${row.id}:${matchId}`);
+        if (!cId && !flip) continue;
+        let eff =
+          cId && ha?.home && ha?.away
+            ? caldeadorKoPred(cId, matchId, ha.home, ha.away)
+            : { homeGoals: row.homeGoals, awayGoals: row.awayGoals, advance: row.advance };
+        if (flip) eff = { ...eff, homeGoals: eff.awayGoals, awayGoals: eff.homeGoals };
+        if (cId && ha?.home && ha?.away) row.caldeado = { ...eff };
+        if (flip) row.flipped = true;
+      }
+    }
   }
   for (const rows of Object.values(byMatch)) rows.sort((a, b) => a.name.localeCompare(b.name, "es"));
   return byMatch;

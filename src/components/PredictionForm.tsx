@@ -82,6 +82,9 @@ export default function PredictionForm({
   const [editing, setEditing] = useState(!locked && !hasSaved);
   const [pending, start] = useTransition();
   const [status, setStatus] = useState<"idle" | "saved" | "error">("idle");
+  // Ocultar partidos ya jugados (congelados). Solo tiene sentido si hay alguno.
+  const [hideLocked, setHideLocked] = useState(true);
+  const hasLocked = lockedSet.size > 0;
 
   const completed = useMemo(
     () => MATCHES.filter((m) => goals[m.id]?.home !== "" && goals[m.id]?.away !== "").length,
@@ -230,11 +233,45 @@ export default function PredictionForm({
         </section>
       </fieldset>
 
+      {/* Filtro: ocultar partidos ya jugados */}
+      {hasLocked && (
+        <div className="flex items-center justify-between gap-3">
+          <button
+            type="button"
+            onClick={() => setHideLocked((v) => !v)}
+            className={`inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-sm font-semibold transition ${
+              hideLocked
+                ? "border-primary bg-primary text-primary-ink"
+                : "border-border bg-surface text-muted hover:text-foreground"
+            }`}
+          >
+            {hideLocked ? "● Ocultar jugados" : "○ Mostrar todos"}
+          </button>
+          <span className="text-xs text-muted">
+            {hideLocked ? "Solo los que faltan jugar" : "Incluye los ya jugados"}
+          </span>
+        </div>
+      )}
+
       {/* Grupos */}
       <fieldset disabled={readOnly} className="contents">
+        {hideLocked && hasLocked && MATCHES.every((m) => lockedSet.has(m.id)) && (
+          <section className="rounded-2xl border border-primary/40 bg-surface p-6 text-center text-sm">
+            <p className="font-semibold text-primary">Ya se jugaron todos 🎉</p>
+            <p className="mt-1 text-muted">
+              Tocá <strong className="text-foreground">Mostrar todos</strong> para ver lo
+              que cargaste.
+            </p>
+          </section>
+        )}
         {GROUPS.map((group) => {
-          const matches = MATCHES.filter((m) => m.group === group.letter);
-          const done = matches.filter(
+          const allMatches = MATCHES.filter((m) => m.group === group.letter);
+          const matches =
+            hideLocked && hasLocked
+              ? allMatches.filter((m) => !lockedSet.has(m.id))
+              : allMatches;
+          if (matches.length === 0) return null;
+          const done = allMatches.filter(
             (m) => goals[m.id]?.home !== "" && goals[m.id]?.away !== "",
           ).length;
           return (
@@ -250,7 +287,7 @@ export default function PredictionForm({
                   Grupo {group.letter}
                 </h2>
                 <span className="text-xs text-muted">
-                  {done}/{matches.length}
+                  {done}/{allMatches.length}
                 </span>
               </div>
               <div className="divide-y divide-border">

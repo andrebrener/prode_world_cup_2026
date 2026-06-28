@@ -31,27 +31,53 @@ export default function KnockoutPredict({
 
   const [state, setState] = useState<PredState>(initialState);
   const [pending, start] = useTransition();
-  const [status, setStatus] = useState<"idle" | "saved" | "error">("idle");
+  const [status, setStatus] = useState<"idle" | "saved" | "error" | "partial">(
+    "idle",
+  );
+  // Cruces empezados pero sin completar (resaltados en rojo tras intentar guardar).
+  const [missing, setMissing] = useState<Set<string>>(new Set());
 
   function setField(id: string, patch: Partial<PredState[string]>) {
     setState((s) => ({ ...s, [id]: { ...s[id], ...patch } }));
     setStatus("idle");
+    setMissing((prev) => {
+      if (!prev.has(id)) return prev;
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
   }
 
   function save() {
-    const input = matches
-      .filter((m) => m.home && m.away && !m.result)
-      .map((m) => ({ m, v: state[m.id] }))
-      .filter(({ v }) => v.home !== "" && v.away !== "" && v.advance !== "")
-      .map(({ m, v }) => ({
-        matchId: m.id,
-        home: Number(v.home),
-        away: Number(v.away),
-        advance: v.advance,
-      }));
+    const open = matches.filter((m) => m.home && m.away && !m.result);
+    // Un cruce está "empezado" si tocaste cualquier campo, y "completo" solo si
+    // cargaste ambos goles Y elegiste quién gana en penales (los tres obligatorios).
+    const started = open.filter((m) => {
+      const v = state[m.id];
+      return v.home !== "" || v.away !== "" || v.advance !== "";
+    });
+    const incomplete = started.filter((m) => {
+      const v = state[m.id];
+      return v.home === "" || v.away === "" || v.advance === "";
+    });
+    const complete = started.filter((m) => !incomplete.includes(m));
+
+    // Resaltar y, si hay alguno, llevar al primero para que complete o borre.
+    setMissing(new Set(incomplete.map((m) => m.id)));
+    if (incomplete.length > 0) {
+      document
+        .getElementById(`ko-${incomplete[0].id}`)
+        ?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+
+    const input = complete.map((m) => {
+      const v = state[m.id];
+      return { matchId: m.id, home: Number(v.home), away: Number(v.away), advance: v.advance };
+    });
     start(async () => {
       const res = await saveKnockoutPredictionsAction(input);
-      setStatus(res.ok ? "saved" : "error");
+      if (!res.ok) setStatus("error");
+      else setStatus(incomplete.length > 0 ? "partial" : "saved");
     });
   }
 
@@ -62,10 +88,11 @@ export default function KnockoutPredict({
       <div className="rounded-2xl border border-gold/40 bg-surface p-5">
         <h2 className="mb-1 font-bold text-gold">🗝️ Llaves / eliminatorias</h2>
         <p className="text-sm text-muted">
-          Pon&eacute; el marcador de los 90&apos;/alargue y, además, elegí{" "}
-          <strong>quién gana si hay penales</strong> (siempre, por si ese cruce termina
-          empatado). Cada cruce se cierra cuando se carga su resultado. Las rondas
-          siguientes aparecen a medida que se definen.
+          En cada cruce tenés que cargar <strong>las 3 cosas, sí o sí</strong>: el
+          marcador de los 90&apos;/alargue <strong>y</strong> quién gana en penales
+          (siempre, por si termina empatado). Si te falta alguna, ese cruce{" "}
+          <strong>no se guarda</strong>. Cada cruce se cierra cuando se carga su
+          resultado; las rondas siguientes aparecen a medida que se definen.
         </p>
       </div>
 
@@ -103,8 +130,15 @@ export default function KnockoutPredict({
                     </div>
                   );
                 }
+                const needsAdvance = missing.has(m.id);
                 return (
-                  <div key={m.id} className="px-3 py-3 sm:px-5">
+                  <div
+                    key={m.id}
+                    id={`ko-${m.id}`}
+                    className={`px-3 py-3 sm:px-5 ${
+                      needsAdvance ? "bg-danger/10 ring-1 ring-inset ring-danger/50" : ""
+                    }`}
+                  >
                     {/* Fecha · hora · sede */}
                     <div className="mb-2 flex items-center justify-between gap-2 pl-10 text-[11px] text-muted">
                       <span className="shrink-0 font-medium text-foreground">
@@ -152,8 +186,15 @@ export default function KnockoutPredict({
                       </div>
                     ) : (
                       <div className="mt-3 text-center">
-                        <span className="block text-xs font-semibold text-muted">
-                          🥅 ¿Quién gana si hay penales?
+                        <span
+                          className={`block text-xs font-semibold ${
+                            needsAdvance ? "text-danger" : "text-muted"
+                          }`}
+                        >
+                          🥅 ¿Quién gana si hay penales?{" "}
+                          <span className={needsAdvance ? "text-danger" : "text-muted"}>
+                            (obligatorio)
+                          </span>
                         </span>
                         <div className="mx-auto mt-2 flex w-fit flex-wrap justify-center gap-2">
                           <AdvanceButton
@@ -182,6 +223,12 @@ export default function KnockoutPredict({
           {predictableCount} cruces abiertos
           {status === "saved" && <span className="ml-3 text-primary">✓ Guardado</span>}
           {status === "error" && <span className="ml-3 text-danger">Error</span>}
+          {status === "partial" && (
+            <span className="ml-3 text-danger">
+              ⚠️ {missing.size} cruce{missing.size > 1 ? "s" : ""} sin guardar: falta
+              marcador y/o penales (en rojo)
+            </span>
+          )}
         </span>
         <button
           onClick={save}
