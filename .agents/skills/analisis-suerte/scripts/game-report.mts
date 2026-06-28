@@ -559,8 +559,34 @@ async function processPool(pool: any, explicitJokes: string | null) {
   fs.writeFileSync(outFile, html);
   console.error(`✅ ${pool.name} → ${path.relative(REPO, outFile)}${hasJokes ? " (con chistes)" : " (sin chistes)"}`);
 
+  // ---------- línea de tiempo para CONTAR LA HISTORIA en los chistes ----------
+  // Cartas importantes (las que mueven el relato): swaps, robos y las posicionales
+  // que le pegan al podio o levantan al fondo. Más el movimiento de la tabla día a
+  // día. Con esto el chiste puede narrar "fulano robó para ir 1º y lo bajaron".
+  const KEY_MECH = ["game_is_game", "vendetta", "duelo", "caparazon", "golpe", "remontada"];
+  const nameById: Record<string, string> = {};
+  for (const m of mem) nameById[m.id] = m.name;
+  const keyCards = allCards
+    .filter((r) => r.status !== "held" && KEY_MECH.includes(r.card_type))
+    .map((r) => ({
+      date: r.draw_date,
+      card: defOf(r.card_type)?.name ?? r.card_type,
+      mech: r.card_type,
+      from: nameById[r.participant_id] ?? "?",          // quién la jugó (o a quién le cayó, si es posicional)
+      to: r.target_participant_id ? (nameById[r.target_participant_id] ?? "?") : null, // víctima (null en posicionales)
+      result: r.status === "blocked" ? "blocked" : r.reflected ? "reflected" : "hit",
+    }))
+    .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+  const rankTimeline = [...new Set(rankRows.map((r) => r.date))]
+    .sort()
+    .map((d) => ({
+      date: d,
+      order: rankRows.filter((r) => r.date === d).sort((a, b) => a.rank - b.rank).map((r) => nameById[r.participant_id] ?? "?"),
+    }));
+
   return {
     pool: pool.name, slug: pool.slug, cards: allCards.length, karmaOn, hasJokes,
+    keyCards, rankTimeline,
     players: players.map((p) => ({
       name: p.name, rank: p.rank, total: p.total,
       score: p.score, cartas: p.cartas, juego: p.juego, estado: estadoDe(p.score).label,

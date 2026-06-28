@@ -61,13 +61,26 @@ El argumento es el `slug` o el `name` del prode (default `kbarulo-fun`). El HTML
 
 **Paso 2 — agregar la columna "🎤 Bicho dice"** (chistes cortos, opcional pero recomendado).
 
-Leé el JSON del paso 1: trae por jugador `score`/`cartas` (la suerte = solo el sorteo, que es lo que define el estado), `juego` y `estado`, `rank` (posición **en vivo**), `streakBest`/`streakBonus`, `totalReal`/`pure` y el objeto `war`. Con TODO eso escribí un chiste corto por jugador, **en la voz del bicho que codeó el juego** (el motor de cartas/karma hablando en primera persona, tono cargada/argentino).
+Leé el JSON del paso 1. Por jugador trae `score`/`cartas` (la suerte = solo el sorteo, que es lo que define el estado), `juego` y `estado`, `rank` (posición **en vivo**), `streakBest`/`streakBonus`, `totalReal`/`pure` y el objeto `war`. Además, a nivel pool, trae **`keyCards`** (línea de tiempo de las cartas importantes: swaps, robos y posicionales — ver abajo) y **`rankTimeline`** (la tabla ordenada día a día). Con TODO eso escribí un chiste corto por jugador, **en la voz del bicho que codeó el juego** (el motor de cartas/karma hablando en primera persona, tono cargada/argentino).
 
 **El chiste es el lugar donde se cruzan las tres capas** (la suerte de cartas, las rachas y la guerra), justamente porque en el puntaje ya NO se mezclan. El jugo está en el contraste:
 
 - **Cartas vs rachas**: "le di cartas malísimas pero lo salvaron las rachas" (`cartas` bajo/negativo + `streakBest` alto), o al revés "le di un mazo de oro y no enganchó una racha".
 - **Cartas vs guerra**: "le di cartas buenas y sus 'amigos' lo liquidaron a ataques" (`cartas` alto + `war.recvLanded` alto), o "tuvo el mazo más mufa pero nadie lo tocó y zafó".
 - **Suerte vs posición real**: el más afortunado con el mazo que va último, o el punching ball / el de cartas mufa que igual hace podio (`rank` vs `score`).
+
+**CONTÁ LA HISTORIA, no solo los totales.** Cruzá `keyCards` con `rankTimeline` para narrar lo que pasó de verdad: quién le robó a quién y cómo se movió la tabla al otro día. Ej. real: Judith era 1ª por mérito (mejor `pure`), JVP le clavó un Game is game y se trepó él, y al día siguiente BJ le hizo lo mismo a JVP y lo mandó al fondo → tres chistes encadenados ("le robaste al ladrón que le robó a la reina").
+
+**Mencioná las cartas importantes** cuando aparezcan en `keyCards` (son las que el grupo recuerda):
+- **Game is game** (`game_is_game`): swap de puntos, roba la posición. El gran volteador de tablas.
+- **Robo del día / Duelo** (`duelo`) y **Vendetta** (`vendetta`): robo de puntos directo.
+- **Caparazón Azul** (`caparazon`): le cae SOLO al líder y lo iguala con el último. No se esquiva → "por ir 1º te buscó el caparazón".
+- **Golpe al Podio** (`golpe`): −15 al 2º y 3º. No se esquiva → "andar cerca de la cima te costó caro".
+- **Remontada** (`remontada`): el imán que levanta a los del fondo → "venías último y te salvó la remontada".
+
+En `keyCards` cada evento trae `date`, `card` (nombre lindo), `mech`, `from` (quién la jugó, o a quién le cayó si es posicional), `to` (víctima; `null` en posicionales) y `result` (`hit`/`blocked`/`reflected`).
+
+**Para los del fondo a los que el mazo NO les fue tan mal** (cartas cerca de 0 o incluso +, pero van últimos): la culpa es de ellos, no mía. Tono cargada del bicho tipo *"algún resultado le tenés que pegar vos también, no podés depender de mí en todo"*. Distinto del que va último **por** cartas mufa (ahí sí: "todo mérito del mazo que te tiré").
 
 Guardá un JSON `nombre-en-minúscula → chiste` en `output/`:
 
