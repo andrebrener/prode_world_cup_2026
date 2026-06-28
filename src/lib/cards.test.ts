@@ -61,10 +61,13 @@ const played = (
   ...over,
 });
 
+// Jugar de mañana en DAY_1, antes de que arranque M1 (12:00): la carta de día se
+// ata a DAY_1 directo, sin rolear.
+const DAY_1_AM = new Date("2026-06-20T08:00:00-06:00");
 const basePlay: Omit<PlayInput, "cardType"> = {
   ownerId: "ana",
   targetId: null,
-  now: BEFORE_M1,
+  now: DAY_1_AM,
   memberIds: ["ana", "beto", "caro"],
   targetShieldCardId: null,
   targetMirrorCardId: null,
@@ -381,13 +384,13 @@ describe("resolvePlay (validación)", () => {
     expect(r).toMatchObject({ ok: true, effectMatchId: null, effectDate: DAY_1 });
   });
 
-  it("una carta de día sin partidos restantes hoy se ata al próximo día con partidos", () => {
+  it("una carta de día se ata a su día aunque sus partidos ya hayan arrancado (sin rolear)", () => {
     const r = resolvePlay({
       ...basePlay,
       cardType: "cabala",
       now: new Date("2026-06-20T22:00:00-06:00"), // ya arrancaron M1 y M2
     });
-    expect(r).toMatchObject({ ok: true, effectDate: "2026-06-21" });
+    expect(r).toMatchObject({ ok: true, effectDate: DAY_1 });
   });
 
   it("bindDay: hoy si quedan partidos, si no el próximo día", () => {

@@ -1119,7 +1119,13 @@ function resolveFun(
       .filter((c) => {
         if (dayDefenses.has(c.cardType)) return false;
         if (affectedIdOf(c) !== person.id) return false;
-        if (c.effectMatchId) return !hasResult.has(c.effectMatchId);
+        if (c.effectMatchId) {
+          if (hasResult.has(c.effectMatchId)) return false;
+          // hasResult sólo trae partidos que puntúan para este prode; uno anterior
+          // al startDate queda afuera. Si su día ya pasó, la carta igual venció.
+          const k = kickoffOf(c.effectMatchId);
+          return !(k && matchDay(k) < today);
+        }
         if (c.effectDate) return c.effectDate >= today;
         return false;
       })

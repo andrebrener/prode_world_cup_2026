@@ -621,9 +621,11 @@ function bindWindow(
   }
 
   if (def.window === "day") {
-    const date = bindDay(input.now, schedule);
-    if (!date) return { ok: false, error: "No quedan partidos por jugarse." };
-    return { ok: true, effectMatchId: null, effectDate: date };
+    // La carta de día vale para el día en que se juega (= su día de sorteo),
+    // siempre. No rolea al próximo día con partidos: si los de hoy ya arrancaron,
+    // igual aplica a ellos. Así nunca se apilan dos cartas de día en la misma
+    // jornada (un solo sorteo por día ⇒ un solo efecto de día por día).
+    return { ok: true, effectMatchId: null, effectDate: funToday(input.now) };
   }
 
   return { ok: true, effectMatchId: null, effectDate: null };

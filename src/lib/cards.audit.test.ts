@@ -19,7 +19,8 @@ const SCHEDULE = [
 ];
 const KICKOFFS = Object.fromEntries(SCHEDULE.map((m) => [m.id, m.kickoff]));
 const ORDER = ["M1", "M2", "M3"];
-const NOW = new Date("2026-06-19T12:00:00-06:00");
+// Mañana de DAY_1, antes de M1 (12:00): las cartas de día se atan a DAY_1 directo.
+const NOW = new Date("2026-06-20T08:00:00-06:00");
 const DAY_1 = "2026-06-20";
 
 const BASE = {

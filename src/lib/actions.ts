@@ -64,7 +64,6 @@ import {
   type PoolMode,
 } from "./cardCatalog";
 import {
-  bindDay,
   funToday,
   matchDay,
   resolveDeck,
@@ -1447,11 +1446,12 @@ async function drawAndPlay(
       drawDate,
       cardType: def.type,
       cardDefId: def.defId,
-      // Maldición: se juega sola al reclamar, atada al día (o próximo día con partidos).
+      // Maldición: se juega sola al reclamar, atada a su día de sorteo (sin rolear
+      // al próximo día con partidos: una carta de día vale para ese día).
       status: isCurse ? "played" : "held",
       drawnAt: now,
       playedAt: isCurse ? now : null,
-      effectDate: isCurse && def.window === "day" ? (bindDay(now) ?? funToday(now)) : null,
+      effectDate: isCurse && def.window === "day" ? funToday(now) : null,
       payload: payload && Object.keys(payload).length ? JSON.stringify(payload) : null,
     });
   } catch {
