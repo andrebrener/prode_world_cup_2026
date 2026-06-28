@@ -140,6 +140,24 @@ export function koKickoff(matchId: string): string | null {
   return KO_SCHEDULE[matchId]?.kickoff ?? null;
 }
 
+/** Margen antes del kickoff en que se congela el pronóstico de un cruce. */
+export const KO_PREDICTION_LOCK_MS = 10 * 60 * 1000; // 10 minutos
+
+/**
+ * Un cruce de knockout se puede editar hasta 10 minutos antes de su kickoff; pasado
+ * ese punto queda congelado (independiente de si ya se cargó el resultado oficial).
+ */
+export function koPredictionLocked(matchId: string, now: Date = new Date()): boolean {
+  const k = koKickoff(matchId);
+  if (!k) return false;
+  return now.getTime() >= new Date(k).getTime() - KO_PREDICTION_LOCK_MS;
+}
+
+/** IDs de cruces de knockout cuyo pronóstico ya quedó congelado (10 min antes del kickoff). */
+export function lockedKoMatchIds(now: Date = new Date()): string[] {
+  return Object.keys(KO_SCHEDULE).filter((id) => koPredictionLocked(id, now));
+}
+
 export type KoResult = {
   homeGoals: number;
   awayGoals: number;

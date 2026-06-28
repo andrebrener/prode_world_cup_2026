@@ -20,6 +20,7 @@ import {
   predictionsLockedForName,
   startedMatchIds,
 } from "@/lib/fixtures";
+import { lockedKoMatchIds } from "@/lib/bracket";
 
 export const dynamic = "force-dynamic";
 
@@ -93,9 +94,14 @@ export default async function JugarPage({
         deadlineISO={deadlineISO}
         lockedMatchIds={startedMatchIds()}
         extrasLocked={predictionsLockedForName(participant.name, PREDICTIONS_DEADLINE)}
+        knockoutBelow={bracket.generated}
       />
       {bracket.generated && (
-        <KnockoutPredict matches={bracket.matches} initial={koPreds} />
+        <KnockoutPredict
+          matches={bracket.matches}
+          initial={koPreds}
+          lockedMatchIds={lockedKoMatchIds()}
+        />
       )}
     </div>
   );

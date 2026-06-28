@@ -31,7 +31,7 @@ import {
   teamName,
 } from "./fixtures";
 import { allGroupStandings } from "./standings";
-import { computeR32, KO_MATCHES_BY_ID } from "./bracket";
+import { computeR32, KO_MATCHES_BY_ID, koPredictionLocked } from "./bracket";
 import {
   getResultsMap,
   getBracketState,
@@ -767,6 +767,7 @@ export async function saveKnockoutPredictionsAction(
     const m = byId[p.matchId];
     if (!m || !m.home || !m.away) continue; // cruce no resuelto
     if (m.result) continue; // ya se jugó: cerrado
+    if (koPredictionLocked(p.matchId)) continue; // < 10 min para el kickoff: congelado
     if (p.advance !== m.home && p.advance !== m.away) continue; // avance inválido
     const home = clampGoals(p.home);
     const away = clampGoals(p.away);

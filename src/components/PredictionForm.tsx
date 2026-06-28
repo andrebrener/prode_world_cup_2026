@@ -37,6 +37,7 @@ export default function PredictionForm({
   deadlineISO,
   lockedMatchIds = [],
   extrasLocked = false,
+  knockoutBelow = false,
 }: {
   name: string;
   initialPredictions: Record<string, { homeGoals: number; awayGoals: number }>;
@@ -53,6 +54,8 @@ export default function PredictionForm({
   lockedMatchIds?: string[];
   /** Apuestas grandes congeladas: el Mundial ya arrancó (aunque el prode arranque después). */
   extrasLocked?: boolean;
+  /** Hay sección de llaves / eliminatorias más abajo (ya se generó el cuadro). */
+  knockoutBelow?: boolean;
 }) {
   const lockedSet = useMemo(() => new Set(lockedMatchIds), [lockedMatchIds]);
   const initialGoals = useMemo<GoalState>(() => {
@@ -159,6 +162,17 @@ export default function PredictionForm({
         )}
       </header>
 
+      {/* Aclaración de alcance: esto es solo grupos + apuestas, las llaves van aparte */}
+      {knockoutBelow && (
+        <div className="rounded-2xl border border-gold/40 bg-gold/10 p-4 text-sm text-foreground">
+          📋 Esta sección es la <strong>fase de grupos</strong> y las{" "}
+          <strong>apuestas grandes</strong> (campeón, goleador…), que se cierran al
+          arrancar el Mundial. <strong>El juego sigue 👇</strong>: las{" "}
+          <strong>llaves / eliminatorias</strong> están más abajo y las vas cargando a
+          medida que avanza el torneo.
+        </div>
+      )}
+
       {/* Aviso de deadline / cerrado */}
       {locked ? (
         <div className="rounded-2xl border border-danger/40 bg-surface p-4 text-sm text-muted">
@@ -233,6 +247,11 @@ export default function PredictionForm({
         </section>
       </fieldset>
 
+      {/* Fase de grupos */}
+      <h2 className="flex items-center gap-2 px-1 text-lg font-bold text-foreground">
+        ⚽ Fase de grupos
+      </h2>
+
       {/* Filtro: ocultar partidos ya jugados */}
       {hasLocked && (
         <div className="flex items-center justify-between gap-3">
@@ -257,10 +276,23 @@ export default function PredictionForm({
       <fieldset disabled={readOnly} className="contents">
         {hideLocked && hasLocked && MATCHES.every((m) => lockedSet.has(m.id)) && (
           <section className="rounded-2xl border border-primary/40 bg-surface p-6 text-center text-sm">
-            <p className="font-semibold text-primary">Ya se jugaron todos 🎉</p>
+            <p className="font-semibold text-primary">
+              Ya se jugó toda la fase de grupos 🎉
+            </p>
             <p className="mt-1 text-muted">
-              Tocá <strong className="text-foreground">Mostrar todos</strong> para ver lo
-              que cargaste.
+              {knockoutBelow ? (
+                <>
+                  Seguí cargando las <strong className="text-foreground">llaves</strong>{" "}
+                  más abajo 👇. Tocá{" "}
+                  <strong className="text-foreground">Mostrar todos</strong> para ver lo
+                  que pusiste acá.
+                </>
+              ) : (
+                <>
+                  Tocá <strong className="text-foreground">Mostrar todos</strong> para ver
+                  lo que cargaste.
+                </>
+              )}
             </p>
           </section>
         )}

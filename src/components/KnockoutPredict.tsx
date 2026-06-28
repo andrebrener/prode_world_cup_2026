@@ -1,7 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
-import { teamName, teamFlag } from "@/lib/fixtures";
+import { teamName, teamFlag, SCORING } from "@/lib/fixtures";
 import { ROUND_LABEL, type KoRound, type ResolvedKoMatch } from "@/lib/bracket";
 import { saveKnockoutPredictionsAction } from "@/lib/actions";
 import { fmtKickoffTime, fmtVenueDate } from "@/lib/format";
@@ -14,10 +15,17 @@ type PredState = Record<string, { home: string; away: string; advance: string }>
 export default function KnockoutPredict({
   matches,
   initial,
+  lockedMatchIds = [],
 }: {
   matches: ResolvedKoMatch[];
   initial: Record<string, { homeGoals: number; awayGoals: number; advance: string }>;
+  /** Cruces congelados por tiempo (faltan <10 min para el kickoff), aunque no tengan resultado. */
+  lockedMatchIds?: string[];
 }) {
+  const lockedSet = useMemo(() => new Set(lockedMatchIds), [lockedMatchIds]);
+  // Un cruce está congelado si ya tiene resultado oficial o si faltan <10 min para el kickoff.
+  const isFrozen = (m: ResolvedKoMatch) => !!m.result || lockedSet.has(m.id);
+
   const initialState = useMemo<PredState>(() => {
     const s: PredState = {};
     for (const m of matches) {
@@ -49,7 +57,7 @@ export default function KnockoutPredict({
   }
 
   function save() {
-    const open = matches.filter((m) => m.home && m.away && !m.result);
+    const open = matches.filter((m) => m.home && m.away && !isFrozen(m));
     // Un cruce está "empezado" si tocaste cualquier campo, y "completo" solo si
     // cargaste ambos goles Y elegiste quién gana en penales (los tres obligatorios).
     const started = open.filter((m) => {
@@ -81,18 +89,42 @@ export default function KnockoutPredict({
     });
   }
 
-  const predictableCount = matches.filter((m) => m.home && m.away && !m.result).length;
+  const predictableCount = matches.filter((m) => m.home && m.away && !isFrozen(m)).length;
 
   return (
     <section className="flex flex-col gap-4">
       <div className="rounded-2xl border border-gold/40 bg-surface p-5">
         <h2 className="mb-1 font-bold text-gold">🗝️ Llaves / eliminatorias</h2>
         <p className="text-sm text-muted">
-          En cada cruce tenés que cargar <strong>las 3 cosas, sí o sí</strong>: el
-          marcador de los 90&apos;/alargue <strong>y</strong> quién gana en penales
-          (siempre, por si termina empatado). Si te falta alguna, ese cruce{" "}
-          <strong>no se guarda</strong>. Cada cruce se cierra cuando se carga su
-          resultado; las rondas siguientes aparecen a medida que se definen.
+          En cada cruce tenés que completar <strong>las dos cosas, sí o sí</strong>:
+        </p>
+        <ul className="mt-1.5 ml-1 space-y-1 text-sm text-muted">
+          <li>
+            1️⃣ El <strong>marcador</strong> de los 90&apos;/alargue → sumás{" "}
+            <strong className="text-foreground">
+              {SCORING.knockout.exact} pts
+            </strong>{" "}
+            si lo clavás y <strong className="text-foreground">
+              {SCORING.knockout.winner} pts
+            </strong>{" "}
+            por acertar quién pasa.
+          </li>
+          <li>
+            2️⃣ <strong>Quién gana si hay penales</strong> (elegilo siempre, por si ese
+            cruce termina empatado) → si se define por penales y acertás, sumás{" "}
+            <strong className="text-foreground">
+              +{SCORING.knockout.penaltyWinner} pts
+            </strong>{" "}
+            extra.
+          </li>
+        </ul>
+        <p className="mt-2 text-sm text-muted">
+          Si te falta alguna de las dos, ese cruce <strong>no se guarda</strong>. Podés
+          editar cada cruce hasta <strong>10 minutos antes</strong> de que empiece;
+          después queda cerrado.{" "}
+          <Link href="/como-funciona" className="text-primary underline">
+            Cómo funciona y cómo se puntúa →
+          </Link>
         </p>
       </div>
 
@@ -111,7 +143,8 @@ export default function KnockoutPredict({
               {rms.map((m) => {
                 const v = state[m.id];
                 const resolved = !!(m.home && m.away);
-                const closed = !!m.result;
+                const hasResult = !!m.result;
+                const frozen = isFrozen(m); // resultado cargado o <10 min para el kickoff
                 if (!resolved) {
                   return (
                     <div key={m.id} className="px-5 py-3 text-sm text-muted">
@@ -158,14 +191,14 @@ export default function KnockoutPredict({
                       <div className="flex shrink-0 items-center gap-1">
                         <GoalInput
                           value={v.home}
-                          disabled={closed}
+                          disabled={frozen}
                           onChange={(val) => setField(m.id, { home: val })}
                           className="h-9 w-9 rounded-lg border border-border bg-background text-center text-foreground outline-none focus:border-primary disabled:opacity-40"
                         />
                         <span className="text-muted">-</span>
                         <GoalInput
                           value={v.away}
-                          disabled={closed}
+                          disabled={frozen}
                           onChange={(val) => setField(m.id, { away: val })}
                           className="h-9 w-9 rounded-lg border border-border bg-background text-center text-foreground outline-none focus:border-primary disabled:opacity-40"
                         />
@@ -177,12 +210,24 @@ export default function KnockoutPredict({
                     </div>
 
                     {/* Selector de quién pasa */}
-                    {closed ? (
+                    {hasResult ? (
                       <div className="mt-1 pl-10 text-xs text-muted">
                         🔒 Cerrado · Oficial: {m.result!.homeGoals}-{m.result!.awayGoals}
                         {m.result!.penalties && m.winner
                           ? ` (pen. ${teamName(m.winner)})`
                           : ""}
+                      </div>
+                    ) : frozen ? (
+                      <div className="mt-1 pl-10 text-xs text-muted">
+                        🔒 Cerrado · arranca en menos de 10 min
+                        {v.home !== "" && v.away !== "" ? (
+                          <>
+                            {" "}· tu pronóstico: {v.home}-{v.away}
+                            {v.advance ? ` (pen. ${teamName(v.advance)})` : ""}
+                          </>
+                        ) : (
+                          " · no llegaste a cargarlo"
+                        )}
                       </div>
                     ) : (
                       <div className="mt-3 text-center">
