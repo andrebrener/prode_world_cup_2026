@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import Avatar from "./Avatar";
@@ -20,6 +20,7 @@ export default function SiteNav({
   const [refreshing, startRefresh] = useTransition();
   const [open, setOpen] = useState(false);
   const [switcherOpen, setSwitcherOpen] = useState(false);
+  const switcherRef = useRef<HTMLDivElement>(null);
 
   // Prode actual a partir de la URL: /p/[slug](/...)
   const match = pathname.match(/^\/p\/([^/]+)/);
@@ -54,6 +55,20 @@ export default function SiteNav({
       document.body.style.overflow = "";
     };
   }, [open]);
+
+  // Cerrar el switcher al clickear fuera. (El header tiene backdrop-filter, así
+  // que un overlay `fixed` queda contenido al header y no sirve para detectar
+  // clicks en el resto de la pantalla; usamos un listener global.)
+  useEffect(() => {
+    if (!switcherOpen) return;
+    const onPointerDown = (e: PointerEvent) => {
+      if (!switcherRef.current?.contains(e.target as Node)) {
+        setSwitcherOpen(false);
+      }
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, [switcherOpen]);
 
   const isActive = (href: string) => {
     if (href === "/") return pathname === "/";
@@ -104,7 +119,7 @@ export default function SiteNav({
 
           {/* Switcher de prode (cuando hay prodes) */}
           {pools.length > 0 && (
-            <div className="relative">
+            <div className="relative" ref={switcherRef}>
               <button
                 type="button"
                 onClick={() => setSwitcherOpen((o) => !o)}
@@ -115,12 +130,7 @@ export default function SiteNav({
                 <span className="text-muted">▾</span>
               </button>
               {switcherOpen && (
-                <>
-                  <div
-                    className="fixed inset-0 z-30"
-                    onClick={() => setSwitcherOpen(false)}
-                  />
-                  <div className="absolute right-0 z-40 mt-1 w-56 overflow-hidden rounded-xl border border-border bg-background shadow-xl">
+                <div className="absolute right-0 z-40 mt-1 w-56 overflow-hidden rounded-xl border border-border bg-background shadow-xl">
                     <div className="max-h-72 overflow-y-auto py-1">
                       {pools.map((p) => (
                         <Link
@@ -152,7 +162,6 @@ export default function SiteNav({
                       </Link>
                     </div>
                   </div>
-                </>
               )}
             </div>
           )}
