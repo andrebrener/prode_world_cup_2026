@@ -3,6 +3,7 @@ import JoinForm from "@/components/JoinForm";
 import JoinPoolButton from "@/components/JoinPoolButton";
 import PredictionForm from "@/components/PredictionForm";
 import KnockoutPredict from "@/components/KnockoutPredict";
+import JugarTabs from "@/components/JugarTabs";
 import { getParticipantId } from "@/lib/session";
 import {
   getParticipant,
@@ -85,24 +86,31 @@ export default async function JugarPage({
         Tus pronósticos son únicos y cuentan en <strong className="text-foreground">todos</strong> tus
         prodes. Editás una vez, valen en cada tabla.
       </p>
-      <PredictionForm
-        name={participant.name}
-        initialPredictions={predictions}
-        initialExtras={extras}
-        hasSaved={hasSaved}
-        locked={predictionsLockedForName(participant.name, deadlineISO)}
-        deadlineISO={deadlineISO}
-        lockedMatchIds={startedMatchIds()}
-        extrasLocked={predictionsLockedForName(participant.name, PREDICTIONS_DEADLINE)}
-        knockoutBelow={bracket.generated}
+      <JugarTabs
+        defaultTab={bracket.generated ? "llaves" : "previa"}
+        hasKnockout={bracket.generated}
+        previa={
+          <PredictionForm
+            name={participant.name}
+            initialPredictions={predictions}
+            initialExtras={extras}
+            hasSaved={hasSaved}
+            locked={predictionsLockedForName(participant.name, deadlineISO)}
+            deadlineISO={deadlineISO}
+            lockedMatchIds={startedMatchIds()}
+            extrasLocked={predictionsLockedForName(participant.name, PREDICTIONS_DEADLINE)}
+          />
+        }
+        llaves={
+          bracket.generated ? (
+            <KnockoutPredict
+              matches={bracket.matches}
+              initial={koPreds}
+              lockedMatchIds={lockedKoMatchIds()}
+            />
+          ) : null
+        }
       />
-      {bracket.generated && (
-        <KnockoutPredict
-          matches={bracket.matches}
-          initial={koPreds}
-          lockedMatchIds={lockedKoMatchIds()}
-        />
-      )}
     </div>
   );
 }
