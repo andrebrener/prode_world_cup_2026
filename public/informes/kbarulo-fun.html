@@ -63,6 +63,7 @@
   td.num,td.score{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
   td.num.pos,.score.pos{color:var(--pos)} td.num.neg,.score.neg{color:var(--neg)} .score.neu{color:var(--neu)}
   td.score{font-weight:800;font-size:16px}
+  td.info{opacity:.72} /* 🔥 Racha y ⚔️ Juego: informativo, no cuentan para la suerte */
   .dim{color:var(--dim);font-weight:400}
   .badge{display:inline-block;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:700;white-space:nowrap;border:1px solid transparent}
   .badge.muy-bien{background:rgba(63,185,80,.16);color:#56d364;border-color:rgba(63,185,80,.35)}
@@ -83,177 +84,164 @@
 <div class="wrap">
   <header>
     <h1><span class="cup">🏆</span> Análisis del Juego — kbarulo (fun)</h1>
-    <div class="sub">14 jugadores · 215 cartas sorteadas · karma de tabla ON · pesos 45/25/15/15</div>
-    <div class="awards"><div class="award"><div class="aw-emoji">🔥</div><div class="aw-body"><div class="aw-title">Mejor racha</div><div class="aw-who">Judith</div><div class="aw-det">11 partidos seguidos sumando (+36 de hitos)</div></div></div><div class="award"><div class="aw-emoji">🗡️</div><div class="aw-body"><div class="aw-title">Verdugo</div><div class="aw-who">JVP</div><div class="aw-det">4 ataques que pegaron</div></div></div><div class="award"><div class="aw-emoji">😈</div><div class="aw-body"><div class="aw-title">El más picante</div><div class="aw-who">JVP</div><div class="aw-det">tiró 4 ataques</div></div></div><div class="award"><div class="aw-emoji">🎯</div><div class="aw-body"><div class="aw-title">Imán de ataques</div><div class="aw-who">Oscar</div><div class="aw-det">le tiraron 8 cartas</div></div></div><div class="award"><div class="aw-emoji">🩸</div><div class="aw-body"><div class="aw-title">Punching ball</div><div class="aw-who">Oscar</div><div class="aw-det">8 ataques le entraron de lleno</div></div></div><div class="award"><div class="aw-emoji">🛡️</div><div class="aw-body"><div class="aw-title">El amarrete / escudero</div><div class="aw-who">Judith</div><div class="aw-det">jugó 5 defensas</div></div></div><div class="award"><div class="aw-emoji">🤡</div><div class="aw-body"><div class="aw-title">El más bardeado</div><div class="aw-who">Oscar</div><div class="aw-det">7 sociales colgadas</div></div></div><div class="award"><div class="aw-emoji">🍀</div><div class="aw-body"><div class="aw-title">El más afortunado</div><div class="aw-who">Pe</div><div class="aw-det">fortuna +4.1 en todo el juego</div></div></div><div class="award"><div class="aw-emoji">💀</div><div class="aw-body"><div class="aw-title">El más perjudicado</div><div class="aw-who">Oscar</div><div class="aw-det">fortuna -6.8 en todo el juego</div></div></div></div>
+    <div class="sub">14 jugadores · 221 cartas sorteadas · karma de tabla ON · pesos 45/25/15/15</div>
+    <div class="awards"><div class="award"><div class="aw-emoji">🔥</div><div class="aw-body"><div class="aw-title">Mejor racha</div><div class="aw-who">Judith</div><div class="aw-det">11 partidos seguidos sumando (+36 de hitos)</div></div></div><div class="award"><div class="aw-emoji">🗡️</div><div class="aw-body"><div class="aw-title">Verdugo</div><div class="aw-who">BJ</div><div class="aw-det">4 ataques que pegaron</div></div></div><div class="award"><div class="aw-emoji">😈</div><div class="aw-body"><div class="aw-title">El más picante</div><div class="aw-who">BJ</div><div class="aw-det">tiró 4 ataques</div></div></div><div class="award"><div class="aw-emoji">🎯</div><div class="aw-body"><div class="aw-title">Imán de ataques</div><div class="aw-who">Oscar</div><div class="aw-det">le tiraron 8 cartas</div></div></div><div class="award"><div class="aw-emoji">🩸</div><div class="aw-body"><div class="aw-title">Punching ball</div><div class="aw-who">Oscar</div><div class="aw-det">8 ataques le entraron de lleno</div></div></div><div class="award"><div class="aw-emoji">🛡️</div><div class="aw-body"><div class="aw-title">El amarrete / escudero</div><div class="aw-who">Judith</div><div class="aw-det">jugó 5 defensas</div></div></div><div class="award"><div class="aw-emoji">🤡</div><div class="aw-body"><div class="aw-title">El más bardeado</div><div class="aw-who">Oscar</div><div class="aw-det">7 sociales colgadas</div></div></div><div class="award"><div class="aw-emoji">🍀</div><div class="aw-body"><div class="aw-title">El más afortunado</div><div class="aw-who">Macharacha</div><div class="aw-det">+3.6 de suerte con las cartas</div></div></div><div class="award"><div class="aw-emoji">💀</div><div class="aw-body"><div class="aw-title">El más perjudicado</div><div class="aw-who">droco forro</div><div class="aw-det">-5.7 de suerte con las cartas</div></div></div></div>
   </header>
 
-  <div class="sub" style="margin-bottom:10px">Qué tan afortunado fue cada uno con TODO el juego: las cartas que le tocaron, las rachas, y cómo lo trató el resto (ataques que le entraron, los que frenó, el bardeo).</div>
-  <div class="chips"><span class="chip">Muy afortunado: <b>3</b></span><span class="chip">Afortunado: <b>2</b></span><span class="chip">Normal: <b>5</b></span><span class="chip">Perjudicado: <b>2</b></span><span class="chip">Muy perjudicado: <b>2</b></span></div>
+  <div class="sub" style="margin-bottom:10px">Qué tan afortunado fue cada uno <b>con las cartas que le tocaron en el sorteo</b> (eso es la suerte). Aparte mostramos las rachas y la guerra de cartas (ataques/bardeo), pero esas <b>no cuentan</b> para la suerte: eso es lo que hiciste o te hicieron, no lo que te tocó.</div>
+  <div class="chips"><span class="chip">Muy afortunado: <b>1</b></span><span class="chip">Afortunado: <b>2</b></span><span class="chip">Normal: <b>6</b></span><span class="chip">Perjudicado: <b>2</b></span><span class="chip">Muy perjudicado: <b>3</b></span></div>
   <div class="tablewrap" style="margin-top:12px">
     <table>
       <thead>
         <tr>
           <th>#</th><th>Jugador</th>
-          <th title="Suerte del sorteo: legendarias de más + maldiciones esquivadas + cartas muertas esquivadas">🍀 Cartas</th>
-          <th title="Mejor racha de partidos seguidos sumando (+ bonus de hitos)">🔥 Racha</th>
-          <th title="Lo que el resto te hizo vs el promedio del grupo: ataques rebotados/bloqueados (+), te atacaron/bardearon menos (+) o más (−) que la media, más el premio por rachón">⚔️ Juego</th>
-          <th title="Cartas + Juego">Score</th><th>Estado</th><th>Por qué</th><th>🎤 Bicho dice</th>
+          <th title="Suerte del sorteo: legendarias de más + maldiciones esquivadas + cartas muertas esquivadas. Esto define el estado.">🍀 Suerte</th>
+          <th>Estado</th>
+          <th title="Mejor racha de partidos seguidos sumando (+ bonus de hitos). Informativo: NO cuenta para la suerte.">🔥 Racha</th>
+          <th title="Lo que el resto te hizo vs el promedio del grupo: ataques rebotados/bloqueados, cuánto te atacaron/bardearon. Informativo: NO cuenta para la suerte.">⚔️ Juego</th>
+          <th>Por qué</th><th>🎤 Bicho dice</th>
         </tr>
       </thead>
       <tbody>
       <tr class="muy-bien">
         <td class="rank" data-label="#">1</td>
-        <td class="name" data-label="">Pe<span class="tablepos">tabla 2º/14</span></td>
-        <td class="num pos" data-label="🍀 Cartas">+1.6</td>
-        <td class="num pos" data-label="🔥 Racha">8<span class="dim"> +42🔥</span></td>
-        <td class="num pos" data-label="⚔️ Juego">+2.4</td>
-        <td class="score pos" data-label="Score">+4.1</td>
+        <td class="name" data-label="">Macharacha<span class="tablepos">tabla 9º/14</span></td>
+        <td class="score pos" data-label="🍀 Suerte">+3.6</td>
         <td data-label="Estado"><span class="badge muy-bien">🍀 Muy afortunado</span></td>
-        <td class="why" data-label="Por qué">lo bardearon (4 sociales colgadas); rachón de 8 seguidos (+42 de hitos); 3 legendarias, por encima de lo previsto.</td>
-        <td class="joke" data-label="🎤 Bicho dice">El más bendecido y va 2º: cartas, racha de 8 y cero ataques reales que le entraran. Lo único que le tiraron fueron 4 cosas sociales, puro cotillón sin pólvora. Conmigo arregló, seguro.</td>
+        <td class="num info pos" data-label="🔥 Racha">7<span class="dim"> +21🔥</span></td>
+        <td class="num info neg" data-label="⚔️ Juego">-0.1</td>
+        <td class="why" data-label="Por qué">4 legendarias, por encima de lo previsto; casi sin cartas muertas (2 sociales).</td>
+        <td class="joke" data-label="🎤 Bicho dice">El #1 en suerte de cartas (+3,6) y va 9º. Te di el mejor mazo del prode, pero te metieron 3 ataques de lleno y los desperdiciaste igual. El despilfarro hecho persona.</td>
       </tr>
-      <tr class="muy-bien">
+      <tr class="bien">
         <td class="rank" data-label="#">2</td>
-        <td class="name" data-label="">Iltomo<span class="tablepos">tabla 6º/14</span></td>
-        <td class="num pos" data-label="🍀 Cartas">+2.8</td>
-        <td class="num " data-label="🔥 Racha">4<span class="dim"> +21🔥</span></td>
-        <td class="num pos" data-label="⚔️ Juego">+1</td>
-        <td class="score pos" data-label="Score">+3.8</td>
-        <td data-label="Estado"><span class="badge muy-bien">🍀 Muy afortunado</span></td>
-        <td class="why" data-label="Por qué">casi sin cartas muertas (1 sociales); lo bardearon (3 sociales colgadas).</td>
-        <td class="joke" data-label="🎤 Bicho dice">Le di buenas cartas Y se compró 4 defensas: el único que me leyó la mano. Bloqueó hasta lo que no le tiraban.</td>
+        <td class="name" data-label="">Iltomo<span class="tablepos">tabla 4º/14</span></td>
+        <td class="score pos" data-label="🍀 Suerte">+2.9</td>
+        <td data-label="Estado"><span class="badge bien">😀 Afortunado</span></td>
+        <td class="num info " data-label="🔥 Racha">4<span class="dim"> +24🔥</span></td>
+        <td class="num info pos" data-label="⚔️ Juego">+1.2</td>
+        <td class="why" data-label="Por qué">casi sin cartas muertas (1 sociales).</td>
+        <td class="joke" data-label="🎤 Bicho dice">Buenas cartas Y 4 defensas (3 escudos): el único que me leyó la mano. Casi sin cartas muertas y 4º. Conmigo no zafaste de suerte, zafaste con la cabeza.</td>
       </tr>
-      <tr class="muy-bien">
+      <tr class="bien">
         <td class="rank" data-label="#">3</td>
-        <td class="name" data-label="">SK<span class="tablepos">tabla 5º/14</span></td>
-        <td class="num pos" data-label="🍀 Cartas">+0.2</td>
-        <td class="num pos" data-label="🔥 Racha">5<span class="dim"> +27🔥</span></td>
-        <td class="num pos" data-label="⚔️ Juego">+3.3</td>
-        <td class="score pos" data-label="Score">+3.5</td>
-        <td data-label="Estado"><span class="badge muy-bien">🍀 Muy afortunado</span></td>
-        <td class="why" data-label="Por qué">casi sin cartas muertas (2 sociales); rachón de 5 seguidos (+27 de hitos).</td>
-        <td class="joke" data-label="🎤 Bicho dice">Cero ataques, cero bardeo, racha de 5. Pasó por mi juego como por un spa. Sospechosamente tranquilo, el SK.</td>
+        <td class="name" data-label="">Pe<span class="tablepos">tabla 5º/14</span></td>
+        <td class="score pos" data-label="🍀 Suerte">+1.7</td>
+        <td data-label="Estado"><span class="badge bien">😀 Afortunado</span></td>
+        <td class="num info pos" data-label="🔥 Racha">8<span class="dim"> +42🔥</span></td>
+        <td class="num info pos" data-label="⚔️ Juego">+2.6</td>
+        <td class="why" data-label="Por qué">3 legendarias, por encima de lo previsto.</td>
+        <td class="joke" data-label="🎤 Bicho dice">Racha de 8 con +42 de hitos, el rachón más rentable del prode, y cero ataques que te entraran. Buenas cartas y pasaste por mi juego como por un spa. 5º de taquito.</td>
       </tr>
-      <tr class="bien">
+      <tr class="normal">
         <td class="rank" data-label="#">4</td>
-        <td class="name" data-label="">Marta<span class="tablepos">tabla 7º/14</span></td>
-        <td class="num pos" data-label="🍀 Cartas">+0.3</td>
-        <td class="num pos" data-label="🔥 Racha">9<span class="dim"> +30🔥</span></td>
-        <td class="num pos" data-label="⚔️ Juego">+2.4</td>
-        <td class="score pos" data-label="Score">+2.7</td>
-        <td data-label="Estado"><span class="badge bien">😀 Afortunado</span></td>
-        <td class="why" data-label="Por qué">rachón de 9 seguidos (+30 de hitos); 1 legendarias (le tocaban ~2.2); lo bardearon (2 sociales colgadas).</td>
-        <td class="joke" data-label="🎤 Bicho dice">Racha de 9, la más larga después de Judith, y casi no la tocaron. Le sonreí todo el torneo y ni se enteró.</td>
+        <td class="name" data-label="">Judith<span class="tablepos">tabla 12º/14</span></td>
+        <td class="score pos" data-label="🍀 Suerte">+0.7</td>
+        <td data-label="Estado"><span class="badge normal">😐 Normal</span></td>
+        <td class="num info pos" data-label="🔥 Racha">11<span class="dim"> +36🔥</span></td>
+        <td class="num info pos" data-label="⚔️ Juego">+0.6</td>
+        <td class="why" data-label="Por qué">Le tocó más o menos lo que la mesa preveía.</td>
+        <td class="joke" data-label="🎤 Bicho dice">La que la tiene más larga: racha de 11. Las cartas fueron del montón, pero esa cadena y +36 de hitos te dieron el mejor puntaje real del prode (165). Que la tabla te deje 12ª es un robo, reina.</td>
       </tr>
-      <tr class="bien">
+      <tr class="normal">
         <td class="rank" data-label="#">5</td>
-        <td class="name" data-label="">Macharacha<span class="tablepos">tabla 13º/14</span></td>
-        <td class="num pos" data-label="🍀 Cartas">+3.5</td>
-        <td class="num " data-label="🔥 Racha">4<span class="dim"> +15🔥</span></td>
-        <td class="num neg" data-label="⚔️ Juego">-1.1</td>
-        <td class="score pos" data-label="Score">+2.4</td>
-        <td data-label="Estado"><span class="badge bien">😀 Afortunado</span></td>
-        <td class="why" data-label="Por qué">lo cagaron a ataques (3 le entraron de 3); 4 legendarias, por encima de lo previsto; lo bardearon (3 sociales colgadas).</td>
-        <td class="joke" data-label="🎤 Bicho dice">Mejores cartas del prode (cartas +3,5) y va 13º: le di un Ferrari y encima le metieron 3 ataques de lleno que lo hundieron. Mitad lo desperdició él, mitad paliza ajena. Insultante igual.</td>
+        <td class="name" data-label="">Marta<span class="tablepos">tabla 2º/14</span></td>
+        <td class="score neu" data-label="🍀 Suerte">+0.4</td>
+        <td data-label="Estado"><span class="badge normal">😐 Normal</span></td>
+        <td class="num info pos" data-label="🔥 Racha">9<span class="dim"> +30🔥</span></td>
+        <td class="num info pos" data-label="⚔️ Juego">+2.2</td>
+        <td class="why" data-label="Por qué">1 legendarias (le tocaban ~2.2).</td>
+        <td class="joke" data-label="🎤 Bicho dice">Cartas justitas (te tocaron menos legendarias que a nadie) y vas 2ª. Racha de 9 y bloqueaste lo que te tiraban. A vos no te salvé yo: pura muñeca.</td>
       </tr>
       <tr class="normal">
         <td class="rank" data-label="#">6</td>
-        <td class="name" data-label="">Judith<span class="tablepos">tabla 9º/14</span></td>
-        <td class="num pos" data-label="🍀 Cartas">+0.6</td>
-        <td class="num pos" data-label="🔥 Racha">11<span class="dim"> +36🔥</span></td>
-        <td class="num pos" data-label="⚔️ Juego">+0.4</td>
-        <td class="score pos" data-label="Score">+1</td>
+        <td class="name" data-label="">SK<span class="tablepos">tabla 3º/14</span></td>
+        <td class="score neu" data-label="🍀 Suerte">+0.3</td>
         <td data-label="Estado"><span class="badge normal">😐 Normal</span></td>
-        <td class="why" data-label="Por qué">lo cagaron a ataques (3 le entraron de 3); rachón de 11 seguidos (+36 de hitos); lo bardearon (3 sociales colgadas).</td>
-        <td class="joke" data-label="🎤 Bicho dice">La que la tiene más larga: racha de 11. Le tiraron 3 ataques y todos entraron, pero igual aguantó. De 1ª pasó a 9ª de un swapazo, reina.</td>
+        <td class="num info pos" data-label="🔥 Racha">5<span class="dim"> +30🔥</span></td>
+        <td class="num info pos" data-label="⚔️ Juego">+3.5</td>
+        <td class="why" data-label="Por qué">casi sin cartas muertas (2 sociales).</td>
+        <td class="joke" data-label="🎤 Bicho dice">Cartas normales, cero ataques, cero bardeo: nadie te tocó y vas 3º. Pasaste por el barrio sin despeinarte. ¿Con quién arreglaste, SK?</td>
       </tr>
       <tr class="normal">
         <td class="rank" data-label="#">7</td>
-        <td class="name" data-label="">JR<span class="tablepos">tabla 4º/14</span></td>
-        <td class="num neg" data-label="🍀 Cartas">-2.6</td>
-        <td class="num pos" data-label="🔥 Racha">5<span class="dim"> +33🔥</span></td>
-        <td class="num pos" data-label="⚔️ Juego">+2.9</td>
-        <td class="score neu" data-label="Score">+0.3</td>
+        <td class="name" data-label="">El hacha<span class="tablepos">tabla 8º/14</span></td>
+        <td class="score neu" data-label="🍀 Suerte">-0.1</td>
         <td data-label="Estado"><span class="badge normal">😐 Normal</span></td>
-        <td class="why" data-label="Por qué">comió 6 maldiciones (le tocaban ~2.4); rachón de 5 seguidos (+33 de hitos).</td>
-        <td class="joke" data-label="🎤 Bicho dice">Le di las peores cartas del torneo (−2,7) y zafó: racha de 5, +33 de hitos y 4º. Me ganó con el puro talento, el guacho.</td>
+        <td class="num info pos" data-label="🔥 Racha">10<span class="dim"> +27🔥</span></td>
+        <td class="num info neg" data-label="⚔️ Juego">-0.6</td>
+        <td class="why" data-label="Por qué">esquivó ~3 maldiciones que le tocaban; 6 cartas sociales muertas; 1 legendarias (le tocaban ~2).</td>
+        <td class="joke" data-label="🎤 Bicho dice">Esquivaste un montón de maldiciones pero te ahogué en cartas muertas. Te cagaron a 4 ataques y 4 bardeos sin una sola defensa... y la racha de 10 te sostuvo igual. 8º a puro aguante.</td>
       </tr>
       <tr class="normal">
         <td class="rank" data-label="#">8</td>
-        <td class="name" data-label="">JVP<span class="tablepos">tabla 11º/14</span></td>
-        <td class="num neg" data-label="🍀 Cartas">-1</td>
-        <td class="num pos" data-label="🔥 Racha">6<span class="dim"> +15🔥</span></td>
-        <td class="num pos" data-label="⚔️ Juego">+0.9</td>
-        <td class="score neu" data-label="Score">-0.1</td>
+        <td class="name" data-label="">BJ<span class="tablepos">tabla 1º/14</span></td>
+        <td class="score neu" data-label="🍀 Suerte">-0.3</td>
         <td data-label="Estado"><span class="badge normal">😐 Normal</span></td>
-        <td class="why" data-label="Por qué">lo cagaron a ataques (3 le entraron de 3); 6 cartas sociales muertas; 5 legendarias, por encima de lo previsto.</td>
-        <td class="joke" data-label="🎤 Bicho dice">Tiró 5 bardeos y 4 ataques que pegaron, pero le devolvieron 3. El que las hace las paga, JVP.</td>
+        <td class="num info " data-label="🔥 Racha">4<span class="dim"> +12🔥</span></td>
+        <td class="num info neg" data-label="⚔️ Juego">-0.9</td>
+        <td class="why" data-label="Por qué">Le tocó más o menos lo que la mesa preveía.</td>
+        <td class="joke" data-label="🎤 Bicho dice">Va 1º con cartas del montón (−0,3): no te llevaste nada del mazo, te llevaste el barrio. El verdugo, tiraste 4 ataques y pegaron los 4. De represalia, 5 globitos sociales. Repartís y volvés sin un rasguño.</td>
       </tr>
       <tr class="normal">
         <td class="rank" data-label="#">9</td>
-        <td class="name" data-label="">Madof<span class="tablepos">tabla 14º/14</span></td>
-        <td class="num neg" data-label="🍀 Cartas">-1.9</td>
-        <td class="num pos" data-label="🔥 Racha">5<span class="dim"> +15🔥</span></td>
-        <td class="num pos" data-label="⚔️ Juego">+1.7</td>
-        <td class="score neu" data-label="Score">-0.2</td>
+        <td class="name" data-label="">JVP<span class="tablepos">tabla 13º/14</span></td>
+        <td class="score neg" data-label="🍀 Suerte">-0.9</td>
         <td data-label="Estado"><span class="badge normal">😐 Normal</span></td>
-        <td class="why" data-label="Por qué">1 legendarias (le tocaban ~2.6); rachón de 5 seguidos (+15 de hitos); lo bardearon (2 sociales colgadas).</td>
-        <td class="joke" data-label="🎤 Bicho dice">Va último pero conmigo no tiene quejas: lo dejé tranquilo, racha de 5 y casi sin ataques. El fondo te lo ganaste solito.</td>
+        <td class="num info pos" data-label="🔥 Racha">6<span class="dim"> +15🔥</span></td>
+        <td class="num info pos" data-label="⚔️ Juego">+0.7</td>
+        <td class="why" data-label="Por qué">6 cartas sociales muertas; 5 legendarias, por encima de lo previsto.</td>
+        <td class="joke" data-label="🎤 Bicho dice">Buenas legendarias, pero te enterré en cartas muertas. Tiraste 4 ataques y 5 bardeos... y te devolvieron 3 de lleno. El que las hace las paga: 13º.</td>
       </tr>
-      <tr class="normal">
+      <tr class="mal">
         <td class="rank" data-label="#">10</td>
-        <td class="name" data-label="">BJ<span class="tablepos">tabla 1º/14</span></td>
-        <td class="num neg" data-label="🍀 Cartas">-0.4</td>
-        <td class="num " data-label="🔥 Racha">4<span class="dim"> +9🔥</span></td>
-        <td class="num pos" data-label="⚔️ Juego">+0.1</td>
-        <td class="score neu" data-label="Score">-0.3</td>
-        <td data-label="Estado"><span class="badge normal">😐 Normal</span></td>
-        <td class="why" data-label="Por qué">lo bardearon (4 sociales colgadas).</td>
-        <td class="joke" data-label="🎤 Bicho dice">Va 1º y es el más picante: tiró 4 ataques y los 4 pegaron. ¿Represalias? Le devolvieron 4 globos de cumpleaños sociales y ni un ataque de verdad. Reparte y vuelve sin un rasguño. El capo del barrio.</td>
+        <td class="name" data-label="">Oscar<span class="tablepos">tabla 11º/14</span></td>
+        <td class="score neg" data-label="🍀 Suerte">-1.4</td>
+        <td data-label="Estado"><span class="badge mal">😕 Perjudicado</span></td>
+        <td class="num info pos" data-label="🔥 Racha">8<span class="dim"> +33🔥</span></td>
+        <td class="num info neg" data-label="⚔️ Juego">-5</td>
+        <td class="why" data-label="Por qué">comió 6 maldiciones (le tocaban ~3.7).</td>
+        <td class="joke" data-label="🎤 Bicho dice">El ejemplo perfecto: te di cartas malas (comiste maldiciones) y encima tus 'amigos' te liquidaron, 8 ataques que entraron los 8 más 7 bardeos. Te salvó la racha de 8 con +33 de hitos: 2º mejor puntaje real del prode y la tabla te deja 11º. Injusto de punta a punta.</td>
       </tr>
       <tr class="mal">
         <td class="rank" data-label="#">11</td>
-        <td class="name" data-label="">El hacha<span class="tablepos">tabla 3º/14</span></td>
-        <td class="num neg" data-label="🍀 Cartas">-0.6</td>
-        <td class="num pos" data-label="🔥 Racha">10<span class="dim"> +27🔥</span></td>
-        <td class="num neg" data-label="⚔️ Juego">-0.8</td>
-        <td class="score neg" data-label="Score">-1.4</td>
+        <td class="name" data-label="">Madof<span class="tablepos">tabla 14º/14</span></td>
+        <td class="score neg" data-label="🍀 Suerte">-1.7</td>
         <td data-label="Estado"><span class="badge mal">😕 Perjudicado</span></td>
-        <td class="why" data-label="Por qué">lo cagaron a ataques (4 le entraron de 4); esquivó ~3 maldiciones que le tocaban; 6 cartas sociales muertas.</td>
-        <td class="joke" data-label="🎤 Bicho dice">3º con la peor suerte de cancha: le metieron 4 ataques de lleno y 4 bardeos, sin una sola defensa. Sube a pura bronca.</td>
+        <td class="num info pos" data-label="🔥 Racha">5<span class="dim"> +15🔥</span></td>
+        <td class="num info pos" data-label="⚔️ Juego">+1.9</td>
+        <td class="why" data-label="Por qué">2 legendarias (le tocaban ~3.1).</td>
+        <td class="joke" data-label="🎤 Bicho dice">Último. Cartas malas, sí, pero nadie te atacó: el fondo te lo ganaste solito, sin ayuda mía ni del barrio.</td>
       </tr>
-      <tr class="mal">
+      <tr class="muy-mal">
         <td class="rank" data-label="#">12</td>
-        <td class="name" data-label="">Edr<span class="tablepos">tabla 12º/14</span></td>
-        <td class="num neg" data-label="🍀 Cartas">-3.5</td>
-        <td class="num " data-label="🔥 Racha">4<span class="dim"> +15🔥</span></td>
-        <td class="num pos" data-label="⚔️ Juego">+2.1</td>
-        <td class="score neg" data-label="Score">-1.4</td>
-        <td data-label="Estado"><span class="badge mal">😕 Perjudicado</span></td>
-        <td class="why" data-label="Por qué">0 legendarias (le tocaban ~2.7).</td>
-        <td class="joke" data-label="🎤 Bicho dice">Cartas malísimas (−3,6) y nadie lo atacó en serio. Él tampoco: tiró 4 cartas pero puro humo social, ni un ataque de verdad. El francotirador que carga el rifle con serpentina, desde el fondo.</td>
+        <td class="name" data-label="">JR<span class="tablepos">tabla 7º/14</span></td>
+        <td class="score neg" data-label="🍀 Suerte">-3.3</td>
+        <td data-label="Estado"><span class="badge muy-mal">💀 Muy perjudicado</span></td>
+        <td class="num info pos" data-label="🔥 Racha">5<span class="dim"> +33🔥</span></td>
+        <td class="num info pos" data-label="⚔️ Juego">+3.1</td>
+        <td class="why" data-label="Por qué">comió 6 maldiciones (le tocaban ~2.6).</td>
+        <td class="joke" data-label="🎤 Bicho dice">Te di de las peores cartas del prode (comiste 3 maldiciones que ni te tocaban) y zafaste: nadie te atacó, racha de 5 con +33 de hitos, 7º. Me ganaste con el puro talento, guacho.</td>
       </tr>
       <tr class="muy-mal">
         <td class="rank" data-label="#">13</td>
-        <td class="name" data-label="">droco forro<span class="tablepos">tabla 8º/14</span></td>
-        <td class="num neg" data-label="🍀 Cartas">-5.1</td>
-        <td class="num pos" data-label="🔥 Racha">7<span class="dim"> +27🔥</span></td>
-        <td class="num pos" data-label="⚔️ Juego">+1.7</td>
-        <td class="score neg" data-label="Score">-3.4</td>
+        <td class="name" data-label="">Edr<span class="tablepos">tabla 10º/14</span></td>
+        <td class="score neg" data-label="🍀 Suerte">-3.4</td>
         <td data-label="Estado"><span class="badge muy-mal">💀 Muy perjudicado</span></td>
-        <td class="why" data-label="Por qué">0 legendarias (le tocaban ~2.4); 6 cartas sociales muertas; rachón de 7 seguidos (+27 de hitos).</td>
-        <td class="joke" data-label="🎤 Bicho dice">Hizo el prode y me revelé, así que le di la peor mano del torneo (cartas −5,1) y solo pistolas de agua: tiró 5 bardeos puro social (apodos, fotos, micrófonos) y una mufita de nada. Mucho ruido, cero daño. Me odia y sobrevive 7º. Respeto, forro.</td>
+        <td class="num info " data-label="🔥 Racha">4<span class="dim"> +15🔥</span></td>
+        <td class="num info pos" data-label="⚔️ Juego">+2.3</td>
+        <td class="why" data-label="Por qué">0 legendarias (le tocaban ~2.7).</td>
+        <td class="joke" data-label="🎤 Bicho dice">Cartas malísimas: casi no viste una legendaria en todo el torneo. Nadie te ayudó y vos tampoco enganchaste racha. 10º, merecido entre el mazo y el destino.</td>
       </tr>
       <tr class="muy-mal">
         <td class="rank" data-label="#">14</td>
-        <td class="name" data-label="">Oscar<span class="tablepos">tabla 10º/14</span></td>
-        <td class="num neg" data-label="🍀 Cartas">-1.6</td>
-        <td class="num pos" data-label="🔥 Racha">8<span class="dim"> +33🔥</span></td>
-        <td class="num neg" data-label="⚔️ Juego">-5.2</td>
-        <td class="score neg" data-label="Score">-6.8</td>
+        <td class="name" data-label="">droco forro<span class="tablepos">tabla 6º/14</span></td>
+        <td class="score neg" data-label="🍀 Suerte">-5.7</td>
         <td data-label="Estado"><span class="badge muy-mal">💀 Muy perjudicado</span></td>
-        <td class="why" data-label="Por qué">lo cagaron a ataques (8 le entraron de 8); lo bardearon (7 sociales colgadas); comió 6 maldiciones (le tocaban ~3.6).</td>
-        <td class="joke" data-label="🎤 Bicho dice">Mi punching ball oficial: le tiraron 8 ataques y entraron los 8, más 7 bardeos. Le soltó el barrio entero encima. Dice Fun el prode, pero de divertido tiene poco cuando siempre te embocan a vos. Que esté 10º es un milagro.</td>
+        <td class="num info pos" data-label="🔥 Racha">7<span class="dim"> +30🔥</span></td>
+        <td class="num info pos" data-label="⚔️ Juego">+1.9</td>
+        <td class="why" data-label="Por qué">7 cartas sociales muertas; 0 legendarias (le tocaban ~2.5).</td>
+        <td class="joke" data-label="🎤 Bicho dice">Hiciste el prode y me revelé: te di la PEOR mano del torneo (−5,7, mazo cementerio). Tiraste 6 bardeos puro cotillón, cero daño real, y aun así la racha de 7 te dejó 6º. Me odiás y sobrevivís. Respeto, forro.</td>
       </tr>
       </tbody>
     </table>
@@ -262,233 +250,232 @@
       <details class="acc muy-bien">
         <summary>
           <span class="acc-rank">1</span>
-          <span class="acc-name">Pe<span class="tablepos">tabla 2º/14</span></span>
-          <span class="acc-score pos">+4.1</span>
+          <span class="acc-name">Macharacha<span class="tablepos">tabla 9º/14</span></span>
+          <span class="acc-score pos">+3.6</span>
           <span class="acc-chev">▾</span>
         </summary>
         <div class="acc-body">
           <div class="acc-row"><span class="lbl">Estado</span><span class="badge muy-bien">🍀 Muy afortunado</span></div>
-          <div class="acc-row"><span class="lbl">🍀 Cartas</span><span class="pos">+1.6</span></div>
-          <div class="acc-row"><span class="lbl">🔥 Racha</span><span>8<span class="dim"> +42🔥</span></span></div>
-          <div class="acc-row"><span class="lbl">⚔️ Juego</span><span class="pos">+2.4</span></div>
-          <div class="acc-why">lo bardearon (4 sociales colgadas); rachón de 8 seguidos (+42 de hitos); 3 legendarias, por encima de lo previsto.</div>
-          <div class="acc-joke">🎤 El más bendecido y va 2º: cartas, racha de 8 y cero ataques reales que le entraran. Lo único que le tiraron fueron 4 cosas sociales, puro cotillón sin pólvora. Conmigo arregló, seguro.</div>
+          <div class="acc-row"><span class="lbl">🍀 Suerte (cartas)</span><span class="pos">+3.6</span></div>
+          <div class="acc-row"><span class="lbl">🔥 Racha <span class="dim">· no cuenta</span></span><span>7<span class="dim"> +21🔥</span></span></div>
+          <div class="acc-row"><span class="lbl">⚔️ Juego <span class="dim">· no cuenta</span></span><span class="neg">-0.1</span></div>
+          <div class="acc-why">4 legendarias, por encima de lo previsto; casi sin cartas muertas (2 sociales).</div>
+          <div class="acc-joke">🎤 El #1 en suerte de cartas (+3,6) y va 9º. Te di el mejor mazo del prode, pero te metieron 3 ataques de lleno y los desperdiciaste igual. El despilfarro hecho persona.</div>
         </div>
       </details>
-      <details class="acc muy-bien">
+      <details class="acc bien">
         <summary>
           <span class="acc-rank">2</span>
-          <span class="acc-name">Iltomo<span class="tablepos">tabla 6º/14</span></span>
-          <span class="acc-score pos">+3.8</span>
+          <span class="acc-name">Iltomo<span class="tablepos">tabla 4º/14</span></span>
+          <span class="acc-score pos">+2.9</span>
           <span class="acc-chev">▾</span>
         </summary>
         <div class="acc-body">
-          <div class="acc-row"><span class="lbl">Estado</span><span class="badge muy-bien">🍀 Muy afortunado</span></div>
-          <div class="acc-row"><span class="lbl">🍀 Cartas</span><span class="pos">+2.8</span></div>
-          <div class="acc-row"><span class="lbl">🔥 Racha</span><span>4<span class="dim"> +21🔥</span></span></div>
-          <div class="acc-row"><span class="lbl">⚔️ Juego</span><span class="pos">+1</span></div>
-          <div class="acc-why">casi sin cartas muertas (1 sociales); lo bardearon (3 sociales colgadas).</div>
-          <div class="acc-joke">🎤 Le di buenas cartas Y se compró 4 defensas: el único que me leyó la mano. Bloqueó hasta lo que no le tiraban.</div>
+          <div class="acc-row"><span class="lbl">Estado</span><span class="badge bien">😀 Afortunado</span></div>
+          <div class="acc-row"><span class="lbl">🍀 Suerte (cartas)</span><span class="pos">+2.9</span></div>
+          <div class="acc-row"><span class="lbl">🔥 Racha <span class="dim">· no cuenta</span></span><span>4<span class="dim"> +24🔥</span></span></div>
+          <div class="acc-row"><span class="lbl">⚔️ Juego <span class="dim">· no cuenta</span></span><span class="pos">+1.2</span></div>
+          <div class="acc-why">casi sin cartas muertas (1 sociales).</div>
+          <div class="acc-joke">🎤 Buenas cartas Y 4 defensas (3 escudos): el único que me leyó la mano. Casi sin cartas muertas y 4º. Conmigo no zafaste de suerte, zafaste con la cabeza.</div>
         </div>
       </details>
-      <details class="acc muy-bien">
+      <details class="acc bien">
         <summary>
           <span class="acc-rank">3</span>
-          <span class="acc-name">SK<span class="tablepos">tabla 5º/14</span></span>
-          <span class="acc-score pos">+3.5</span>
+          <span class="acc-name">Pe<span class="tablepos">tabla 5º/14</span></span>
+          <span class="acc-score pos">+1.7</span>
           <span class="acc-chev">▾</span>
         </summary>
         <div class="acc-body">
-          <div class="acc-row"><span class="lbl">Estado</span><span class="badge muy-bien">🍀 Muy afortunado</span></div>
-          <div class="acc-row"><span class="lbl">🍀 Cartas</span><span class="pos">+0.2</span></div>
-          <div class="acc-row"><span class="lbl">🔥 Racha</span><span>5<span class="dim"> +27🔥</span></span></div>
-          <div class="acc-row"><span class="lbl">⚔️ Juego</span><span class="pos">+3.3</span></div>
-          <div class="acc-why">casi sin cartas muertas (2 sociales); rachón de 5 seguidos (+27 de hitos).</div>
-          <div class="acc-joke">🎤 Cero ataques, cero bardeo, racha de 5. Pasó por mi juego como por un spa. Sospechosamente tranquilo, el SK.</div>
+          <div class="acc-row"><span class="lbl">Estado</span><span class="badge bien">😀 Afortunado</span></div>
+          <div class="acc-row"><span class="lbl">🍀 Suerte (cartas)</span><span class="pos">+1.7</span></div>
+          <div class="acc-row"><span class="lbl">🔥 Racha <span class="dim">· no cuenta</span></span><span>8<span class="dim"> +42🔥</span></span></div>
+          <div class="acc-row"><span class="lbl">⚔️ Juego <span class="dim">· no cuenta</span></span><span class="pos">+2.6</span></div>
+          <div class="acc-why">3 legendarias, por encima de lo previsto.</div>
+          <div class="acc-joke">🎤 Racha de 8 con +42 de hitos, el rachón más rentable del prode, y cero ataques que te entraran. Buenas cartas y pasaste por mi juego como por un spa. 5º de taquito.</div>
         </div>
       </details>
-      <details class="acc bien">
+      <details class="acc normal">
         <summary>
           <span class="acc-rank">4</span>
-          <span class="acc-name">Marta<span class="tablepos">tabla 7º/14</span></span>
-          <span class="acc-score pos">+2.7</span>
+          <span class="acc-name">Judith<span class="tablepos">tabla 12º/14</span></span>
+          <span class="acc-score pos">+0.7</span>
           <span class="acc-chev">▾</span>
         </summary>
         <div class="acc-body">
-          <div class="acc-row"><span class="lbl">Estado</span><span class="badge bien">😀 Afortunado</span></div>
-          <div class="acc-row"><span class="lbl">🍀 Cartas</span><span class="pos">+0.3</span></div>
-          <div class="acc-row"><span class="lbl">🔥 Racha</span><span>9<span class="dim"> +30🔥</span></span></div>
-          <div class="acc-row"><span class="lbl">⚔️ Juego</span><span class="pos">+2.4</span></div>
-          <div class="acc-why">rachón de 9 seguidos (+30 de hitos); 1 legendarias (le tocaban ~2.2); lo bardearon (2 sociales colgadas).</div>
-          <div class="acc-joke">🎤 Racha de 9, la más larga después de Judith, y casi no la tocaron. Le sonreí todo el torneo y ni se enteró.</div>
+          <div class="acc-row"><span class="lbl">Estado</span><span class="badge normal">😐 Normal</span></div>
+          <div class="acc-row"><span class="lbl">🍀 Suerte (cartas)</span><span class="pos">+0.7</span></div>
+          <div class="acc-row"><span class="lbl">🔥 Racha <span class="dim">· no cuenta</span></span><span>11<span class="dim"> +36🔥</span></span></div>
+          <div class="acc-row"><span class="lbl">⚔️ Juego <span class="dim">· no cuenta</span></span><span class="pos">+0.6</span></div>
+          <div class="acc-why">Le tocó más o menos lo que la mesa preveía.</div>
+          <div class="acc-joke">🎤 La que la tiene más larga: racha de 11. Las cartas fueron del montón, pero esa cadena y +36 de hitos te dieron el mejor puntaje real del prode (165). Que la tabla te deje 12ª es un robo, reina.</div>
         </div>
       </details>
-      <details class="acc bien">
+      <details class="acc normal">
         <summary>
           <span class="acc-rank">5</span>
-          <span class="acc-name">Macharacha<span class="tablepos">tabla 13º/14</span></span>
-          <span class="acc-score pos">+2.4</span>
+          <span class="acc-name">Marta<span class="tablepos">tabla 2º/14</span></span>
+          <span class="acc-score neu">+0.4</span>
           <span class="acc-chev">▾</span>
         </summary>
         <div class="acc-body">
-          <div class="acc-row"><span class="lbl">Estado</span><span class="badge bien">😀 Afortunado</span></div>
-          <div class="acc-row"><span class="lbl">🍀 Cartas</span><span class="pos">+3.5</span></div>
-          <div class="acc-row"><span class="lbl">🔥 Racha</span><span>4<span class="dim"> +15🔥</span></span></div>
-          <div class="acc-row"><span class="lbl">⚔️ Juego</span><span class="neg">-1.1</span></div>
-          <div class="acc-why">lo cagaron a ataques (3 le entraron de 3); 4 legendarias, por encima de lo previsto; lo bardearon (3 sociales colgadas).</div>
-          <div class="acc-joke">🎤 Mejores cartas del prode (cartas +3,5) y va 13º: le di un Ferrari y encima le metieron 3 ataques de lleno que lo hundieron. Mitad lo desperdició él, mitad paliza ajena. Insultante igual.</div>
+          <div class="acc-row"><span class="lbl">Estado</span><span class="badge normal">😐 Normal</span></div>
+          <div class="acc-row"><span class="lbl">🍀 Suerte (cartas)</span><span class="pos">+0.4</span></div>
+          <div class="acc-row"><span class="lbl">🔥 Racha <span class="dim">· no cuenta</span></span><span>9<span class="dim"> +30🔥</span></span></div>
+          <div class="acc-row"><span class="lbl">⚔️ Juego <span class="dim">· no cuenta</span></span><span class="pos">+2.2</span></div>
+          <div class="acc-why">1 legendarias (le tocaban ~2.2).</div>
+          <div class="acc-joke">🎤 Cartas justitas (te tocaron menos legendarias que a nadie) y vas 2ª. Racha de 9 y bloqueaste lo que te tiraban. A vos no te salvé yo: pura muñeca.</div>
         </div>
       </details>
       <details class="acc normal">
         <summary>
           <span class="acc-rank">6</span>
-          <span class="acc-name">Judith<span class="tablepos">tabla 9º/14</span></span>
-          <span class="acc-score pos">+1</span>
-          <span class="acc-chev">▾</span>
-        </summary>
-        <div class="acc-body">
-          <div class="acc-row"><span class="lbl">Estado</span><span class="badge normal">😐 Normal</span></div>
-          <div class="acc-row"><span class="lbl">🍀 Cartas</span><span class="pos">+0.6</span></div>
-          <div class="acc-row"><span class="lbl">🔥 Racha</span><span>11<span class="dim"> +36🔥</span></span></div>
-          <div class="acc-row"><span class="lbl">⚔️ Juego</span><span class="pos">+0.4</span></div>
-          <div class="acc-why">lo cagaron a ataques (3 le entraron de 3); rachón de 11 seguidos (+36 de hitos); lo bardearon (3 sociales colgadas).</div>
-          <div class="acc-joke">🎤 La que la tiene más larga: racha de 11. Le tiraron 3 ataques y todos entraron, pero igual aguantó. De 1ª pasó a 9ª de un swapazo, reina.</div>
-        </div>
-      </details>
-      <details class="acc normal">
-        <summary>
-          <span class="acc-rank">7</span>
-          <span class="acc-name">JR<span class="tablepos">tabla 4º/14</span></span>
+          <span class="acc-name">SK<span class="tablepos">tabla 3º/14</span></span>
           <span class="acc-score neu">+0.3</span>
           <span class="acc-chev">▾</span>
         </summary>
         <div class="acc-body">
           <div class="acc-row"><span class="lbl">Estado</span><span class="badge normal">😐 Normal</span></div>
-          <div class="acc-row"><span class="lbl">🍀 Cartas</span><span class="neg">-2.6</span></div>
-          <div class="acc-row"><span class="lbl">🔥 Racha</span><span>5<span class="dim"> +33🔥</span></span></div>
-          <div class="acc-row"><span class="lbl">⚔️ Juego</span><span class="pos">+2.9</span></div>
-          <div class="acc-why">comió 6 maldiciones (le tocaban ~2.4); rachón de 5 seguidos (+33 de hitos).</div>
-          <div class="acc-joke">🎤 Le di las peores cartas del torneo (−2,7) y zafó: racha de 5, +33 de hitos y 4º. Me ganó con el puro talento, el guacho.</div>
+          <div class="acc-row"><span class="lbl">🍀 Suerte (cartas)</span><span class="pos">+0.3</span></div>
+          <div class="acc-row"><span class="lbl">🔥 Racha <span class="dim">· no cuenta</span></span><span>5<span class="dim"> +30🔥</span></span></div>
+          <div class="acc-row"><span class="lbl">⚔️ Juego <span class="dim">· no cuenta</span></span><span class="pos">+3.5</span></div>
+          <div class="acc-why">casi sin cartas muertas (2 sociales).</div>
+          <div class="acc-joke">🎤 Cartas normales, cero ataques, cero bardeo: nadie te tocó y vas 3º. Pasaste por el barrio sin despeinarte. ¿Con quién arreglaste, SK?</div>
         </div>
       </details>
       <details class="acc normal">
         <summary>
-          <span class="acc-rank">8</span>
-          <span class="acc-name">JVP<span class="tablepos">tabla 11º/14</span></span>
+          <span class="acc-rank">7</span>
+          <span class="acc-name">El hacha<span class="tablepos">tabla 8º/14</span></span>
           <span class="acc-score neu">-0.1</span>
           <span class="acc-chev">▾</span>
         </summary>
         <div class="acc-body">
           <div class="acc-row"><span class="lbl">Estado</span><span class="badge normal">😐 Normal</span></div>
-          <div class="acc-row"><span class="lbl">🍀 Cartas</span><span class="neg">-1</span></div>
-          <div class="acc-row"><span class="lbl">🔥 Racha</span><span>6<span class="dim"> +15🔥</span></span></div>
-          <div class="acc-row"><span class="lbl">⚔️ Juego</span><span class="pos">+0.9</span></div>
-          <div class="acc-why">lo cagaron a ataques (3 le entraron de 3); 6 cartas sociales muertas; 5 legendarias, por encima de lo previsto.</div>
-          <div class="acc-joke">🎤 Tiró 5 bardeos y 4 ataques que pegaron, pero le devolvieron 3. El que las hace las paga, JVP.</div>
+          <div class="acc-row"><span class="lbl">🍀 Suerte (cartas)</span><span class="neg">-0.1</span></div>
+          <div class="acc-row"><span class="lbl">🔥 Racha <span class="dim">· no cuenta</span></span><span>10<span class="dim"> +27🔥</span></span></div>
+          <div class="acc-row"><span class="lbl">⚔️ Juego <span class="dim">· no cuenta</span></span><span class="neg">-0.6</span></div>
+          <div class="acc-why">esquivó ~3 maldiciones que le tocaban; 6 cartas sociales muertas; 1 legendarias (le tocaban ~2).</div>
+          <div class="acc-joke">🎤 Esquivaste un montón de maldiciones pero te ahogué en cartas muertas. Te cagaron a 4 ataques y 4 bardeos sin una sola defensa... y la racha de 10 te sostuvo igual. 8º a puro aguante.</div>
         </div>
       </details>
       <details class="acc normal">
         <summary>
-          <span class="acc-rank">9</span>
-          <span class="acc-name">Madof<span class="tablepos">tabla 14º/14</span></span>
-          <span class="acc-score neu">-0.2</span>
-          <span class="acc-chev">▾</span>
-        </summary>
-        <div class="acc-body">
-          <div class="acc-row"><span class="lbl">Estado</span><span class="badge normal">😐 Normal</span></div>
-          <div class="acc-row"><span class="lbl">🍀 Cartas</span><span class="neg">-1.9</span></div>
-          <div class="acc-row"><span class="lbl">🔥 Racha</span><span>5<span class="dim"> +15🔥</span></span></div>
-          <div class="acc-row"><span class="lbl">⚔️ Juego</span><span class="pos">+1.7</span></div>
-          <div class="acc-why">1 legendarias (le tocaban ~2.6); rachón de 5 seguidos (+15 de hitos); lo bardearon (2 sociales colgadas).</div>
-          <div class="acc-joke">🎤 Va último pero conmigo no tiene quejas: lo dejé tranquilo, racha de 5 y casi sin ataques. El fondo te lo ganaste solito.</div>
-        </div>
-      </details>
-      <details class="acc normal">
-        <summary>
-          <span class="acc-rank">10</span>
+          <span class="acc-rank">8</span>
           <span class="acc-name">BJ<span class="tablepos">tabla 1º/14</span></span>
           <span class="acc-score neu">-0.3</span>
           <span class="acc-chev">▾</span>
         </summary>
         <div class="acc-body">
           <div class="acc-row"><span class="lbl">Estado</span><span class="badge normal">😐 Normal</span></div>
-          <div class="acc-row"><span class="lbl">🍀 Cartas</span><span class="neg">-0.4</span></div>
-          <div class="acc-row"><span class="lbl">🔥 Racha</span><span>4<span class="dim"> +9🔥</span></span></div>
-          <div class="acc-row"><span class="lbl">⚔️ Juego</span><span class="pos">+0.1</span></div>
-          <div class="acc-why">lo bardearon (4 sociales colgadas).</div>
-          <div class="acc-joke">🎤 Va 1º y es el más picante: tiró 4 ataques y los 4 pegaron. ¿Represalias? Le devolvieron 4 globos de cumpleaños sociales y ni un ataque de verdad. Reparte y vuelve sin un rasguño. El capo del barrio.</div>
+          <div class="acc-row"><span class="lbl">🍀 Suerte (cartas)</span><span class="neg">-0.3</span></div>
+          <div class="acc-row"><span class="lbl">🔥 Racha <span class="dim">· no cuenta</span></span><span>4<span class="dim"> +12🔥</span></span></div>
+          <div class="acc-row"><span class="lbl">⚔️ Juego <span class="dim">· no cuenta</span></span><span class="neg">-0.9</span></div>
+          <div class="acc-why">Le tocó más o menos lo que la mesa preveía.</div>
+          <div class="acc-joke">🎤 Va 1º con cartas del montón (−0,3): no te llevaste nada del mazo, te llevaste el barrio. El verdugo, tiraste 4 ataques y pegaron los 4. De represalia, 5 globitos sociales. Repartís y volvés sin un rasguño.</div>
+        </div>
+      </details>
+      <details class="acc normal">
+        <summary>
+          <span class="acc-rank">9</span>
+          <span class="acc-name">JVP<span class="tablepos">tabla 13º/14</span></span>
+          <span class="acc-score neg">-0.9</span>
+          <span class="acc-chev">▾</span>
+        </summary>
+        <div class="acc-body">
+          <div class="acc-row"><span class="lbl">Estado</span><span class="badge normal">😐 Normal</span></div>
+          <div class="acc-row"><span class="lbl">🍀 Suerte (cartas)</span><span class="neg">-0.9</span></div>
+          <div class="acc-row"><span class="lbl">🔥 Racha <span class="dim">· no cuenta</span></span><span>6<span class="dim"> +15🔥</span></span></div>
+          <div class="acc-row"><span class="lbl">⚔️ Juego <span class="dim">· no cuenta</span></span><span class="pos">+0.7</span></div>
+          <div class="acc-why">6 cartas sociales muertas; 5 legendarias, por encima de lo previsto.</div>
+          <div class="acc-joke">🎤 Buenas legendarias, pero te enterré en cartas muertas. Tiraste 4 ataques y 5 bardeos... y te devolvieron 3 de lleno. El que las hace las paga: 13º.</div>
+        </div>
+      </details>
+      <details class="acc mal">
+        <summary>
+          <span class="acc-rank">10</span>
+          <span class="acc-name">Oscar<span class="tablepos">tabla 11º/14</span></span>
+          <span class="acc-score neg">-1.4</span>
+          <span class="acc-chev">▾</span>
+        </summary>
+        <div class="acc-body">
+          <div class="acc-row"><span class="lbl">Estado</span><span class="badge mal">😕 Perjudicado</span></div>
+          <div class="acc-row"><span class="lbl">🍀 Suerte (cartas)</span><span class="neg">-1.4</span></div>
+          <div class="acc-row"><span class="lbl">🔥 Racha <span class="dim">· no cuenta</span></span><span>8<span class="dim"> +33🔥</span></span></div>
+          <div class="acc-row"><span class="lbl">⚔️ Juego <span class="dim">· no cuenta</span></span><span class="neg">-5</span></div>
+          <div class="acc-why">comió 6 maldiciones (le tocaban ~3.7).</div>
+          <div class="acc-joke">🎤 El ejemplo perfecto: te di cartas malas (comiste maldiciones) y encima tus 'amigos' te liquidaron, 8 ataques que entraron los 8 más 7 bardeos. Te salvó la racha de 8 con +33 de hitos: 2º mejor puntaje real del prode y la tabla te deja 11º. Injusto de punta a punta.</div>
         </div>
       </details>
       <details class="acc mal">
         <summary>
           <span class="acc-rank">11</span>
-          <span class="acc-name">El hacha<span class="tablepos">tabla 3º/14</span></span>
-          <span class="acc-score neg">-1.4</span>
+          <span class="acc-name">Madof<span class="tablepos">tabla 14º/14</span></span>
+          <span class="acc-score neg">-1.7</span>
           <span class="acc-chev">▾</span>
         </summary>
         <div class="acc-body">
           <div class="acc-row"><span class="lbl">Estado</span><span class="badge mal">😕 Perjudicado</span></div>
-          <div class="acc-row"><span class="lbl">🍀 Cartas</span><span class="neg">-0.6</span></div>
-          <div class="acc-row"><span class="lbl">🔥 Racha</span><span>10<span class="dim"> +27🔥</span></span></div>
-          <div class="acc-row"><span class="lbl">⚔️ Juego</span><span class="neg">-0.8</span></div>
-          <div class="acc-why">lo cagaron a ataques (4 le entraron de 4); esquivó ~3 maldiciones que le tocaban; 6 cartas sociales muertas.</div>
-          <div class="acc-joke">🎤 3º con la peor suerte de cancha: le metieron 4 ataques de lleno y 4 bardeos, sin una sola defensa. Sube a pura bronca.</div>
+          <div class="acc-row"><span class="lbl">🍀 Suerte (cartas)</span><span class="neg">-1.7</span></div>
+          <div class="acc-row"><span class="lbl">🔥 Racha <span class="dim">· no cuenta</span></span><span>5<span class="dim"> +15🔥</span></span></div>
+          <div class="acc-row"><span class="lbl">⚔️ Juego <span class="dim">· no cuenta</span></span><span class="pos">+1.9</span></div>
+          <div class="acc-why">2 legendarias (le tocaban ~3.1).</div>
+          <div class="acc-joke">🎤 Último. Cartas malas, sí, pero nadie te atacó: el fondo te lo ganaste solito, sin ayuda mía ni del barrio.</div>
         </div>
       </details>
-      <details class="acc mal">
+      <details class="acc muy-mal">
         <summary>
           <span class="acc-rank">12</span>
-          <span class="acc-name">Edr<span class="tablepos">tabla 12º/14</span></span>
-          <span class="acc-score neg">-1.4</span>
+          <span class="acc-name">JR<span class="tablepos">tabla 7º/14</span></span>
+          <span class="acc-score neg">-3.3</span>
           <span class="acc-chev">▾</span>
         </summary>
         <div class="acc-body">
-          <div class="acc-row"><span class="lbl">Estado</span><span class="badge mal">😕 Perjudicado</span></div>
-          <div class="acc-row"><span class="lbl">🍀 Cartas</span><span class="neg">-3.5</span></div>
-          <div class="acc-row"><span class="lbl">🔥 Racha</span><span>4<span class="dim"> +15🔥</span></span></div>
-          <div class="acc-row"><span class="lbl">⚔️ Juego</span><span class="pos">+2.1</span></div>
-          <div class="acc-why">0 legendarias (le tocaban ~2.7).</div>
-          <div class="acc-joke">🎤 Cartas malísimas (−3,6) y nadie lo atacó en serio. Él tampoco: tiró 4 cartas pero puro humo social, ni un ataque de verdad. El francotirador que carga el rifle con serpentina, desde el fondo.</div>
+          <div class="acc-row"><span class="lbl">Estado</span><span class="badge muy-mal">💀 Muy perjudicado</span></div>
+          <div class="acc-row"><span class="lbl">🍀 Suerte (cartas)</span><span class="neg">-3.3</span></div>
+          <div class="acc-row"><span class="lbl">🔥 Racha <span class="dim">· no cuenta</span></span><span>5<span class="dim"> +33🔥</span></span></div>
+          <div class="acc-row"><span class="lbl">⚔️ Juego <span class="dim">· no cuenta</span></span><span class="pos">+3.1</span></div>
+          <div class="acc-why">comió 6 maldiciones (le tocaban ~2.6).</div>
+          <div class="acc-joke">🎤 Te di de las peores cartas del prode (comiste 3 maldiciones que ni te tocaban) y zafaste: nadie te atacó, racha de 5 con +33 de hitos, 7º. Me ganaste con el puro talento, guacho.</div>
         </div>
       </details>
       <details class="acc muy-mal">
         <summary>
           <span class="acc-rank">13</span>
-          <span class="acc-name">droco forro<span class="tablepos">tabla 8º/14</span></span>
+          <span class="acc-name">Edr<span class="tablepos">tabla 10º/14</span></span>
           <span class="acc-score neg">-3.4</span>
           <span class="acc-chev">▾</span>
         </summary>
         <div class="acc-body">
           <div class="acc-row"><span class="lbl">Estado</span><span class="badge muy-mal">💀 Muy perjudicado</span></div>
-          <div class="acc-row"><span class="lbl">🍀 Cartas</span><span class="neg">-5.1</span></div>
-          <div class="acc-row"><span class="lbl">🔥 Racha</span><span>7<span class="dim"> +27🔥</span></span></div>
-          <div class="acc-row"><span class="lbl">⚔️ Juego</span><span class="pos">+1.7</span></div>
-          <div class="acc-why">0 legendarias (le tocaban ~2.4); 6 cartas sociales muertas; rachón de 7 seguidos (+27 de hitos).</div>
-          <div class="acc-joke">🎤 Hizo el prode y me revelé, así que le di la peor mano del torneo (cartas −5,1) y solo pistolas de agua: tiró 5 bardeos puro social (apodos, fotos, micrófonos) y una mufita de nada. Mucho ruido, cero daño. Me odia y sobrevive 7º. Respeto, forro.</div>
+          <div class="acc-row"><span class="lbl">🍀 Suerte (cartas)</span><span class="neg">-3.4</span></div>
+          <div class="acc-row"><span class="lbl">🔥 Racha <span class="dim">· no cuenta</span></span><span>4<span class="dim"> +15🔥</span></span></div>
+          <div class="acc-row"><span class="lbl">⚔️ Juego <span class="dim">· no cuenta</span></span><span class="pos">+2.3</span></div>
+          <div class="acc-why">0 legendarias (le tocaban ~2.7).</div>
+          <div class="acc-joke">🎤 Cartas malísimas: casi no viste una legendaria en todo el torneo. Nadie te ayudó y vos tampoco enganchaste racha. 10º, merecido entre el mazo y el destino.</div>
         </div>
       </details>
       <details class="acc muy-mal">
         <summary>
           <span class="acc-rank">14</span>
-          <span class="acc-name">Oscar<span class="tablepos">tabla 10º/14</span></span>
-          <span class="acc-score neg">-6.8</span>
+          <span class="acc-name">droco forro<span class="tablepos">tabla 6º/14</span></span>
+          <span class="acc-score neg">-5.7</span>
           <span class="acc-chev">▾</span>
         </summary>
         <div class="acc-body">
           <div class="acc-row"><span class="lbl">Estado</span><span class="badge muy-mal">💀 Muy perjudicado</span></div>
-          <div class="acc-row"><span class="lbl">🍀 Cartas</span><span class="neg">-1.6</span></div>
-          <div class="acc-row"><span class="lbl">🔥 Racha</span><span>8<span class="dim"> +33🔥</span></span></div>
-          <div class="acc-row"><span class="lbl">⚔️ Juego</span><span class="neg">-5.2</span></div>
-          <div class="acc-why">lo cagaron a ataques (8 le entraron de 8); lo bardearon (7 sociales colgadas); comió 6 maldiciones (le tocaban ~3.6).</div>
-          <div class="acc-joke">🎤 Mi punching ball oficial: le tiraron 8 ataques y entraron los 8, más 7 bardeos. Le soltó el barrio entero encima. Dice Fun el prode, pero de divertido tiene poco cuando siempre te embocan a vos. Que esté 10º es un milagro.</div>
+          <div class="acc-row"><span class="lbl">🍀 Suerte (cartas)</span><span class="neg">-5.7</span></div>
+          <div class="acc-row"><span class="lbl">🔥 Racha <span class="dim">· no cuenta</span></span><span>7<span class="dim"> +30🔥</span></span></div>
+          <div class="acc-row"><span class="lbl">⚔️ Juego <span class="dim">· no cuenta</span></span><span class="pos">+1.9</span></div>
+          <div class="acc-why">7 cartas sociales muertas; 0 legendarias (le tocaban ~2.5).</div>
+          <div class="acc-joke">🎤 Hiciste el prode y me revelé: te di la PEOR mano del torneo (−5,7, mazo cementerio). Tiraste 6 bardeos puro cotillón, cero daño real, y aun así la racha de 7 te dejó 6º. Me odiás y sobrevivís. Respeto, forro.</div>
         </div>
       </details></div>
   <div class="legend">
     <b>Cómo leer:</b>
-    <code>🍀 Cartas</code> suerte del sorteo (legendarias de más + maldiciones y cartas muertas esquivadas) ·
-    <code>🔥 Racha</code> mejor cadena de partidos seguidos sumando; <code>+N🔥</code> = puntos de hito cobrados (3/5/8/12 seguidos) ·
-    <code>⚔️ Juego</code> lo que el resto te hizo vs el promedio: ataques que rebotaste (+1) o bloqueaste (+½), y si te atacaron/bardearon menos que la media sumás, si más restás, más el premio por rachón ·
-    <code>Score</code> = 🍀 Cartas + ⚔️ Juego → define el estado. Cada punto ≈ una carta a favor/en contra.
+    <code>🍀 Suerte</code> = el puntaje, y lo único que define el estado: la suerte del sorteo (legendarias de más + maldiciones y cartas muertas esquivadas, vs lo que te "tocaba"). Cada punto ≈ una carta a favor/en contra ·
+    <code>🔥 Racha</code> mejor cadena de partidos seguidos sumando; <code>+N🔥</code> = puntos de hito cobrados (3/5/8/12 seguidos) — <b>informativo, no cuenta para la suerte</b> ·
+    <code>⚔️ Juego</code> lo que el resto te hizo vs el promedio (ataques que rebotaste/bloqueaste, cuánto te atacaron/bardearon) — <b>informativo, no cuenta para la suerte</b>: eso es la guerra, no la fortuna del mazo.
   </div>
 
   <footer>Generado por la skill <b>analisis-suerte</b> · rachas, ataques y defensas en vivo del motor del juego · datos de producción</footer>

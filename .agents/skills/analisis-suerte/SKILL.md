@@ -1,11 +1,11 @@
 ---
 name: analisis-suerte
-description: Analiza TODO el juego de un prode en modo Diversión (Fun) y genera un HTML lindo. Por jugador mide la fortuna combinando el sorteo de cartas (legendarias de más, maldiciones y cartas sociales muertas esquivadas, ajustado por el Karma de Tabla), las rachas (datos reales del motor) y la guerra de cartas (ataques que le tiraron y si le entraron/los frenó/los rebotó, defensas, bardeo social). Le asigna un estado (Muy afortunado → Muy perjudicado) y muestra KPIs/premios arriba. Usar cuando alguien pregunta "a quién le fue mejor/peor con las cartas", "quién tuvo más suerte", "quién la tiene más larga / mejor racha", "a quién le tiraron más", "hacé el análisis de suerte/juego del torneo X".
+description: Analiza TODO el juego de un prode en modo Diversión (Fun) y genera un HTML lindo. La suerte (el puntaje) es SOLO el sorteo de cartas (legendarias de más, maldiciones y cartas sociales muertas esquivadas, ajustado por el Karma de Tabla); de ahí sale el estado (Muy afortunado → Muy perjudicado). Las rachas (datos reales del motor) y la guerra de cartas (ataques que le tiraron y si le entraron/los frenó/los rebotó, defensas, bardeo social) se muestran al costado pero NO cuentan para el puntaje (eso no es suerte). Muestra KPIs/premios arriba. Usar cuando alguien pregunta "a quién le fue mejor/peor con las cartas", "quién tuvo más suerte", "quién la tiene más larga / mejor racha", "a quién le tiraron más", "hacé el análisis de suerte/juego del torneo X".
 ---
 
 # Análisis del Juego (modo Fun)
 
-Genera un reporte de **qué tan afortunado fue cada jugador en TODO el juego** de un prode modo Diversión: no solo el sorteo de cartas, sino también las rachas y lo que el resto le hizo (ataques, defensas, bardeo social).
+Genera un reporte de **qué tan afortunado fue cada jugador con el sorteo de cartas** de un prode modo Diversión. La suerte = solo el mazo que te tocó. Aparte (informativo, sin sumar al puntaje) se muestran las rachas y lo que el resto le hizo (ataques, defensas, bardeo social) — eso no es suerte, y queda como dato y para los chistes.
 
 Arriba van **KPIs/premios** (mejor racha, verdugo, el más picante, imán de ataques, punching ball, escudero, el más bardeado, el más afortunado/perjudicado) y abajo **una sola tabla** con el veredicto por jugador.
 
@@ -17,19 +17,19 @@ El HTML se genera en **`public/informes/<slug>.html`** (uno por cada prode fun) 
 
 ## Qué calcula
 
-El **Score** de cada jugador = `🍀 Cartas + ⚔️ Juego`, y de ahí sale el estado:
+El **Score** (la suerte) de cada jugador = `🍀 Cartas`, **y nada más**. Las rachas y la guerra de cartas se muestran al costado y dan material para los chistes, pero **NO entran al puntaje**: eso no es suerte (es lo que hiciste o te hicieron), la suerte son las cartas que te tocaron.
 
-- **🍀 Cartas** (suerte del sorteo, medida contra lo que le "tocaba" según su posición y el mazo):
+- **🍀 Cartas** (suerte del sorteo, medida contra lo que le "tocaba" según su posición y el mazo) — **esto es el Score**:
   - Legendarias que sacó menos las que su posición predecía (replica el `karmaWeights` de `src/lib/cards.ts`).
   - Maldiciones que esquivó respecto de las que le tocaban (+ = zafó).
   - Cartas sociales muertas (micrófono/foto/apodo, que no suman) esquivadas vs el promedio del pool.
-- **🔥 Racha** (informativo): mejor cadena de partidos seguidos sumando + puntos de hito cobrados. **Dato real del motor** (`getLeaderboard`), no estimado.
-- **⚔️ Juego** (lo que el resto te hizo, medido **vs el promedio del grupo** porque los ataques son suma-cero):
+- **🔥 Racha** (informativo, NO cuenta): mejor cadena de partidos seguidos sumando + puntos de hito cobrados. **Dato real del motor** (`getLeaderboard`), no estimado.
+- **⚔️ Juego** (informativo, NO cuenta — lo que el resto te hizo, medido **vs el promedio del grupo** porque los ataques son suma-cero):
   - `+1` por cada ataque que **rebotaste** con un espejito, `+½` por cada uno que **bloqueaste** con escudo.
   - Te atacaron **menos** que la media → suma; **más** → resta (×0,8). Igual con el bardeo social (×0,4).
   - Premio por rachón (racha larga = el juego tratándote bien).
 
-Cada punto ≈ una carta a favor/en contra. El estado:
+Cada punto del Score ≈ una carta a favor/en contra. El estado:
 
 | Score | Estado |
 |---|---|
@@ -61,7 +61,15 @@ El argumento es el `slug` o el `name` del prode (default `kbarulo-fun`). El HTML
 
 **Paso 2 — agregar la columna "🎤 Bicho dice"** (chistes cortos, opcional pero recomendado).
 
-Leé el JSON del paso 1: trae por jugador `score`, `cartas`, `juego`, `estado`, `rank` (posición **en vivo**), `streakBest`/`streakBonus`, `totalReal`/`pure` y el objeto `war`. Con TODO eso escribí un chiste corto por jugador, **en la voz del bicho que codeó el juego** (el motor de cartas/karma hablando en primera persona, tono cargada/argentino). El jugo está en la ironía entre la fortuna y la posición real (ej: el más afortunado que va último, o el punching ball que igual hace podio). Guardá un JSON `nombre-en-minúscula → chiste` en `output/`:
+Leé el JSON del paso 1: trae por jugador `score`/`cartas` (la suerte = solo el sorteo, que es lo que define el estado), `juego` y `estado`, `rank` (posición **en vivo**), `streakBest`/`streakBonus`, `totalReal`/`pure` y el objeto `war`. Con TODO eso escribí un chiste corto por jugador, **en la voz del bicho que codeó el juego** (el motor de cartas/karma hablando en primera persona, tono cargada/argentino).
+
+**El chiste es el lugar donde se cruzan las tres capas** (la suerte de cartas, las rachas y la guerra), justamente porque en el puntaje ya NO se mezclan. El jugo está en el contraste:
+
+- **Cartas vs rachas**: "le di cartas malísimas pero lo salvaron las rachas" (`cartas` bajo/negativo + `streakBest` alto), o al revés "le di un mazo de oro y no enganchó una racha".
+- **Cartas vs guerra**: "le di cartas buenas y sus 'amigos' lo liquidaron a ataques" (`cartas` alto + `war.recvLanded` alto), o "tuvo el mazo más mufa pero nadie lo tocó y zafó".
+- **Suerte vs posición real**: el más afortunado con el mazo que va último, o el punching ball / el de cartas mufa que igual hace podio (`rank` vs `score`).
+
+Guardá un JSON `nombre-en-minúscula → chiste` en `output/`:
 
 ```json
 {

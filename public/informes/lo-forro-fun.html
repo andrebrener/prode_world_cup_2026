@@ -63,6 +63,7 @@
   td.num,td.score{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
   td.num.pos,.score.pos{color:var(--pos)} td.num.neg,.score.neg{color:var(--neg)} .score.neu{color:var(--neu)}
   td.score{font-weight:800;font-size:16px}
+  td.info{opacity:.72} /* 🔥 Racha y ⚔️ Juego: informativo, no cuentan para la suerte */
   .dim{color:var(--dim);font-weight:400}
   .badge{display:inline-block;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:700;white-space:nowrap;border:1px solid transparent}
   .badge.muy-bien{background:rgba(63,185,80,.16);color:#56d364;border-color:rgba(63,185,80,.35)}
@@ -83,142 +84,138 @@
 <div class="wrap">
   <header>
     <h1><span class="cup">🏆</span> Análisis del Juego — Lo Forro (fun)</h1>
-    <div class="sub">4 jugadores · 54 cartas sorteadas · karma de tabla ON · pesos 50/26/9/15</div>
-    <div class="awards"><div class="award"><div class="aw-emoji">🔥</div><div class="aw-body"><div class="aw-title">Mejor racha</div><div class="aw-who">Juli forro</div><div class="aw-det">6 partidos seguidos sumando (+27 de hitos)</div></div></div><div class="award"><div class="aw-emoji">🗡️</div><div class="aw-body"><div class="aw-title">Verdugo</div><div class="aw-who">droco forro</div><div class="aw-det">5 ataques que pegaron</div></div></div><div class="award"><div class="aw-emoji">😈</div><div class="aw-body"><div class="aw-title">El más picante</div><div class="aw-who">droco forro</div><div class="aw-det">tiró 5 ataques</div></div></div><div class="award"><div class="aw-emoji">🎯</div><div class="aw-body"><div class="aw-title">Imán de ataques</div><div class="aw-who">Juli forro</div><div class="aw-det">le tiraron 6 cartas</div></div></div><div class="award"><div class="aw-emoji">🩸</div><div class="aw-body"><div class="aw-title">Punching ball</div><div class="aw-who">Juli forro</div><div class="aw-det">5 ataques le entraron de lleno</div></div></div><div class="award"><div class="aw-emoji">🛡️</div><div class="aw-body"><div class="aw-title">El amarrete / escudero</div><div class="aw-who">Iwo Forro</div><div class="aw-det">jugó 2 defensas</div></div></div><div class="award"><div class="aw-emoji">🍀</div><div class="aw-body"><div class="aw-title">El más afortunado</div><div class="aw-who">droco forro</div><div class="aw-det">fortuna +1.4 en todo el juego</div></div></div><div class="award"><div class="aw-emoji">💀</div><div class="aw-body"><div class="aw-title">El más perjudicado</div><div class="aw-who">Sai Bamba</div><div class="aw-det">fortuna -2 en todo el juego</div></div></div></div>
+    <div class="sub">4 jugadores · 57 cartas sorteadas · karma de tabla ON · pesos 50/26/9/15</div>
+    <div class="awards"><div class="award"><div class="aw-emoji">🔥</div><div class="aw-body"><div class="aw-title">Mejor racha</div><div class="aw-who">Juli forro</div><div class="aw-det">6 partidos seguidos sumando (+27 de hitos)</div></div></div><div class="award"><div class="aw-emoji">🗡️</div><div class="aw-body"><div class="aw-title">Verdugo</div><div class="aw-who">droco forro</div><div class="aw-det">5 ataques que pegaron</div></div></div><div class="award"><div class="aw-emoji">😈</div><div class="aw-body"><div class="aw-title">El más picante</div><div class="aw-who">droco forro</div><div class="aw-det">tiró 5 ataques</div></div></div><div class="award"><div class="aw-emoji">🎯</div><div class="aw-body"><div class="aw-title">Imán de ataques</div><div class="aw-who">Juli forro</div><div class="aw-det">le tiraron 6 cartas</div></div></div><div class="award"><div class="aw-emoji">🩸</div><div class="aw-body"><div class="aw-title">Punching ball</div><div class="aw-who">Juli forro</div><div class="aw-det">5 ataques le entraron de lleno</div></div></div><div class="award"><div class="aw-emoji">🛡️</div><div class="aw-body"><div class="aw-title">El amarrete / escudero</div><div class="aw-who">Juli forro</div><div class="aw-det">jugó 2 defensas</div></div></div><div class="award"><div class="aw-emoji">🍀</div><div class="aw-body"><div class="aw-title">El más afortunado</div><div class="aw-who">droco forro</div><div class="aw-det">+1.6 de suerte con las cartas</div></div></div><div class="award"><div class="aw-emoji">💀</div><div class="aw-body"><div class="aw-title">El más perjudicado</div><div class="aw-who">Sai Bamba</div><div class="aw-det">-4.4 de suerte con las cartas</div></div></div></div>
   </header>
 
-  <div class="sub" style="margin-bottom:10px">Qué tan afortunado fue cada uno con TODO el juego: las cartas que le tocaron, las rachas, y cómo lo trató el resto (ataques que le entraron, los que frenó, el bardeo).</div>
-  <div class="chips"><span class="chip">Normal: <b>2</b></span><span class="chip">Perjudicado: <b>2</b></span></div>
+  <div class="sub" style="margin-bottom:10px">Qué tan afortunado fue cada uno <b>con las cartas que le tocaron en el sorteo</b> (eso es la suerte). Aparte mostramos las rachas y la guerra de cartas (ataques/bardeo), pero esas <b>no cuentan</b> para la suerte: eso es lo que hiciste o te hicieron, no lo que te tocó.</div>
+  <div class="chips"><span class="chip">Afortunado: <b>1</b></span><span class="chip">Normal: <b>2</b></span><span class="chip">Muy perjudicado: <b>1</b></span></div>
   <div class="tablewrap" style="margin-top:12px">
     <table>
       <thead>
         <tr>
           <th>#</th><th>Jugador</th>
-          <th title="Suerte del sorteo: legendarias de más + maldiciones esquivadas + cartas muertas esquivadas">🍀 Cartas</th>
-          <th title="Mejor racha de partidos seguidos sumando (+ bonus de hitos)">🔥 Racha</th>
-          <th title="Lo que el resto te hizo vs el promedio del grupo: ataques rebotados/bloqueados (+), te atacaron/bardearon menos (+) o más (−) que la media, más el premio por rachón">⚔️ Juego</th>
-          <th title="Cartas + Juego">Score</th><th>Estado</th><th>Por qué</th>
+          <th title="Suerte del sorteo: legendarias de más + maldiciones esquivadas + cartas muertas esquivadas. Esto define el estado.">🍀 Suerte</th>
+          <th>Estado</th>
+          <th title="Mejor racha de partidos seguidos sumando (+ bonus de hitos). Informativo: NO cuenta para la suerte.">🔥 Racha</th>
+          <th title="Lo que el resto te hizo vs el promedio del grupo: ataques rebotados/bloqueados, cuánto te atacaron/bardearon. Informativo: NO cuenta para la suerte.">⚔️ Juego</th>
+          <th>Por qué</th><th>🎤 Bicho dice</th>
         </tr>
       </thead>
       <tbody>
-      <tr class="normal">
+      <tr class="bien">
         <td class="rank" data-label="#">1</td>
-        <td class="name" data-label="">droco forro<span class="tablepos">tabla 2º/4</span></td>
-        <td class="num pos" data-label="🍀 Cartas">+1.4</td>
-        <td class="num " data-label="🔥 Racha">4<span class="dim"> +12🔥</span></td>
-        <td class="num pos" data-label="⚔️ Juego">0</td>
-        <td class="score pos" data-label="Score">+1.4</td>
-        <td data-label="Estado"><span class="badge normal">😐 Normal</span></td>
-        <td class="why" data-label="Por qué">lo cagaron a ataques (3 le entraron de 3); 3 legendarias, por encima de lo previsto.</td>
-        
+        <td class="name" data-label="">droco forro<span class="tablepos">tabla 1º/4</span></td>
+        <td class="score pos" data-label="🍀 Suerte">+1.6</td>
+        <td data-label="Estado"><span class="badge bien">😀 Afortunado</span></td>
+        <td class="num info " data-label="🔥 Racha">4<span class="dim"> +15🔥</span></td>
+        <td class="num info neg" data-label="⚔️ Juego">-0.6</td>
+        <td class="why" data-label="Por qué">3 legendarias, por encima de lo previsto.</td>
+        <td class="joke" data-label="🎤 Bicho dice">Acá te di las MEJORES cartas (en el otro prode te hago mierda, tranqui). 1º y verdugo: tiraste 5 ataques y pegaron los 5. Te devolvieron 4 pero ni los sentiste con ese mazo.</td>
       </tr>
       <tr class="normal">
         <td class="rank" data-label="#">2</td>
-        <td class="name" data-label="">Iwo Forro<span class="tablepos">tabla 1º/4</span></td>
-        <td class="num pos" data-label="🍀 Cartas">+0.3</td>
-        <td class="num pos" data-label="🔥 Racha">5<span class="dim"> +39🔥</span></td>
-        <td class="num pos" data-label="⚔️ Juego">0</td>
-        <td class="score neu" data-label="Score">+0.3</td>
-        <td data-label="Estado"><span class="badge normal">😐 Normal</span></td>
-        <td class="why" data-label="Por qué">lo cagaron a ataques (4 le entraron de 4); rachón de 5 seguidos (+39 de hitos).</td>
-        
-      </tr>
-      <tr class="mal">
-        <td class="rank" data-label="#">3</td>
         <td class="name" data-label="">Juli forro<span class="tablepos">tabla 3º/4</span></td>
-        <td class="num neg" data-label="🍀 Cartas">-0.9</td>
-        <td class="num pos" data-label="🔥 Racha">6<span class="dim"> +27🔥</span></td>
-        <td class="num neg" data-label="⚔️ Juego">-0.3</td>
-        <td class="score neg" data-label="Score">-1.2</td>
-        <td data-label="Estado"><span class="badge mal">😕 Perjudicado</span></td>
-        <td class="why" data-label="Por qué">lo cagaron a ataques (5 le entraron de 6); 0 legendarias (le tocaban ~1); rachón de 6 seguidos (+27 de hitos).</td>
-        
+        <td class="score neu" data-label="🍀 Suerte">0</td>
+        <td data-label="Estado"><span class="badge normal">😐 Normal</span></td>
+        <td class="num info pos" data-label="🔥 Racha">6<span class="dim"> +27🔥</span></td>
+        <td class="num info neg" data-label="⚔️ Juego">-0.1</td>
+        <td class="why" data-label="Por qué">Le tocó más o menos lo que la mesa preveía.</td>
+        <td class="joke" data-label="🎤 Bicho dice">Cartas del montón y el más atacado del prode: te entraron 5 de 6. Te salvó la racha de 6 con +27 de hitos. 3º a pura cadena, no a pura suerte.</td>
       </tr>
-      <tr class="mal">
+      <tr class="normal">
+        <td class="rank" data-label="#">3</td>
+        <td class="name" data-label="">Iwo Forro<span class="tablepos">tabla 2º/4</span></td>
+        <td class="score neg" data-label="🍀 Suerte">-0.6</td>
+        <td data-label="Estado"><span class="badge normal">😐 Normal</span></td>
+        <td class="num info pos" data-label="🔥 Racha">5<span class="dim"> +39🔥</span></td>
+        <td class="num info pos" data-label="⚔️ Juego">+0.2</td>
+        <td class="why" data-label="Por qué">Le tocó más o menos lo que la mesa preveía.</td>
+        <td class="joke" data-label="🎤 Bicho dice">Cartas medio mufa, pero la racha más rentable del prode: +39 de hitos. Aguantaste 4 ataques con el Fernet y subiste a 2º. La racha te hizo todo el laburo.</td>
+      </tr>
+      <tr class="muy-mal">
         <td class="rank" data-label="#">4</td>
         <td class="name" data-label="">Sai Bamba<span class="tablepos">tabla 4º/4</span></td>
-        <td class="num neg" data-label="🍀 Cartas">-4.4</td>
-        <td class="num " data-label="🔥 Racha">4<span class="dim"> +15🔥</span></td>
-        <td class="num pos" data-label="⚔️ Juego">+2.4</td>
-        <td class="score neg" data-label="Score">-2</td>
-        <td data-label="Estado"><span class="badge mal">😕 Perjudicado</span></td>
+        <td class="score neg" data-label="🍀 Suerte">-4.4</td>
+        <td data-label="Estado"><span class="badge muy-mal">💀 Muy perjudicado</span></td>
+        <td class="num info " data-label="🔥 Racha">4<span class="dim"> +15🔥</span></td>
+        <td class="num info pos" data-label="⚔️ Juego">+2.6</td>
         <td class="why" data-label="Por qué">comió 5 maldiciones (le tocaban ~1.6); 1 legendarias (le tocaban ~2).</td>
-        
+        <td class="joke" data-label="🎤 Bicho dice">Te enterré en maldiciones (−4,4, la peor mano por lejos) y ni hizo falta que te atacaran: nadie te tiró nada. Último con honores, todo mérito del mazo que te tocó.</td>
       </tr>
       </tbody>
     </table>
   </div>
   <div class="accordion">
-      <details class="acc normal">
+      <details class="acc bien">
         <summary>
           <span class="acc-rank">1</span>
-          <span class="acc-name">droco forro<span class="tablepos">tabla 2º/4</span></span>
-          <span class="acc-score pos">+1.4</span>
+          <span class="acc-name">droco forro<span class="tablepos">tabla 1º/4</span></span>
+          <span class="acc-score pos">+1.6</span>
           <span class="acc-chev">▾</span>
         </summary>
         <div class="acc-body">
-          <div class="acc-row"><span class="lbl">Estado</span><span class="badge normal">😐 Normal</span></div>
-          <div class="acc-row"><span class="lbl">🍀 Cartas</span><span class="pos">+1.4</span></div>
-          <div class="acc-row"><span class="lbl">🔥 Racha</span><span>4<span class="dim"> +12🔥</span></span></div>
-          <div class="acc-row"><span class="lbl">⚔️ Juego</span><span class="pos">0</span></div>
-          <div class="acc-why">lo cagaron a ataques (3 le entraron de 3); 3 legendarias, por encima de lo previsto.</div>
-          
+          <div class="acc-row"><span class="lbl">Estado</span><span class="badge bien">😀 Afortunado</span></div>
+          <div class="acc-row"><span class="lbl">🍀 Suerte (cartas)</span><span class="pos">+1.6</span></div>
+          <div class="acc-row"><span class="lbl">🔥 Racha <span class="dim">· no cuenta</span></span><span>4<span class="dim"> +15🔥</span></span></div>
+          <div class="acc-row"><span class="lbl">⚔️ Juego <span class="dim">· no cuenta</span></span><span class="neg">-0.6</span></div>
+          <div class="acc-why">3 legendarias, por encima de lo previsto.</div>
+          <div class="acc-joke">🎤 Acá te di las MEJORES cartas (en el otro prode te hago mierda, tranqui). 1º y verdugo: tiraste 5 ataques y pegaron los 5. Te devolvieron 4 pero ni los sentiste con ese mazo.</div>
         </div>
       </details>
       <details class="acc normal">
         <summary>
           <span class="acc-rank">2</span>
-          <span class="acc-name">Iwo Forro<span class="tablepos">tabla 1º/4</span></span>
-          <span class="acc-score neu">+0.3</span>
+          <span class="acc-name">Juli forro<span class="tablepos">tabla 3º/4</span></span>
+          <span class="acc-score neu">0</span>
           <span class="acc-chev">▾</span>
         </summary>
         <div class="acc-body">
           <div class="acc-row"><span class="lbl">Estado</span><span class="badge normal">😐 Normal</span></div>
-          <div class="acc-row"><span class="lbl">🍀 Cartas</span><span class="pos">+0.3</span></div>
-          <div class="acc-row"><span class="lbl">🔥 Racha</span><span>5<span class="dim"> +39🔥</span></span></div>
-          <div class="acc-row"><span class="lbl">⚔️ Juego</span><span class="pos">0</span></div>
-          <div class="acc-why">lo cagaron a ataques (4 le entraron de 4); rachón de 5 seguidos (+39 de hitos).</div>
-          
+          <div class="acc-row"><span class="lbl">🍀 Suerte (cartas)</span><span class="pos">0</span></div>
+          <div class="acc-row"><span class="lbl">🔥 Racha <span class="dim">· no cuenta</span></span><span>6<span class="dim"> +27🔥</span></span></div>
+          <div class="acc-row"><span class="lbl">⚔️ Juego <span class="dim">· no cuenta</span></span><span class="neg">-0.1</span></div>
+          <div class="acc-why">Le tocó más o menos lo que la mesa preveía.</div>
+          <div class="acc-joke">🎤 Cartas del montón y el más atacado del prode: te entraron 5 de 6. Te salvó la racha de 6 con +27 de hitos. 3º a pura cadena, no a pura suerte.</div>
         </div>
       </details>
-      <details class="acc mal">
+      <details class="acc normal">
         <summary>
           <span class="acc-rank">3</span>
-          <span class="acc-name">Juli forro<span class="tablepos">tabla 3º/4</span></span>
-          <span class="acc-score neg">-1.2</span>
+          <span class="acc-name">Iwo Forro<span class="tablepos">tabla 2º/4</span></span>
+          <span class="acc-score neg">-0.6</span>
           <span class="acc-chev">▾</span>
         </summary>
         <div class="acc-body">
-          <div class="acc-row"><span class="lbl">Estado</span><span class="badge mal">😕 Perjudicado</span></div>
-          <div class="acc-row"><span class="lbl">🍀 Cartas</span><span class="neg">-0.9</span></div>
-          <div class="acc-row"><span class="lbl">🔥 Racha</span><span>6<span class="dim"> +27🔥</span></span></div>
-          <div class="acc-row"><span class="lbl">⚔️ Juego</span><span class="neg">-0.3</span></div>
-          <div class="acc-why">lo cagaron a ataques (5 le entraron de 6); 0 legendarias (le tocaban ~1); rachón de 6 seguidos (+27 de hitos).</div>
-          
+          <div class="acc-row"><span class="lbl">Estado</span><span class="badge normal">😐 Normal</span></div>
+          <div class="acc-row"><span class="lbl">🍀 Suerte (cartas)</span><span class="neg">-0.6</span></div>
+          <div class="acc-row"><span class="lbl">🔥 Racha <span class="dim">· no cuenta</span></span><span>5<span class="dim"> +39🔥</span></span></div>
+          <div class="acc-row"><span class="lbl">⚔️ Juego <span class="dim">· no cuenta</span></span><span class="pos">+0.2</span></div>
+          <div class="acc-why">Le tocó más o menos lo que la mesa preveía.</div>
+          <div class="acc-joke">🎤 Cartas medio mufa, pero la racha más rentable del prode: +39 de hitos. Aguantaste 4 ataques con el Fernet y subiste a 2º. La racha te hizo todo el laburo.</div>
         </div>
       </details>
-      <details class="acc mal">
+      <details class="acc muy-mal">
         <summary>
           <span class="acc-rank">4</span>
           <span class="acc-name">Sai Bamba<span class="tablepos">tabla 4º/4</span></span>
-          <span class="acc-score neg">-2</span>
+          <span class="acc-score neg">-4.4</span>
           <span class="acc-chev">▾</span>
         </summary>
         <div class="acc-body">
-          <div class="acc-row"><span class="lbl">Estado</span><span class="badge mal">😕 Perjudicado</span></div>
-          <div class="acc-row"><span class="lbl">🍀 Cartas</span><span class="neg">-4.4</span></div>
-          <div class="acc-row"><span class="lbl">🔥 Racha</span><span>4<span class="dim"> +15🔥</span></span></div>
-          <div class="acc-row"><span class="lbl">⚔️ Juego</span><span class="pos">+2.4</span></div>
+          <div class="acc-row"><span class="lbl">Estado</span><span class="badge muy-mal">💀 Muy perjudicado</span></div>
+          <div class="acc-row"><span class="lbl">🍀 Suerte (cartas)</span><span class="neg">-4.4</span></div>
+          <div class="acc-row"><span class="lbl">🔥 Racha <span class="dim">· no cuenta</span></span><span>4<span class="dim"> +15🔥</span></span></div>
+          <div class="acc-row"><span class="lbl">⚔️ Juego <span class="dim">· no cuenta</span></span><span class="pos">+2.6</span></div>
           <div class="acc-why">comió 5 maldiciones (le tocaban ~1.6); 1 legendarias (le tocaban ~2).</div>
-          
+          <div class="acc-joke">🎤 Te enterré en maldiciones (−4,4, la peor mano por lejos) y ni hizo falta que te atacaran: nadie te tiró nada. Último con honores, todo mérito del mazo que te tocó.</div>
         </div>
       </details></div>
   <div class="legend">
     <b>Cómo leer:</b>
-    <code>🍀 Cartas</code> suerte del sorteo (legendarias de más + maldiciones y cartas muertas esquivadas) ·
-    <code>🔥 Racha</code> mejor cadena de partidos seguidos sumando; <code>+N🔥</code> = puntos de hito cobrados (3/5/8/12 seguidos) ·
-    <code>⚔️ Juego</code> lo que el resto te hizo vs el promedio: ataques que rebotaste (+1) o bloqueaste (+½), y si te atacaron/bardearon menos que la media sumás, si más restás, más el premio por rachón ·
-    <code>Score</code> = 🍀 Cartas + ⚔️ Juego → define el estado. Cada punto ≈ una carta a favor/en contra.
+    <code>🍀 Suerte</code> = el puntaje, y lo único que define el estado: la suerte del sorteo (legendarias de más + maldiciones y cartas muertas esquivadas, vs lo que te "tocaba"). Cada punto ≈ una carta a favor/en contra ·
+    <code>🔥 Racha</code> mejor cadena de partidos seguidos sumando; <code>+N🔥</code> = puntos de hito cobrados (3/5/8/12 seguidos) — <b>informativo, no cuenta para la suerte</b> ·
+    <code>⚔️ Juego</code> lo que el resto te hizo vs el promedio (ataques que rebotaste/bloqueaste, cuánto te atacaron/bardearon) — <b>informativo, no cuenta para la suerte</b>: eso es la guerra, no la fortuna del mazo.
   </div>
 
   <footer>Generado por la skill <b>analisis-suerte</b> · rachas, ataques y defensas en vivo del motor del juego · datos de producción</footer>

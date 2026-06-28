@@ -63,6 +63,7 @@
   td.num,td.score{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
   td.num.pos,.score.pos{color:var(--pos)} td.num.neg,.score.neg{color:var(--neg)} .score.neu{color:var(--neu)}
   td.score{font-weight:800;font-size:16px}
+  td.info{opacity:.72} /* 🔥 Racha y ⚔️ Juego: informativo, no cuentan para la suerte */
   .dim{color:var(--dim);font-weight:400}
   .badge{display:inline-block;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:700;white-space:nowrap;border:1px solid transparent}
   .badge.muy-bien{background:rgba(63,185,80,.16);color:#56d364;border-color:rgba(63,185,80,.35)}
@@ -83,66 +84,63 @@
 <div class="wrap">
   <header>
     <h1><span class="cup">🏆</span> Análisis del Juego — Falso wachos</h1>
-    <div class="sub">4 jugadores · 4 cartas sorteadas · karma de tabla ON · pesos 40/30/15/15</div>
-    <div class="awards"><div class="award"><div class="aw-emoji">🍀</div><div class="aw-body"><div class="aw-title">El más afortunado</div><div class="aw-who">CB</div><div class="aw-det">fortuna +1.2 en todo el juego</div></div></div><div class="award"><div class="aw-emoji">💀</div><div class="aw-body"><div class="aw-title">El más perjudicado</div><div class="aw-who">Diego</div><div class="aw-det">fortuna -1.1 en todo el juego</div></div></div></div>
+    <div class="sub">4 jugadores · 6 cartas sorteadas · karma de tabla ON · pesos 40/30/15/15</div>
+    <div class="awards"><div class="award"><div class="aw-emoji">🍀</div><div class="aw-body"><div class="aw-title">El más afortunado</div><div class="aw-who">CB</div><div class="aw-det">+1.2 de suerte con las cartas</div></div></div><div class="award"><div class="aw-emoji">💀</div><div class="aw-body"><div class="aw-title">El más perjudicado</div><div class="aw-who">Diego</div><div class="aw-det">-1.1 de suerte con las cartas</div></div></div></div>
   </header>
 
-  <div class="sub" style="margin-bottom:10px">Qué tan afortunado fue cada uno con TODO el juego: las cartas que le tocaron, las rachas, y cómo lo trató el resto (ataques que le entraron, los que frenó, el bardeo).</div>
+  <div class="sub" style="margin-bottom:10px">Qué tan afortunado fue cada uno <b>con las cartas que le tocaron en el sorteo</b> (eso es la suerte). Aparte mostramos las rachas y la guerra de cartas (ataques/bardeo), pero esas <b>no cuentan</b> para la suerte: eso es lo que hiciste o te hicieron, no lo que te tocó.</div>
   <div class="chips"><span class="chip">Normal: <b>3</b></span><span class="chip">Perjudicado: <b>1</b></span></div>
   <div class="tablewrap" style="margin-top:12px">
     <table>
       <thead>
         <tr>
           <th>#</th><th>Jugador</th>
-          <th title="Suerte del sorteo: legendarias de más + maldiciones esquivadas + cartas muertas esquivadas">🍀 Cartas</th>
-          <th title="Mejor racha de partidos seguidos sumando (+ bonus de hitos)">🔥 Racha</th>
-          <th title="Lo que el resto te hizo vs el promedio del grupo: ataques rebotados/bloqueados (+), te atacaron/bardearon menos (+) o más (−) que la media, más el premio por rachón">⚔️ Juego</th>
-          <th title="Cartas + Juego">Score</th><th>Estado</th><th>Por qué</th>
+          <th title="Suerte del sorteo: legendarias de más + maldiciones esquivadas + cartas muertas esquivadas. Esto define el estado.">🍀 Suerte</th>
+          <th>Estado</th>
+          <th title="Mejor racha de partidos seguidos sumando (+ bonus de hitos). Informativo: NO cuenta para la suerte.">🔥 Racha</th>
+          <th title="Lo que el resto te hizo vs el promedio del grupo: ataques rebotados/bloqueados, cuánto te atacaron/bardearon. Informativo: NO cuenta para la suerte.">⚔️ Juego</th>
+          <th>Por qué</th>
         </tr>
       </thead>
       <tbody>
       <tr class="normal">
         <td class="rank" data-label="#">1</td>
         <td class="name" data-label="">CB<span class="tablepos">tabla 1º/4</span></td>
-        <td class="num pos" data-label="🍀 Cartas">+1.2</td>
-        <td class="num " data-label="🔥 Racha">—</td>
-        <td class="num pos" data-label="⚔️ Juego">0</td>
-        <td class="score pos" data-label="Score">+1.2</td>
+        <td class="score pos" data-label="🍀 Suerte">+1.2</td>
         <td data-label="Estado"><span class="badge normal">😐 Normal</span></td>
-        <td class="why" data-label="Por qué">Salió cerca de lo previsto en todo. Nadie lo molestó mucho.</td>
+        <td class="num info " data-label="🔥 Racha">—</td>
+        <td class="num info pos" data-label="⚔️ Juego">0</td>
+        <td class="why" data-label="Por qué">Le tocó más o menos lo que la mesa preveía.</td>
         
       </tr>
       <tr class="normal">
         <td class="rank" data-label="#">2</td>
         <td class="name" data-label="">droco forro<span class="tablepos">tabla 4º/4</span></td>
-        <td class="num neg" data-label="🍀 Cartas">-0.2</td>
-        <td class="num " data-label="🔥 Racha">—</td>
-        <td class="num pos" data-label="⚔️ Juego">0</td>
-        <td class="score neu" data-label="Score">-0.2</td>
+        <td class="score neu" data-label="🍀 Suerte">+0.5</td>
         <td data-label="Estado"><span class="badge normal">😐 Normal</span></td>
-        <td class="why" data-label="Por qué">Salió cerca de lo previsto en todo. Nadie lo molestó mucho.</td>
+        <td class="num info " data-label="🔥 Racha">—</td>
+        <td class="num info pos" data-label="⚔️ Juego">0</td>
+        <td class="why" data-label="Por qué">Le tocó más o menos lo que la mesa preveía.</td>
         
       </tr>
       <tr class="normal">
         <td class="rank" data-label="#">3</td>
         <td class="name" data-label="">Cloé<span class="tablepos">tabla 2º/4</span></td>
-        <td class="num neg" data-label="🍀 Cartas">-0.9</td>
-        <td class="num " data-label="🔥 Racha">—</td>
-        <td class="num pos" data-label="⚔️ Juego">0</td>
-        <td class="score neg" data-label="Score">-0.9</td>
+        <td class="score neg" data-label="🍀 Suerte">-0.9</td>
         <td data-label="Estado"><span class="badge normal">😐 Normal</span></td>
-        <td class="why" data-label="Por qué">Salió cerca de lo previsto en todo. Nadie lo molestó mucho.</td>
+        <td class="num info " data-label="🔥 Racha">—</td>
+        <td class="num info pos" data-label="⚔️ Juego">0</td>
+        <td class="why" data-label="Por qué">Le tocó más o menos lo que la mesa preveía.</td>
         
       </tr>
       <tr class="mal">
         <td class="rank" data-label="#">4</td>
         <td class="name" data-label="">Diego<span class="tablepos">tabla 3º/4</span></td>
-        <td class="num neg" data-label="🍀 Cartas">-1.1</td>
-        <td class="num " data-label="🔥 Racha">—</td>
-        <td class="num pos" data-label="⚔️ Juego">0</td>
-        <td class="score neg" data-label="Score">-1.1</td>
+        <td class="score neg" data-label="🍀 Suerte">-1.1</td>
         <td data-label="Estado"><span class="badge mal">😕 Perjudicado</span></td>
-        <td class="why" data-label="Por qué">Salió cerca de lo previsto en todo. Nadie lo molestó mucho.</td>
+        <td class="num info " data-label="🔥 Racha">—</td>
+        <td class="num info pos" data-label="⚔️ Juego">0</td>
+        <td class="why" data-label="Por qué">Le tocó más o menos lo que la mesa preveía.</td>
         
       </tr>
       </tbody>
@@ -158,10 +156,10 @@
         </summary>
         <div class="acc-body">
           <div class="acc-row"><span class="lbl">Estado</span><span class="badge normal">😐 Normal</span></div>
-          <div class="acc-row"><span class="lbl">🍀 Cartas</span><span class="pos">+1.2</span></div>
-          <div class="acc-row"><span class="lbl">🔥 Racha</span><span>—</span></div>
-          <div class="acc-row"><span class="lbl">⚔️ Juego</span><span class="pos">0</span></div>
-          <div class="acc-why">Salió cerca de lo previsto en todo. Nadie lo molestó mucho.</div>
+          <div class="acc-row"><span class="lbl">🍀 Suerte (cartas)</span><span class="pos">+1.2</span></div>
+          <div class="acc-row"><span class="lbl">🔥 Racha <span class="dim">· no cuenta</span></span><span>—</span></div>
+          <div class="acc-row"><span class="lbl">⚔️ Juego <span class="dim">· no cuenta</span></span><span class="pos">0</span></div>
+          <div class="acc-why">Le tocó más o menos lo que la mesa preveía.</div>
           
         </div>
       </details>
@@ -169,15 +167,15 @@
         <summary>
           <span class="acc-rank">2</span>
           <span class="acc-name">droco forro<span class="tablepos">tabla 4º/4</span></span>
-          <span class="acc-score neu">-0.2</span>
+          <span class="acc-score neu">+0.5</span>
           <span class="acc-chev">▾</span>
         </summary>
         <div class="acc-body">
           <div class="acc-row"><span class="lbl">Estado</span><span class="badge normal">😐 Normal</span></div>
-          <div class="acc-row"><span class="lbl">🍀 Cartas</span><span class="neg">-0.2</span></div>
-          <div class="acc-row"><span class="lbl">🔥 Racha</span><span>—</span></div>
-          <div class="acc-row"><span class="lbl">⚔️ Juego</span><span class="pos">0</span></div>
-          <div class="acc-why">Salió cerca de lo previsto en todo. Nadie lo molestó mucho.</div>
+          <div class="acc-row"><span class="lbl">🍀 Suerte (cartas)</span><span class="pos">+0.5</span></div>
+          <div class="acc-row"><span class="lbl">🔥 Racha <span class="dim">· no cuenta</span></span><span>—</span></div>
+          <div class="acc-row"><span class="lbl">⚔️ Juego <span class="dim">· no cuenta</span></span><span class="pos">0</span></div>
+          <div class="acc-why">Le tocó más o menos lo que la mesa preveía.</div>
           
         </div>
       </details>
@@ -190,10 +188,10 @@
         </summary>
         <div class="acc-body">
           <div class="acc-row"><span class="lbl">Estado</span><span class="badge normal">😐 Normal</span></div>
-          <div class="acc-row"><span class="lbl">🍀 Cartas</span><span class="neg">-0.9</span></div>
-          <div class="acc-row"><span class="lbl">🔥 Racha</span><span>—</span></div>
-          <div class="acc-row"><span class="lbl">⚔️ Juego</span><span class="pos">0</span></div>
-          <div class="acc-why">Salió cerca de lo previsto en todo. Nadie lo molestó mucho.</div>
+          <div class="acc-row"><span class="lbl">🍀 Suerte (cartas)</span><span class="neg">-0.9</span></div>
+          <div class="acc-row"><span class="lbl">🔥 Racha <span class="dim">· no cuenta</span></span><span>—</span></div>
+          <div class="acc-row"><span class="lbl">⚔️ Juego <span class="dim">· no cuenta</span></span><span class="pos">0</span></div>
+          <div class="acc-why">Le tocó más o menos lo que la mesa preveía.</div>
           
         </div>
       </details>
@@ -206,19 +204,18 @@
         </summary>
         <div class="acc-body">
           <div class="acc-row"><span class="lbl">Estado</span><span class="badge mal">😕 Perjudicado</span></div>
-          <div class="acc-row"><span class="lbl">🍀 Cartas</span><span class="neg">-1.1</span></div>
-          <div class="acc-row"><span class="lbl">🔥 Racha</span><span>—</span></div>
-          <div class="acc-row"><span class="lbl">⚔️ Juego</span><span class="pos">0</span></div>
-          <div class="acc-why">Salió cerca de lo previsto en todo. Nadie lo molestó mucho.</div>
+          <div class="acc-row"><span class="lbl">🍀 Suerte (cartas)</span><span class="neg">-1.1</span></div>
+          <div class="acc-row"><span class="lbl">🔥 Racha <span class="dim">· no cuenta</span></span><span>—</span></div>
+          <div class="acc-row"><span class="lbl">⚔️ Juego <span class="dim">· no cuenta</span></span><span class="pos">0</span></div>
+          <div class="acc-why">Le tocó más o menos lo que la mesa preveía.</div>
           
         </div>
       </details></div>
   <div class="legend">
     <b>Cómo leer:</b>
-    <code>🍀 Cartas</code> suerte del sorteo (legendarias de más + maldiciones y cartas muertas esquivadas) ·
-    <code>🔥 Racha</code> mejor cadena de partidos seguidos sumando; <code>+N🔥</code> = puntos de hito cobrados (3/5/8/12 seguidos) ·
-    <code>⚔️ Juego</code> lo que el resto te hizo vs el promedio: ataques que rebotaste (+1) o bloqueaste (+½), y si te atacaron/bardearon menos que la media sumás, si más restás, más el premio por rachón ·
-    <code>Score</code> = 🍀 Cartas + ⚔️ Juego → define el estado. Cada punto ≈ una carta a favor/en contra.
+    <code>🍀 Suerte</code> = el puntaje, y lo único que define el estado: la suerte del sorteo (legendarias de más + maldiciones y cartas muertas esquivadas, vs lo que te "tocaba"). Cada punto ≈ una carta a favor/en contra ·
+    <code>🔥 Racha</code> mejor cadena de partidos seguidos sumando; <code>+N🔥</code> = puntos de hito cobrados (3/5/8/12 seguidos) — <b>informativo, no cuenta para la suerte</b> ·
+    <code>⚔️ Juego</code> lo que el resto te hizo vs el promedio (ataques que rebotaste/bloqueaste, cuánto te atacaron/bardearon) — <b>informativo, no cuenta para la suerte</b>: eso es la guerra, no la fortuna del mazo.
   </div>
 
   <footer>Generado por la skill <b>analisis-suerte</b> · rachas, ataques y defensas en vivo del motor del juego · datos de producción</footer>

@@ -1,15 +1,17 @@
 // Análisis del JUEGO COMPLETO de un prode en modo Diversión (Fun).
 //
-// Tres capas:
+// La SUERTE es solo lo que te tocó en el sorteo. Las otras dos capas se muestran
+// al costado (y dan material para los chistes) pero NO cuentan para el puntaje:
 //   1) 🍀 SUERTE del sorteo (vs lo que le "tocaba" según el Karma de Tabla):
 //        legΔ (legendarias de más), malAvoid (maldiciones esquivadas),
-//        socAvoid (cartas sociales muertas esquivadas).
-//   2) 🔥 RACHAS: mejor racha de partidos seguidos sumando + puntos de hito
-//        ganados (datos REALES del motor del juego, vía getLeaderboard).
-//   3) ⚔️ GUERRA DE CARTAS: ataques que tiró / que le tiraron (y si pegaron,
-//        los bloqueó con escudo o los rebotó con espejito), defensas jugadas
-//        y cartas sociales que le colgaron.
-// Score = 🍀 Cartas + ⚔️ Juego → estado (Muy afortunado → Muy perjudicado).
+//        socAvoid (cartas sociales muertas esquivadas). → ESTO es el Score.
+//   2) 🔥 RACHAS (informativo): mejor racha de partidos seguidos sumando +
+//        puntos de hito ganados (datos REALES del motor, vía getLeaderboard).
+//   3) ⚔️ GUERRA DE CARTAS (informativo): ataques que tiró / que le tiraron (y si
+//        pegaron, los bloqueó con escudo o los rebotó con espejito), defensas
+//        jugadas y cartas sociales que le colgaron.
+// Score = 🍀 Cartas → estado (Muy afortunado → Muy perjudicado). Racha y Juego
+// no entran al puntaje: eso no es "suerte", es lo que hiciste/te hicieron.
 //
 // Genera el HTML que sirve la webapp: public/informes/<slug>.html (uno por pool).
 // Los chistes ("🎤 Bicho dice") viven en la skill: output/<slug>.jokes.json.
@@ -305,8 +307,8 @@ async function processPool(pool: any, explicitJokes: string | null) {
     const eng = engineById[pp.id] ?? { total: 0, pure: 0, streakBest: 0, streakCur: 0, streakBonus: 0 };
     const w = war[pp.id] ?? blankWar();
     const cartas = legD + malAvoid + socAvoid;
-    const juego = gameFortune(w, eng.streakBest);
-    const score = cartas + juego;
+    const juego = gameFortune(w, eng.streakBest); // informativo: NO entra al Score
+    const score = cartas; // 🍀 Suerte = SOLO el sorteo de cartas
     players.push({
       id: pp.id, name: pp.name, n,
       legA, legE: +legE.toFixed(1), malA, malE: +malE.toFixed(1), socA, socE: +socE.toFixed(1),
@@ -320,9 +322,8 @@ async function processPool(pool: any, explicitJokes: string | null) {
   }
   players.sort((a, b) => b.score - a.score);
 
-  // ---------- "por qué" del veredicto (cuenta TODO el juego) ----------
+  // ---------- "por qué" del veredicto (SOLO el sorteo de cartas, que es la suerte) ----------
   const porQue = (p: Player): string => {
-    const w = p.war;
     const cand: [number, string][] = [];
     if (p.legD >= 1) cand.push([Math.abs(p.legD), `${p.legA} legendarias, por encima de lo previsto`]);
     else if (p.legD <= -1) cand.push([Math.abs(p.legD), `${p.legA || "0"} legendarias (le tocaban ~${p.legE})`]);
@@ -330,14 +331,9 @@ async function processPool(pool: any, explicitJokes: string | null) {
     else if (p.malAvoid <= -1.5) cand.push([Math.abs(p.malAvoid), `comió ${p.malA} maldiciones (le tocaban ~${p.malE})`]);
     if (p.socAvoid >= 1.5) cand.push([Math.abs(p.socAvoid), `casi sin cartas muertas (${p.socA} sociales)`]);
     else if (p.socAvoid <= -1.5) cand.push([Math.abs(p.socAvoid), `${p.socA} cartas sociales muertas`]);
-    if (p.streakBest >= 5) cand.push([streakFortune(p.streakBest), `rachón de ${p.streakBest} seguidos${p.streakBonus ? ` (+${p.streakBonus} de hitos)` : ""}`]);
-    if (w.recvLanded >= 2) cand.push([w.recvLanded * 0.8, `lo cagaron a ataques (${w.recvLanded} le entraron de ${w.recvTotal})`]);
-    if (w.recvReflected >= 1) cand.push([w.recvReflected * 1.0, `rebotó ${w.recvReflected} ataque${w.recvReflected > 1 ? "s" : ""} con el espejito`]);
-    else if (w.recvBlocked >= 2) cand.push([w.recvBlocked * 0.5, `bloqueó ${w.recvBlocked} ataques con escudo`]);
-    if (w.socRecvLanded >= 2) cand.push([w.socRecvLanded * 0.4, `lo bardearon (${w.socRecvLanded} sociales colgadas)`]);
     cand.sort((a, b) => b[0] - a[0]);
     const top = cand.slice(0, 3).map((c) => c[1]);
-    if (top.length === 0) return `Salió cerca de lo previsto en todo. Nadie lo molestó mucho.`;
+    if (top.length === 0) return `Le tocó más o menos lo que la mesa preveía.`;
     return top.join("; ") + ".";
   };
 
@@ -376,8 +372,8 @@ async function processPool(pool: any, explicitJokes: string | null) {
     aMartyr && award("🩸", "Punching ball", aMartyr.item.name, `${aMartyr.v} ataques le entraron de lleno`),
     aShield && award("🛡️", "El amarrete / escudero", aShield.item.name, `jugó ${aShield.v} defensas`),
     aSocial && award("🤡", "El más bardeado", aSocial.item.name, `${aSocial.v} sociales colgadas`),
-    aLucky && award("🍀", "El más afortunado", aLucky.item.name, `fortuna ${sgn(aLucky.item.score)} en todo el juego`),
-    aUnlucky && aUnlucky.item.score < 0 && award("💀", "El más perjudicado", aUnlucky.item.name, `fortuna ${sgn(aUnlucky.item.score)} en todo el juego`),
+    aLucky && award("🍀", "El más afortunado", aLucky.item.name, `${sgn(aLucky.item.score)} de suerte con las cartas`),
+    aUnlucky && aUnlucky.item.score < 0 && award("💀", "El más perjudicado", aUnlucky.item.name, `${sgn(aUnlucky.item.score)} de suerte con las cartas`),
   ].filter(Boolean).join("");
 
   // chips de resumen
@@ -398,11 +394,10 @@ async function processPool(pool: any, explicitJokes: string | null) {
       <tr class="${e.cls}">
         <td class="rank" data-label="#">${i + 1}</td>
         <td class="name" data-label="">${esc(p.name)}${p.rank ? `<span class="tablepos">tabla ${p.rank}º/${p.total}</span>` : ""}</td>
-        <td class="num ${p.cartas >= 0 ? "pos" : "neg"}" data-label="🍀 Cartas">${sgn(p.cartas)}</td>
-        <td class="num ${p.streakBest >= 5 ? "pos" : ""}" data-label="🔥 Racha">${streakCell}</td>
-        <td class="num ${p.juego >= 0 ? "pos" : "neg"}" data-label="⚔️ Juego">${sgn(+p.juego.toFixed(1))}</td>
-        <td class="score ${scoreCls}" data-label="Score">${sgn(p.score)}</td>
+        <td class="score ${scoreCls}" data-label="🍀 Suerte">${sgn(p.score)}</td>
         <td data-label="Estado"><span class="badge ${e.cls}">${e.emoji} ${e.label}</span></td>
+        <td class="num info ${p.streakBest >= 5 ? "pos" : ""}" data-label="🔥 Racha">${streakCell}</td>
+        <td class="num info ${p.juego >= 0 ? "pos" : "neg"}" data-label="⚔️ Juego">${sgn(+p.juego.toFixed(1))}</td>
         <td class="why" data-label="Por qué">${esc(porQue(p))}</td>
         ${hasJokes ? `<td class="joke" data-label="🎤 Bicho dice">${joke ? esc(joke) : ""}</td>` : ""}
       </tr>`;
@@ -428,9 +423,9 @@ async function processPool(pool: any, explicitJokes: string | null) {
         </summary>
         <div class="acc-body">
           <div class="acc-row"><span class="lbl">Estado</span><span class="badge ${e.cls}">${e.emoji} ${e.label}</span></div>
-          <div class="acc-row"><span class="lbl">🍀 Cartas</span><span class="${p.cartas >= 0 ? "pos" : "neg"}">${sgn(p.cartas)}</span></div>
-          <div class="acc-row"><span class="lbl">🔥 Racha</span><span>${streakCell}</span></div>
-          <div class="acc-row"><span class="lbl">⚔️ Juego</span><span class="${p.juego >= 0 ? "pos" : "neg"}">${sgn(+p.juego.toFixed(1))}</span></div>
+          <div class="acc-row"><span class="lbl">🍀 Suerte (cartas)</span><span class="${p.score >= 0 ? "pos" : "neg"}">${sgn(p.score)}</span></div>
+          <div class="acc-row"><span class="lbl">🔥 Racha <span class="dim">· no cuenta</span></span><span>${streakCell}</span></div>
+          <div class="acc-row"><span class="lbl">⚔️ Juego <span class="dim">· no cuenta</span></span><span class="${p.juego >= 0 ? "pos" : "neg"}">${sgn(+p.juego.toFixed(1))}</span></div>
           <div class="acc-why">${esc(porQue(p))}</div>
           ${hasJokes && joke ? `<div class="acc-joke">🎤 ${esc(joke)}</div>` : ""}
         </div>
@@ -503,6 +498,7 @@ async function processPool(pool: any, explicitJokes: string | null) {
   td.num,td.score{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
   td.num.pos,.score.pos{color:var(--pos)} td.num.neg,.score.neg{color:var(--neg)} .score.neu{color:var(--neu)}
   td.score{font-weight:800;font-size:16px}
+  td.info{opacity:.72} /* 🔥 Racha y ⚔️ Juego: informativo, no cuentan para la suerte */
   .dim{color:var(--dim);font-weight:400}
   .badge{display:inline-block;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:700;white-space:nowrap;border:1px solid transparent}
   .badge.muy-bien{background:rgba(63,185,80,.16);color:#56d364;border-color:rgba(63,185,80,.35)}
@@ -527,17 +523,18 @@ async function processPool(pool: any, explicitJokes: string | null) {
     <div class="awards">${awardsHtml}</div>
   </header>
 
-  <div class="sub" style="margin-bottom:10px">Qué tan afortunado fue cada uno con TODO el juego: las cartas que le tocaron, las rachas, y cómo lo trató el resto (ataques que le entraron, los que frenó, el bardeo).</div>
+  <div class="sub" style="margin-bottom:10px">Qué tan afortunado fue cada uno <b>con las cartas que le tocaron en el sorteo</b> (eso es la suerte). Aparte mostramos las rachas y la guerra de cartas (ataques/bardeo), pero esas <b>no cuentan</b> para la suerte: eso es lo que hiciste o te hicieron, no lo que te tocó.</div>
   <div class="chips">${chips}</div>
   <div class="tablewrap" style="margin-top:12px">
     <table>
       <thead>
         <tr>
           <th>#</th><th>Jugador</th>
-          <th title="Suerte del sorteo: legendarias de más + maldiciones esquivadas + cartas muertas esquivadas">🍀 Cartas</th>
-          <th title="Mejor racha de partidos seguidos sumando (+ bonus de hitos)">🔥 Racha</th>
-          <th title="Lo que el resto te hizo vs el promedio del grupo: ataques rebotados/bloqueados (+), te atacaron/bardearon menos (+) o más (−) que la media, más el premio por rachón">⚔️ Juego</th>
-          <th title="Cartas + Juego">Score</th><th>Estado</th><th>Por qué</th>${hasJokes ? "<th>🎤 Bicho dice</th>" : ""}
+          <th title="Suerte del sorteo: legendarias de más + maldiciones esquivadas + cartas muertas esquivadas. Esto define el estado.">🍀 Suerte</th>
+          <th>Estado</th>
+          <th title="Mejor racha de partidos seguidos sumando (+ bonus de hitos). Informativo: NO cuenta para la suerte.">🔥 Racha</th>
+          <th title="Lo que el resto te hizo vs el promedio del grupo: ataques rebotados/bloqueados, cuánto te atacaron/bardearon. Informativo: NO cuenta para la suerte.">⚔️ Juego</th>
+          <th>Por qué</th>${hasJokes ? "<th>🎤 Bicho dice</th>" : ""}
         </tr>
       </thead>
       <tbody>${rowsHtml}
@@ -547,10 +544,9 @@ async function processPool(pool: any, explicitJokes: string | null) {
   <div class="accordion">${accHtml}</div>
   <div class="legend">
     <b>Cómo leer:</b>
-    <code>🍀 Cartas</code> suerte del sorteo (legendarias de más + maldiciones y cartas muertas esquivadas) ·
-    <code>🔥 Racha</code> mejor cadena de partidos seguidos sumando; <code>+N🔥</code> = puntos de hito cobrados (3/5/8/12 seguidos) ·
-    <code>⚔️ Juego</code> lo que el resto te hizo vs el promedio: ataques que rebotaste (+1) o bloqueaste (+½), y si te atacaron/bardearon menos que la media sumás, si más restás, más el premio por rachón ·
-    <code>Score</code> = 🍀 Cartas + ⚔️ Juego → define el estado. Cada punto ≈ una carta a favor/en contra.
+    <code>🍀 Suerte</code> = el puntaje, y lo único que define el estado: la suerte del sorteo (legendarias de más + maldiciones y cartas muertas esquivadas, vs lo que te "tocaba"). Cada punto ≈ una carta a favor/en contra ·
+    <code>🔥 Racha</code> mejor cadena de partidos seguidos sumando; <code>+N🔥</code> = puntos de hito cobrados (3/5/8/12 seguidos) — <b>informativo, no cuenta para la suerte</b> ·
+    <code>⚔️ Juego</code> lo que el resto te hizo vs el promedio (ataques que rebotaste/bloqueaste, cuánto te atacaron/bardearon) — <b>informativo, no cuenta para la suerte</b>: eso es la guerra, no la fortuna del mazo.
   </div>
 
   <footer>Generado por la skill <b>analisis-suerte</b> · rachas, ataques y defensas en vivo del motor del juego · datos de producción</footer>
