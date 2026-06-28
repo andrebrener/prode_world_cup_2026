@@ -114,9 +114,15 @@ export default function Leaderboard({
                   </th>
                   <th
                     className="hidden px-2 py-3 text-right sm:table-cell"
-                    title="Puntos ganados/perdidos por cartas"
+                    title="Puntos que movieron TUS cartas"
                   >
                     🃏
+                  </th>
+                  <th
+                    className="hidden px-2 py-3 text-right sm:table-cell"
+                    title="Puntos que te movieron los ataques de otros"
+                  >
+                    💥
                   </th>
                   <th
                     className="hidden px-2 py-3 text-right sm:table-cell"
@@ -198,8 +204,8 @@ export default function Leaderboard({
                         {row.extraPoints}
                         {row.fun && (
                           <>
-                            {" "}
-                            · 🃏 {fmtDelta(row.fun.cardDelta)}
+                            {row.fun.cardSelfDelta ? ` · 🃏 ${fmtDelta(row.fun.cardSelfDelta)}` : ""}
+                            {row.fun.attackDelta ? ` · 💥 ${fmtDelta(row.fun.attackDelta)}` : ""}
                             {row.fun.streakBonus ? ` · ⚡ +${row.fun.streakBonus}` : ""} · Puro{" "}
                             {row.fun.pureTotal}
                           </>
@@ -218,11 +224,19 @@ export default function Leaderboard({
                     </td>
                     <td
                       className={`hidden px-2 py-3 text-right font-bold sm:table-cell ${
-                        (row.fun?.cardDelta ?? 0) < 0 ? "text-danger" : "text-muted"
+                        (row.fun?.cardSelfDelta ?? 0) < 0 ? "text-danger" : "text-muted"
                       }`}
-                      title="Puntos ganados/perdidos por cartas"
+                      title="Puntos que movieron TUS cartas"
                     >
-                      {fmtDelta(row.fun?.cardDelta ?? 0)}
+                      {row.fun?.cardSelfDelta ? fmtDelta(row.fun.cardSelfDelta) : "—"}
+                    </td>
+                    <td
+                      className={`hidden px-2 py-3 text-right font-bold sm:table-cell ${
+                        (row.fun?.attackDelta ?? 0) < 0 ? "text-danger" : "text-muted"
+                      }`}
+                      title="Puntos que te movieron los ataques de otros"
+                    >
+                      {row.fun?.attackDelta ? fmtDelta(row.fun.attackDelta) : "—"}
                     </td>
                     <td
                       className="hidden px-2 py-3 text-right font-bold text-gold sm:table-cell"
@@ -251,7 +265,8 @@ export default function Leaderboard({
       {fun && (
         <ul className="mt-2 flex flex-wrap gap-x-3 gap-y-1 px-1 text-[11px] text-muted">
           <li>🔥 racha de partidos sumando</li>
-          <li>🃏 puntos por cartas</li>
+          <li>🃏 lo que movieron tus cartas</li>
+          <li>💥 lo que te mandaron los ataques de otros</li>
           <li>⚡ puntos por hitos de racha</li>
           <li>Puro: total sin cartas ni rachas</li>
         </ul>

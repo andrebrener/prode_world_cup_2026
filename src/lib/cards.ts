@@ -669,6 +669,18 @@ export type FunEffects = {
   stolen: Record<string, { victimId: string; amount: number }[]>;
   /** Delta total por cartas (modificadores + planos) por miembro, para mostrar. */
   delta: Record<string, number>;
+  /**
+   * Delta partido en dos, para distinguir "tus cartas" de "lo que te mandaron":
+   * - `selfDelta`: lo que movieron las cartas que jugaste vos (buffs, maldiciones
+   *   propias, robos a otros, el lado bueno de un swap/pedo) — todo lo que te tocó
+   *   por tu propia mano. Los ataques rebotados (espejito) vuelven al que los tiró,
+   *   así que cuentan como suyos acá.
+   * - `atkDelta`: lo que te movieron los ataques de OTROS sobre tu puntaje (mufa,
+   *   caído, robo, el lado feo de un swap/pedo que te tiraron). `selfDelta + atkDelta
+   *   === delta`.
+   */
+  selfDelta: Record<string, number>;
+  atkDelta: Record<string, number>;
   /** Partidos a los que el VAR sumó +2, por miembro (puede haber varios VAR). */
   varAppliedTo: Record<string, string[]>;
   /** Overrides de racha por miembro (filtro/caído). */
@@ -707,6 +719,17 @@ export function applyCardEffects(opts: {
   const add = (m: Record<string, number>, k: string, v: number) => {
     m[k] = (m[k] ?? 0) + v;
   };
+
+  // Atribución del delta: cada cambio de puntos que provoca una carta va al bolsillo
+  // del afectado, separado en "carta propia" (afectado === dueño, incluye rebotes que
+  // vuelven al que la tiró) vs "ataque recibido" (afectado ≠ dueño). La suma de los
+  // dos por miembro reconstruye `delta`. Se llama en cada mutación con su marginal.
+  const selfDelta: Record<string, number> = {};
+  const atkDelta: Record<string, number> = {};
+  const attribute = (card: PlayedCardEffect, affected: string, amount: number) => {
+    if (!amount) return;
+    add(affected === card.ownerId ? selfDelta : atkDelta, affected, amount);
+  };
   const override = (member: string, matchId: string, kind: StreakOverride) => {
     (streakOverrides[member] ??= {})[matchId] = kind;
   };
@@ -729,7 +752,7 @@ export function applyCardEffects(opts: {
   const cards = [...opts.cards].sort((a, b) => a.playedAt.getTime() - b.playedAt.getTime());
 
   // ---- Pase 1: modificadores de partido y de día (los ceros pisan al final) ----
-  const zeroings: { member: string; matchId: string }[] = [];
+  const zeroings: { member: string; matchId: string; card: PlayedCardEffect }[] = [];
 
   for (const card of cards) {
     const def = CARD_CATALOG[card.cardType];
@@ -754,14 +777,22 @@ export function applyCardEffects(opts: {
                   const id = firstOfDay(card);
                   return id ? [id] : [];
                 })();
-        for (const id of ids) if (id in m) m[id] = Math.floor(m[id] * spec.factor);
+        for (const id of ids)
+          if (id in m) {
+            const before = m[id];
+            m[id] = Math.floor(m[id] * spec.factor);
+            attribute(card, affected, m[id] - before);
+          }
         break;
       }
       case "bonus_if_scored": {
         // +amount al primer partido del día solo si ahí sumaste (>0). La Yapa.
         const m = map(affected);
         const id = firstOfDay(card);
-        if (id && (m[id] ?? 0) > 0) m[id] += spec.amount;
+        if (id && (m[id] ?? 0) > 0) {
+          m[id] += spec.amount;
+          attribute(card, affected, spec.amount);
+        }
         break;
       }
       case "floor_match_points": {
@@ -773,7 +804,9 @@ export function applyCardEffects(opts: {
         const m = map(affected);
         for (const id of dayIds(card)) {
           const scored = (m[id] ?? 0) > 0;
-          m[id] = Math.max(m[id] ?? 0, matchFloor(id));
+          const before = m[id] ?? 0;
+          m[id] = Math.max(before, matchFloor(id));
+          attribute(card, affected, m[id] - before);
           if (!scored) override(affected, id, "break");
         }
         break;
@@ -790,7 +823,7 @@ export function applyCardEffects(opts: {
           } else if (spec.streak === "skip") {
             override(affected, id, "skip");
           }
-          zeroings.push({ member: affected, matchId: id });
+          zeroings.push({ member: affected, matchId: id, card });
         }
         break;
       }
@@ -812,10 +845,15 @@ export function applyCardEffects(opts: {
     }
   }
 
-  // Los ceros ganan siempre (una maldición pisa una cábala).
+  // Los ceros ganan siempre (una maldición pisa una cábala). El marginal que borra
+  // (lo que el afectado tenía al momento de la anulación) se le carga a la carta que
+  // lo dejó en cero: si te lo tiró otro es ataque, si fue tu propia maldición es propio.
   for (const z of zeroings) {
     const m = map(z.member);
-    if (z.matchId in m) m[z.matchId] = 0;
+    if (z.matchId in m) {
+      attribute(z.card, z.member, -m[z.matchId]);
+      m[z.matchId] = 0;
+    }
   }
 
   // ---- Pase 2: VAR (+amount a TODOS los partidos del día donde sumaste; varios
@@ -828,6 +866,7 @@ export function applyCardEffects(opts: {
     for (const id of dayIds(card)) {
       if ((m[id] ?? 0) > 0 && !used.includes(id)) {
         m[id] += spec.amount;
+        attribute(card, card.ownerId, spec.amount);
         used.push(id);
       }
     }
@@ -851,10 +890,14 @@ export function applyCardEffects(opts: {
       if (got > 0) perMatch.push({ matchId: id, amount: got });
       if (id in vm) vm[id] = 0;
     }
+    // La víctima pierde sus puntos del día: ataque recibido (o daño propio si fue
+    // autotiro, donde víctima === dueño y `attribute` lo manda a las propias).
+    attribute(card, victim, -loot);
     // Autotiro (ataque sacado y no jugado, reflejado contra sí mismo): el robo se
     // vuelve daño puro — perdés tus puntos del día y no van a ningún lado.
     if (stealer !== victim) {
       add(flat, stealer, loot);
+      attribute(card, stealer, loot);
       // Desglose por partido para la vista por partido (solo lo que dio tajada).
       for (const { matchId, amount } of perMatch) {
         (stolen[`${stealer}:${matchId}`] ??= []).push({ victimId: victim, amount });
@@ -875,12 +918,16 @@ export function applyCardEffects(opts: {
       // Autotiro contra sí mismo: solo el daño (victimAmount), no la parte buena.
       if (to === from) {
         add(flat, to, spec.victimAmount);
+        attribute(card, to, spec.victimAmount);
       } else {
         add(flat, to, spec.selfAmount);
+        attribute(card, to, spec.selfAmount);
         add(flat, from, spec.victimAmount);
+        attribute(card, from, spec.victimAmount);
       }
     } else {
       add(flat, card.ownerId, spec.selfAmount);
+      attribute(card, card.ownerId, spec.selfAmount);
     }
   }
 
@@ -891,6 +938,7 @@ export function applyCardEffects(opts: {
     const spec = CARD_CATALOG[card.cardType]?.spec;
     if (spec?.outcome !== "frozen_penalty") continue;
     add(flat, card.ownerId, -(card.flatPenalty ?? 0));
+    attribute(card, card.ownerId, -(card.flatPenalty ?? 0));
   }
 
   // ---- Baño de realidad — ajuste plano congelado (monto en la propia carta) ----
@@ -901,6 +949,7 @@ export function applyCardEffects(opts: {
     const spec = CARD_CATALOG[card.cardType]?.spec;
     if (spec?.outcome !== "frozen_delta") continue;
     add(flat, affectedIdOf(card), card.flatPenalty ?? 0);
+    attribute(card, affectedIdOf(card), card.flatPenalty ?? 0);
   }
 
   // ---- Game is game — swap CONGELADO de totales (monto en la propia carta) ----
@@ -914,7 +963,9 @@ export function applyCardEffects(opts: {
     if (spec?.outcome !== "frozen_swap" || !card.targetId) continue;
     const d = card.flatPenalty ?? 0;
     add(flat, card.ownerId, card.reflected ? -d : d);
+    attribute(card, card.ownerId, card.reflected ? -d : d);
     add(flat, card.targetId, card.reflected ? d : -d);
+    attribute(card, card.targetId, card.reflected ? d : -d);
   }
 
   const delta: Record<string, number> = {};
@@ -925,5 +976,5 @@ export function applyCardEffects(opts: {
     delta[id] = after - before + (flat[id] ?? 0);
   }
 
-  return { points, flat, stolen, delta, varAppliedTo, streakOverrides };
+  return { points, flat, stolen, delta, selfDelta, atkDelta, varAppliedTo, streakOverrides };
 }

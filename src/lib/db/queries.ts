@@ -329,8 +329,18 @@ export type FunOverlay = {
 
 /** Info extra de cada fila en prodes modo Diversión. */
 export type FunLeaderboardInfo = {
-  /** Delta total por cartas (modificadores + planos + snapshots). */
+  /** Delta total por cartas (modificadores + planos + snapshots). cartas + ataques. */
   cardDelta: number;
+  /**
+   * 🃏 cartas: lo que movieron TUS cartas (lo que te tocó por tu propia mano: buffs,
+   * maldiciones propias, robos a otros, el lado bueno de un swap/pedo, Sai Bamba).
+   */
+  cardSelfDelta: number;
+  /**
+   * 💥 ataques: lo que te movieron los ataques de OTROS (mufa, caído, robo, Caldeador,
+   * el lado feo de un swap/pedo que te tiraron). Negativo cuando te perjudicaron.
+   */
+  attackDelta: number;
   streakCurrent: number;
   streakBest: number;
   streakBonus: number;
@@ -426,8 +436,11 @@ async function computePoolScores(pool: Pool) {
       ? await db.select().from(funCards).where(eq(funCards.poolId, poolId))
       : [];
 
-  // (miembro, partido) → id de la carta Caldeador que le pisa el pronóstico.
+  // (miembro, partido) → id de la carta Caldeador que le pisa el pronóstico, y el
+  // dueño que la jugó (para atribuir el swing del pronóstico: ataque si te lo tiró
+  // otro, propio si rebotó y volvió al que la tiró).
   const caldeadoBy: Record<string, string> = {};
+  const caldeadorOwnerBy: Record<string, string> = {};
   for (const c of funCardRows) {
     if (c.cardType !== "caldeador" || c.status !== "played" || !c.playedAt || !c.effectDate)
       continue;
@@ -437,12 +450,14 @@ async function computePoolScores(pool: Pool) {
       const k = KICKOFF_BY_ID[id];
       if (k && matchDay(k) === c.effectDate) {
         caldeadoBy[`${affected}:${id}`] = c.id;
+        caldeadorOwnerBy[`${affected}:${id}`] = c.participantId;
       }
     }
     for (const km of bracket.matches) {
       const k = koKickoff(km.id);
       if (km.result && k && matchDay(k) === c.effectDate) {
         caldeadoBy[`${affected}:${km.id}`] = c.id;
+        caldeadorOwnerBy[`${affected}:${km.id}`] = c.participantId;
       }
     }
   }
@@ -488,12 +503,26 @@ async function computePoolScores(pool: Pool) {
   const exactByMember: Record<string, number> = {};
   // Puntos "puros" (pronósticos reales, sin Caldeador): para la columna sin cartas.
   const pureByMember: Record<string, number> = {};
+  // Swing de los pronósticos dados vuelta (base − puro), partido en "propio" (Piedrambre,
+  // maldición tuya) vs "ataque" (Caldeador que te tiró otro). Alimenta el 🃏/💥 de la tabla.
+  const flipSelfByMember: Record<string, number> = {};
+  const flipAtkByMember: Record<string, number> = {};
   for (const person of people) {
     const preds = predsByPerson[person.id] ?? {};
     const koPreds = koPredsByPerson[person.id] ?? {};
     const m: MatchPointsMap = {};
     let exact = 0;
     let pure = 0;
+    let flipSelf = 0;
+    let flipAtk = 0;
+    // El swing de un partido caldeado es ataque salvo que el Caldeador haya rebotado
+    // y vuelto al que lo tiró (owner === afectado): ahí es daño de la propia carta.
+    const flip = (matchId: string, delta: number) => {
+      if (!delta) return;
+      const owner = caldeadorOwnerBy[`${person.id}:${matchId}`];
+      if (owner && owner !== person.id) flipAtk += delta;
+      else flipSelf += delta;
+    };
     for (const [matchId, real] of Object.entries(results)) {
       if (!countsForPool(matchId)) continue;
       const caldeador = caldeadoBy[`${person.id}:${matchId}`];
@@ -505,6 +534,7 @@ async function computePoolScores(pool: Pool) {
       let pred = caldeador ? caldeadorScore(caldeador, matchId) : preds[matchId];
       if (pred && flipped) pred = { homeGoals: pred.awayGoals, awayGoals: pred.homeGoals };
       m[matchId] = caldeador || flipped ? matchPoints(pred, real) : purePts;
+      flip(matchId, m[matchId] - purePts);
       if (purePts === 5) exact++;
     }
     for (const km of bracket.matches) {
@@ -520,10 +550,13 @@ async function computePoolScores(pool: Pool) {
         caldeador || flipped
           ? knockoutPoints(pred, km.result as KoReal, km.home, km.away)
           : purePts;
+      flip(km.id, m[km.id] - purePts);
     }
     ptsByMember[person.id] = m;
     exactByMember[person.id] = exact;
     pureByMember[person.id] = pure;
+    flipSelfByMember[person.id] = flipSelf;
+    flipAtkByMember[person.id] = flipAtk;
   }
 
   const fun =
@@ -535,6 +568,8 @@ async function computePoolScores(pool: Pool) {
     people,
     ptsByMember,
     pureByMember,
+    flipSelfByMember,
+    flipAtkByMember,
     exactByMember,
     countByPerson,
     extrasByPerson,
@@ -617,6 +652,8 @@ export async function getLeaderboard(pool: Pool, viewerId?: string): Promise<Lea
     people,
     ptsByMember,
     pureByMember,
+    flipSelfByMember,
+    flipAtkByMember,
     exactByMember,
     countByPerson,
     extrasByPerson,
@@ -653,6 +690,13 @@ export async function getLeaderboard(pool: Pool, viewerId?: string): Promise<Lea
     const flat = fun?.effects.flat[person.id] ?? 0;
     const streakBonus = funInfo?.streakBonus ?? 0;
     const pure = pureByMember[person.id] ?? 0;
+    // 🃏 cartas (propias) vs 💥 ataques (de otros). El efecto de las cartas sobre el
+    // Puro = swing de pronósticos dados vuelta (flip*) + modificadores/planos
+    // (selfDelta/atkDelta) + Sai Bamba (carta propia). Los dos lados suman cardDelta.
+    const selfDelta = fun?.effects.selfDelta[person.id] ?? 0;
+    const atkDelta = fun?.effects.atkDelta[person.id] ?? 0;
+    const cardSelfDelta = selfDelta + (flipSelfByMember[person.id] ?? 0) + saibamba;
+    const attackDelta = atkDelta + (flipAtkByMember[person.id] ?? 0);
 
     return {
       id: person.id,
@@ -682,6 +726,8 @@ export async function getLeaderboard(pool: Pool, viewerId?: string): Promise<Lea
               // tiene horneados el Caldeador/Piedrambre — si no, el swing de esas
               // dos cartas se perdía y Puro + 🃏 + ⚡ no cerraba con el Total.
               cardDelta: mp + kp - pure + flat + saibamba,
+              cardSelfDelta,
+              attackDelta,
               pureTotal: pure + ep,
             },
           }
@@ -904,7 +950,12 @@ async function loadDeckByMechanic(poolId: string): Promise<DeckByMechanic> {
 type FunResolution = {
   effects: ReturnType<typeof applyCardEffects>;
   // pureTotal se completa en getLeaderboard (acá no hay extras ni puntos puros).
-  infoByMember: Record<string, Omit<FunLeaderboardInfo, "pureTotal">>;
+  // cardSelfDelta/attackDelta/pureTotal los arma getLeaderboard (necesitan el Puro y
+  // el swing de pronósticos, que viven fuera del motor de cartas).
+  infoByMember: Record<
+    string,
+    Omit<FunLeaderboardInfo, "pureTotal" | "cardSelfDelta" | "attackDelta">
+  >;
   // Bonus de racha por (miembro → partido), para mostrarlo en la vista por partido.
   streakBonusByMatch: Record<string, Record<string, number>>;
 };

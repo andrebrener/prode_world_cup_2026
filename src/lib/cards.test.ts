@@ -844,6 +844,89 @@ describe("applyCardEffects", () => {
     expect(r.points).toEqual(base);
     expect(r.delta).toEqual({ ana: 0, beto: 0 });
   });
+
+  // 🃏 cartas (lo que movió tu propia mano) vs 💥 ataques (lo que te mandaron otros).
+  // Invariante global: selfDelta + atkDelta === delta para cada miembro.
+  describe("split cartas (propias) vs ataques (de otros)", () => {
+    it("tus buffs van a selfDelta, no a atkDelta", () => {
+      const r = applyCardEffects({
+        ...opts,
+        cards: [played("doblete", "ana", { effectDate: DAY_1 })], // M1 3→6
+      });
+      expect(r.selfDelta.ana).toBe(3);
+      expect(r.atkDelta.ana ?? 0).toBe(0);
+    });
+
+    it("la mufa que te tiran cae en atkDelta de la víctima; el atacante ni se entera", () => {
+      const r = applyCardEffects({
+        ...opts,
+        cards: [played("mufa", "ana", { targetId: "beto", effectDate: DAY_1 })], // beto M1 5→2
+      });
+      expect(r.atkDelta.beto).toBe(-3);
+      expect(r.selfDelta.beto ?? 0).toBe(0);
+      expect(r.selfDelta.ana ?? 0).toBe(0);
+      expect(r.atkDelta.ana ?? 0).toBe(0);
+    });
+
+    it("pedo: el +5 del atacante es carta propia, el -5 de la víctima es ataque", () => {
+      const r = applyCardEffects({
+        ...opts,
+        cards: [played("pedo", "ana", { targetId: "beto" })],
+      });
+      expect(r.selfDelta.ana).toBe(5);
+      expect(r.atkDelta.beto).toBe(-5);
+    });
+
+    it("Game is game: el que sube lo suma como carta propia, el que baja lo sufre como ataque", () => {
+      const r = applyCardEffects({
+        ...opts,
+        cards: [played("game_is_game", "ana", { targetId: "beto", flatPenalty: 12 })],
+      });
+      expect(r.selfDelta.ana).toBe(12); // subió por SU carta
+      expect(r.atkDelta.beto).toBe(-12); // bajó por el ataque que le mandaron
+    });
+
+    it("matambre: la víctima pierde sus puntos (ataque), el ladrón se los lleva (propio)", () => {
+      const r = applyCardEffects({
+        ...opts,
+        cards: [played("duelo", "ana", { targetId: "beto", effectDate: DAY_1 })],
+      });
+      expect(r.atkDelta.beto).toBe(-5); // beto sumó 5 el día 1 y se lo afanaron
+      expect(r.selfDelta.ana).toBe(5); // botín, carta propia del ladrón
+    });
+
+    it("un ataque rebotado (espejito) vuelve al que lo tiró como carta propia", () => {
+      const r = applyCardEffects({
+        ...opts,
+        cards: [played("pedo", "ana", { targetId: "beto", reflected: true })],
+      });
+      // El -5 le pega a ana (su propia carta rebotada), beto se queda con el +5.
+      expect(r.selfDelta.ana).toBe(-5);
+      expect(r.atkDelta.ana ?? 0).toBe(0);
+    });
+
+    it("invariante: selfDelta + atkDelta === delta (escenario mixto: cábala propia + mufa enemiga)", () => {
+      const r = applyCardEffects({
+        ...opts,
+        cards: [
+          played("cabala", "ana", { effectDate: DAY_1, playedAt: BEFORE_M1 }),
+          played("mufa", "beto", {
+            targetId: "ana",
+            effectDate: DAY_1,
+            playedAt: new Date("2026-06-19T13:00:00-06:00"),
+          }),
+        ],
+      });
+      for (const id of ["ana", "beto"]) {
+        const self = r.selfDelta[id] ?? 0;
+        const atk = r.atkDelta[id] ?? 0;
+        expect(self + atk).toBe(r.delta[id] ?? 0);
+      }
+      // ana: cábala (propia, +) y mufa enemiga (ataque, -) conviven en el mismo día.
+      expect((r.selfDelta.ana ?? 0)).toBeGreaterThan(0);
+      expect((r.atkDelta.ana ?? 0)).toBeLessThan(0);
+    });
+  });
 });
 
 describe("resolveDeck / pickDailyCard (sorteo por prode)", () => {
