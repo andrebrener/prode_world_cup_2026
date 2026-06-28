@@ -82,7 +82,7 @@ describe("bestThirds", () => {
   });
 });
 
-describe("assignThirds (matching bipartito de terceros)", () => {
+describe("assignThirds (tabla oficial Annexe C)", () => {
   // Valida que el resultado sea un matching perfecto y legal.
   function validate(input: string[]) {
     const result = assignThirds(input);
@@ -108,6 +108,22 @@ describe("assignThirds (matching bipartito de terceros)", () => {
     const a = assignThirds(["A", "B", "C", "D", "I", "J", "K", "L"]);
     const b = assignThirds(["L", "K", "J", "I", "D", "C", "B", "A"]);
     expect(a).toEqual(b);
+  });
+
+  it("respeta la asignación OFICIAL de FIFA (combinación BDEFIJKL)", () => {
+    // Terceros que clasifican: B, D, E, F, I, J, K, L. Cruces oficiales (Annexe C):
+    // 74(1°E) vs 3°D, 77(1°I) vs 3°F, 79(1°A) vs 3°E, 80(1°L) vs 3°K,
+    // 81(1°D) vs 3°B, 82(1°G) vs 3°I, 85(1°B) vs 3°J, 87(1°K) vs 3°L.
+    expect(assignThirds(["B", "D", "E", "F", "I", "J", "K", "L"])).toEqual({
+      "74": "D",
+      "77": "F",
+      "79": "E",
+      "80": "K",
+      "81": "B",
+      "82": "I",
+      "85": "J",
+      "87": "L",
+    });
   });
 
   it("produce un matching perfecto para LAS 495 combinaciones posibles de 8 grupos", () => {

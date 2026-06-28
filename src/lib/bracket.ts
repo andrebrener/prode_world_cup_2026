@@ -4,6 +4,7 @@
 
 import type { TeamStanding } from "./standings";
 import { stadiumForCity } from "./fixtures";
+import { THIRD_PLACE_ALLOCATION } from "./thirdPlaceAllocation";
 
 export type KoRound = "R32" | "R16" | "QF" | "SF" | "3P" | "F";
 
@@ -168,47 +169,30 @@ export function bestThirds(standings: Record<string, TeamStanding[]>): string[] 
   return thirds.slice(0, 8).map((x) => x.group);
 }
 
-// Slots de tercero por id de partido, con sus grupos permitidos.
-const THIRD_SLOTS: { match: string; allowed: string[] }[] = KO_MATCHES.filter(
+// Slots de tercero por id de partido. `winnerGroup` es el grupo cuyo 1° juega de local en
+// ese cruce (su slot "1X" es la clave en la tabla oficial Annexe C).
+const THIRD_SLOTS: { match: string; winnerGroup: string }[] = KO_MATCHES.filter(
   (m) => m.away.kind === "third",
 ).map((m) => ({
   match: m.id,
-  allowed: (m.away as Extract<SlotRef, { kind: "third" }>).allowed,
+  winnerGroup: (m.home as Extract<SlotRef, { kind: "winner" }>).group,
 }));
 
 /**
- * Empareja los grupos de los 8 mejores terceros con los 8 slots respetando los grupos
- * permitidos de cada slot (matching bipartito por caminos aumentantes, determinista).
- * Devuelve match id de slot → letra de grupo.
+ * Asigna los grupos de los 8 mejores terceros a sus 8 slots según la tabla OFICIAL de FIFA
+ * (Annexe C de las Regulations FWC2026), no por un algoritmo. La asignación depende sólo de
+ * QUÉ 8 grupos clasifican con su tercero (no de su ranking): hay 495 combinaciones, cada una
+ * con un cruce predefinido. Devuelve match id de slot → letra de grupo.
  */
 export function assignThirds(qualifiedGroups: string[]): Record<string, string> {
-  const groups = [...qualifiedGroups].sort();
-  // slotGroup[match] = group asignado
+  const key = [...qualifiedGroups].sort().join("");
+  const row = THIRD_PLACE_ALLOCATION[key];
+  if (!row) return {}; // combinación incompleta (aún no hay 8 terceros definidos)
+
   const slotToGroup: Record<string, string> = {};
-  const groupToSlot: Record<string, string> = {};
-
-  function tryAssign(slotIdx: number, visited: Set<string>): boolean {
-    const slot = THIRD_SLOTS[slotIdx];
-    for (const g of groups) {
-      if (!slot.allowed.includes(g)) continue;
-      if (visited.has(g)) continue;
-      visited.add(g);
-      const occupiedBy = groupToSlot[g];
-      if (!occupiedBy || tryAssignSlotByMatch(occupiedBy, visited)) {
-        slotToGroup[slot.match] = g;
-        groupToSlot[g] = slot.match;
-        return true;
-      }
-    }
-    return false;
-  }
-  function tryAssignSlotByMatch(matchId: string, visited: Set<string>): boolean {
-    const idx = THIRD_SLOTS.findIndex((s) => s.match === matchId);
-    return tryAssign(idx, visited);
-  }
-
-  for (let i = 0; i < THIRD_SLOTS.length; i++) {
-    tryAssign(i, new Set());
+  for (const slot of THIRD_SLOTS) {
+    const group = row[`1${slot.winnerGroup}`];
+    if (group) slotToGroup[slot.match] = group;
   }
   return slotToGroup;
 }
