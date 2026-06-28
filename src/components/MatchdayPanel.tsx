@@ -1,9 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { MATCHES, teamName, teamFlag } from "@/lib/fixtures";
 import { matchPoints, knockoutPoints } from "@/lib/scoring";
-import { ROUND_LABEL, type ResolvedKoMatch } from "@/lib/bracket";
+import { ROUND_LABEL, koPredictionLocked, type ResolvedKoMatch } from "@/lib/bracket";
 import type { MatchPredictionRow, KoPredictionRow } from "@/lib/db/queries";
 import GoalInput from "./GoalInput";
 
@@ -68,6 +69,8 @@ export default function MatchdayPanel({
   resultsByMatch,
   koMatches = [],
   koPredictionsByMatch = {},
+  slug,
+  meId,
   leaderboard = [],
   resolvedPoints,
   annulledMatches,
@@ -80,6 +83,9 @@ export default function MatchdayPanel({
   koMatches?: ResolvedKoMatch[];
   // Pronósticos de llaves de los miembros, por cruce (`${matchId}` → filas).
   koPredictionsByMatch?: Record<string, KoPredictionRow[]>;
+  // Slug del prode (para el link a "Jugar") e id del jugador que está mirando.
+  slug: string;
+  meId?: string;
   leaderboard?: LbRow[];
   // Modo Diversión: puntos reales por (jugador → partido) DESPUÉS de las cartas
   // (bloqueos, robos, multiplicadores). El badge los usa fuera del simulador para
@@ -535,6 +541,12 @@ export default function MatchdayPanel({
             const preds = koPredictionsByMatch[m.id] ?? [];
             const homeName = m.home ? teamName(m.home) : m.homeLabel;
             const awayName = m.away ? teamName(m.away) : m.awayLabel;
+            // El cruce está definido (equipos conocidos) y todavía se puede cargar el
+            // pronóstico (no arrancó/no se cerró). Si el que mira no lo cargó, le avisamos.
+            const resolved = !!(m.home && m.away);
+            const canPredict = resolved && !result && !koPredictionLocked(m.id);
+            const iPredicted = !!meId && preds.some((p) => p.id === meId);
+            const showCta = canPredict && !iPredicted;
             return (
               <div
                 key={`ko-${m.id}`}
@@ -601,13 +613,28 @@ export default function MatchdayPanel({
                   </div>
                 </div>
 
+                {/* Todavía no cargaste tu pronóstico de este cruce: link a Jugar. */}
+                {showCta && (
+                  <Link
+                    href={`/p/${slug}/jugar`}
+                    className="flex items-center justify-between gap-2 border-b border-gold/30 bg-gold/10 px-4 py-2.5 text-sm transition hover:bg-gold/20"
+                  >
+                    <span className="font-semibold text-gold">
+                      📝 Todavía no cargaste tu pronóstico
+                    </span>
+                    <span className="shrink-0 font-bold text-gold">Cargar →</span>
+                  </Link>
+                )}
+
                 {/* Pronósticos de los participantes */}
                 {preds.length === 0 ? (
-                  <p className="px-4 py-3 text-sm text-muted">
-                    {m.home && m.away
-                      ? "Nadie pronosticó este cruce."
-                      : "Se define con la ronda anterior."}
-                  </p>
+                  showCta ? null : (
+                    <p className="px-4 py-3 text-sm text-muted">
+                      {resolved
+                        ? "Nadie pronosticó este cruce."
+                        : "Se define con la ronda anterior."}
+                    </p>
+                  )
                 ) : (
                   <ul className="divide-y divide-border/60">
                     {preds.map((p) => {

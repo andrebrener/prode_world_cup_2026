@@ -19,9 +19,9 @@ import EmailCapture from "@/components/EmailCapture";
 import { getParticipantId } from "@/lib/session";
 import { getParticipant } from "@/lib/db/queries";
 import { teamName, teamFlag } from "@/lib/fixtures";
-import { ROUND_LABEL, type KoRound } from "@/lib/bracket";
 import { pickableMatches } from "@/lib/cards";
 import MatchdayPanel from "@/components/MatchdayPanel";
+import KnockoutBracket from "@/components/KnockoutBracket";
 import Leaderboard from "@/components/Leaderboard";
 import PushNudge from "@/components/PushNudge";
 import InstallAppBanner from "@/components/InstallAppBanner";
@@ -31,8 +31,6 @@ import LeavePoolButton from "@/components/LeavePoolButton";
 import ShareCode from "@/components/ShareCode";
 
 export const dynamic = "force-dynamic";
-
-const KO_ROUND_ORDER: KoRound[] = ["R32", "R16", "QF", "SF", "3P", "F"];
 
 export default async function PoolTabla({
   params,
@@ -203,6 +201,8 @@ export default async function PoolTabla({
         resultsByMatch={results}
         koMatches={bracket.generated ? bracket.matches : []}
         koPredictionsByMatch={koPredictionsByMatch}
+        slug={pool.slug}
+        meId={participant.id}
         leaderboard={leaderboard.map((r) => ({ id: r.id, name: r.name, total: r.total }))}
         resolvedPoints={resolvedPts?.resolved}
         annulledMatches={resolvedPts?.annulled}
@@ -210,50 +210,11 @@ export default async function PoolTabla({
         streakMatches={resolvedPts?.streak}
       />
 
-      {/* Cuadro de llaves */}
+      {/* Cuadro de llaves (árbol: se sigue el camino de cada cruce hacia la final) */}
       {bracket.generated && (
         <section>
           <h2 className="mb-3 wordmark text-2xl">Cuadro de llaves</h2>
-          <div className="flex flex-col gap-4">
-            {KO_ROUND_ORDER.map((round) => {
-              const rms = bracket.matches.filter((m) => m.round === round);
-              if (rms.length === 0) return null;
-              return (
-                <div
-                  key={round}
-                  className="overflow-hidden rounded-2xl border border-border bg-surface"
-                >
-                  <div className="border-b border-border px-4 py-2 text-sm font-bold text-gold">
-                    {ROUND_LABEL[round]}
-                  </div>
-                  <div className="divide-y divide-border/60">
-                    {rms.map((m) => (
-                      <div
-                        key={m.id}
-                        className="flex items-center gap-2 px-4 py-2 text-sm"
-                      >
-                        <span className="w-7 shrink-0 text-xs text-muted">#{m.id}</span>
-                        <span
-                          className={`flex-1 text-right ${m.winner && m.winner === m.home ? "font-bold text-primary" : "text-foreground"}`}
-                        >
-                          {m.home ? `${teamName(m.home)} ${teamFlag(m.home)}` : m.homeLabel}
-                        </span>
-                        <span className="shrink-0 px-2 font-mono text-muted">
-                          {m.result ? `${m.result.homeGoals}-${m.result.awayGoals}` : "vs"}
-                          {m.result?.penalties ? " p" : ""}
-                        </span>
-                        <span
-                          className={`flex-1 ${m.winner && m.winner === m.away ? "font-bold text-primary" : "text-foreground"}`}
-                        >
-                          {m.away ? `${teamFlag(m.away)} ${teamName(m.away)}` : m.awayLabel}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+          <KnockoutBracket matches={bracket.matches} />
         </section>
       )}
     </div>
