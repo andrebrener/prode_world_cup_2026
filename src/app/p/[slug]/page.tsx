@@ -210,11 +210,14 @@ export default async function PoolTabla({
         streakMatches={resolvedPts?.streak}
       />
 
-      {/* Cuadro de llaves (árbol: se sigue el camino de cada cruce hacia la final) */}
+      {/* Cuadro de llaves (árbol: se sigue el camino de cada cruce hacia la final).
+          Se sale del ancho de lectura (max-w-3xl) para que entre el cuadro completo. */}
       {bracket.generated && (
-        <section>
-          <h2 className="mb-3 wordmark text-2xl">Cuadro de llaves</h2>
-          <KnockoutBracket matches={bracket.matches} />
+        <section className="mx-[calc(50%-50vw)] px-4 sm:px-6">
+          <div className="mx-auto max-w-fit">
+            <h2 className="mb-3 wordmark text-2xl">Cuadro de llaves</h2>
+            <KnockoutBracket matches={bracket.matches} />
+          </div>
         </section>
       )}
     </div>

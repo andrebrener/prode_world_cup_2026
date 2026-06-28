@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { teamName, teamFlag } from "@/lib/fixtures";
 import {
   KO_MATCHES_BY_ID,
@@ -77,7 +78,17 @@ function MatchCard({ m }: { m: ResolvedKoMatch }) {
 }
 
 /** Nodo del árbol: dibuja sus dos hijos a la izquierda + conector + el cruce. */
-function Node({ id, byId }: { id: string; byId: Record<string, ResolvedKoMatch> }) {
+function Node({
+  id,
+  byId,
+  below,
+}: {
+  id: string;
+  byId: Record<string, ResolvedKoMatch>;
+  // Contenido anclado debajo del cruce (lo usa la raíz para colgar el 3er puesto
+  // bajo la final sin descentrar el conector).
+  below?: ReactNode;
+}) {
   const m = byId[id];
   if (!m) return null;
   const kids = childrenOf(id);
@@ -111,7 +122,10 @@ function Node({ id, byId }: { id: string; byId: Record<string, ResolvedKoMatch> 
       {/* Línea corta hacia el cruce, centrada verticalmente */}
       <div className="flex items-center">
         <div className="h-0.5 w-2 bg-border sm:w-3" />
-        <MatchCard m={m} />
+        <div className="relative">
+          <MatchCard m={m} />
+          {below}
+        </div>
       </div>
     </div>
   );
@@ -139,13 +153,20 @@ export default function KnockoutBracket({ matches }: { matches: ResolvedKoMatch[
             </div>
           ))}
         </div>
-        <Node id="104" byId={byId} />
-        {third && (
-          <div className="mt-4 flex items-center gap-2">
-            <span className="text-xs font-bold text-muted">3er puesto</span>
-            <MatchCard m={third} />
-          </div>
-        )}
+        <Node
+          id="104"
+          byId={byId}
+          below={
+            third ? (
+              <div className="absolute left-0 top-full w-full pt-3">
+                <div className="mb-1 text-center text-[10px] font-bold uppercase tracking-wide text-muted">
+                  3.er puesto
+                </div>
+                <MatchCard m={third} />
+              </div>
+            ) : undefined
+          }
+        />
       </div>
     </div>
   );

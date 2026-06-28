@@ -35,6 +35,9 @@ body {
   font-family: var(--font-sans), system-ui, sans-serif;
   /* Evita el rebote nativo en el tope para que el pull-to-refresh propio mande */
   overscroll-behavior-y: contain;
+  /* Las secciones full-bleed (ej. el cuadro de llaves) usan 50vw; clip evita el
+     scroll horizontal de 1px que mete el ancho de la barra de scroll vertical. */
+  overflow-x: clip;
 }
 
 /* Tipografía del wordmark */
