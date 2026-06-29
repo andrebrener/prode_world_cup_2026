@@ -111,13 +111,13 @@ export default function KnockoutPredict({
             se suman.
           </li>
           <li>
-            2️⃣ <strong>Quién pasa si hay penales</strong> (elegilo siempre, por si ese
-            cruce termina empatado). Y si <strong>pusiste empate</strong> y el cruce se
-            define por penales, sumás{" "}
+            2️⃣ <strong>Quién gana si hay penales</strong> (elegilo siempre, por si ese
+            cruce termina empatado). Si se define por penales y acertás al ganador,
+            sumás{" "}
             <strong className="text-foreground">
               +{SCORING.knockout.penaltyWinner} pts
             </strong>{" "}
-            extra.
+            extra (aunque hayas errado el resultado de los 90&apos;).
           </li>
         </ul>
         <p className="mt-2 text-sm text-muted">

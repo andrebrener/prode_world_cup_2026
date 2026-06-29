@@ -95,7 +95,7 @@ export default async function ComoFunciona() {
             </li>
             <li>
               <Pts n={SCORING.knockout.penaltyWinner} /> bonus si va a{" "}
-              <strong>penales</strong> y lo predijiste (pusiste empate)
+              <strong>penales</strong> y acertás quién gana
             </li>
           </ul>
           <p className="mb-1.5 mt-3 text-xs font-semibold uppercase tracking-wider text-muted/80">

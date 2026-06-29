@@ -47,7 +47,8 @@ export function predictedAdvancer(pred: KoPred, home: string, away: string): str
 /**
  * Puntos de un cruce de knockout (mismo criterio que grupos, pero 6/4 y excluyentes):
  *  6 marcador exacto · 4 acertar el resultado (ganador o empate) — nunca los dos juntos ·
- *  +2 bonus aparte si el cruce fue a penales y vos lo predijiste (es decir, pusiste empate).
+ *  +2 bonus aparte si el cruce fue a penales y acertaste quién gana los penales (tu pick
+ *  `advance`), sin importar qué hayas puesto en los 90'/alargue.
  */
 export function knockoutPoints(
   pred: KoPred | undefined,
@@ -60,8 +61,8 @@ export function knockoutPoints(
   } else if (outcome(pred) === outcome(real)) {
     pts = SCORING.knockout.winner;
   }
-  // Bonus: el cruce se definió por penales y vos lo predijiste (pusiste empate en los 90'/alargue).
-  if (real.penalties && outcome(pred) === "D") {
+  // Bonus: el cruce se definió por penales y acertaste al ganador de los penales.
+  if (real.penalties && real.penWinner && pred.advance === real.penWinner) {
     pts += SCORING.knockout.penaltyWinner;
   }
   return pts;

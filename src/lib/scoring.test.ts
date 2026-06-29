@@ -122,27 +122,33 @@ describe("knockoutPoints (cruces de eliminatoria)", () => {
     expect(knockoutPoints(pred, real)).toBe(SCORING.knockout.winner);
   });
 
-  it("marcador exacto en cruce que fue a penales (predijo empate) → 6 + 2 = 8, sin importar a quién puso en penales", () => {
-    // Predijo 1-1; fue 1-1 a penales. El equipo elegido en penales no afecta.
-    const pred: KoPred = { homeGoals: 1, awayGoals: 1, advance: "ARG" };
+  it("exacto en cruce a penales + acierta al ganador de los penales → 6 + 2 = 8", () => {
+    const pred: KoPred = { homeGoals: 1, awayGoals: 1, advance: "BRA" };
     const real: KoReal = { homeGoals: 1, awayGoals: 1, penalties: true, penWinner: "BRA" };
     expect(knockoutPoints(pred, real)).toBe(
       SCORING.knockout.exact + SCORING.knockout.penaltyWinner,
     );
   });
 
-  it("penales: acertó el empate pero no el marcador → 4 + 2 = 6", () => {
+  it("exacto en cruce a penales pero erró al ganador de los penales → solo 6", () => {
+    const pred: KoPred = { homeGoals: 1, awayGoals: 1, advance: "ARG" };
+    const real: KoReal = { homeGoals: 1, awayGoals: 1, penalties: true, penWinner: "BRA" };
+    expect(knockoutPoints(pred, real)).toBe(SCORING.knockout.exact);
+  });
+
+  it("predijo un ganador pero fue a penales y acertó al ganador de los penales → solo 2", () => {
+    // Puso 2-1 (ARG gana en los 90'); fue 1-1 a penales y ARG ganó los penales.
+    const pred: KoPred = { homeGoals: 2, awayGoals: 1, advance: "ARG" };
+    const real: KoReal = { homeGoals: 1, awayGoals: 1, penalties: true, penWinner: "ARG" };
+    expect(knockoutPoints(pred, real)).toBe(SCORING.knockout.penaltyWinner);
+  });
+
+  it("penales: acertó el empate (no el marcador) + ganador de penales → 4 + 2 = 6", () => {
     const pred: KoPred = { homeGoals: 0, awayGoals: 0, advance: "BRA" };
     const real: KoReal = { homeGoals: 1, awayGoals: 1, penalties: true, penWinner: "BRA" };
     expect(knockoutPoints(pred, real)).toBe(
       SCORING.knockout.winner + SCORING.knockout.penaltyWinner,
     );
-  });
-
-  it("predijo un ganador pero el cruce terminó empatado y fue a penales → 0", () => {
-    const pred: KoPred = { homeGoals: 2, awayGoals: 1, advance: "ARG" };
-    const real: KoReal = { homeGoals: 1, awayGoals: 1, penalties: true, penWinner: "ARG" };
-    expect(knockoutPoints(pred, real)).toBe(0);
   });
 
   it("yerra todo → 0", () => {

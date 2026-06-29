@@ -449,6 +449,6 @@ export const SCORING = {
   knockout: {
     exact: 6, // marcador exacto de los 90'/alargue
     winner: 4, // acierta el resultado (ganador o empate) — excluyente con el exacto
-    penaltyWinner: 2, // bonus: si fue a penales y vos lo predijiste (pusiste empate)
+    penaltyWinner: 2, // bonus: si fue a penales y acertás quién gana los penales (pick `advance`)
   },
 };
