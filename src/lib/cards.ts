@@ -960,14 +960,18 @@ export function applyCardEffects(opts: {
   // víctima) y la víctima −= D (queda con el del dueño). Un espejito lo invierte (le
   // pega al que lo tiró). Sin víctima o sin monto (un autotiro nunca congela el swap),
   // queda en no-op.
+  // Es una carta de ATAQUE: tanto lo que suma como lo que resta el swap cuenta como
+  // 💥 ataque (atkDelta) para ambos lados —incluido el dueño—, no como 🃏 carta propia.
   for (const card of cards) {
     const spec = CARD_CATALOG[card.cardType]?.spec;
     if (spec?.outcome !== "frozen_swap" || !card.targetId) continue;
     const d = card.flatPenalty ?? 0;
-    add(flat, card.ownerId, card.reflected ? -d : d);
-    attribute(card, card.ownerId, card.reflected ? -d : d);
-    add(flat, card.targetId, card.reflected ? d : -d);
-    attribute(card, card.targetId, card.reflected ? d : -d);
+    const ownerD = card.reflected ? -d : d;
+    const targetD = card.reflected ? d : -d;
+    add(flat, card.ownerId, ownerD);
+    if (ownerD) add(atkDelta, card.ownerId, ownerD);
+    add(flat, card.targetId, targetD);
+    if (targetD) add(atkDelta, card.targetId, targetD);
   }
 
   const delta: Record<string, number> = {};
