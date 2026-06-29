@@ -448,7 +448,7 @@ export const SCORING = {
   // Llaves / eliminatorias (Fase 2). En knockout puede haber penales.
   knockout: {
     exact: 6, // marcador exacto de los 90'/alargue
-    winner: 4, // acierta quién pasa de ronda (gane como gane)
-    penaltyWinner: 2, // bonus: si fue a penales y acertás quién gana en los penales
+    winner: 4, // acierta el resultado (ganador o empate) — excluyente con el exacto
+    penaltyWinner: 2, // bonus: si fue a penales y vos lo predijiste (pusiste empate)
   },
 };

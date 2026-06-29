@@ -639,10 +639,7 @@ export default function MatchdayPanel({
                   <ul className="divide-y divide-border/60">
                     {preds.map((p) => {
                       const eff = effKoPred(p);
-                      const base =
-                        result && m.home && m.away
-                          ? knockoutPoints(eff, result, m.home, m.away)
-                          : null;
+                      const base = result ? knockoutPoints(eff, result) : null;
                       const real = result ? resolvedPoints?.[p.id]?.[m.id] : undefined;
                       const cardDelta =
                         real !== undefined && base !== null ? real - base : 0;

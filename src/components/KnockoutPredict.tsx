@@ -100,18 +100,20 @@ export default function KnockoutPredict({
         </p>
         <ul className="mt-1.5 ml-1 space-y-1 text-sm text-muted">
           <li>
-            1️⃣ El <strong>marcador</strong> de los 90&apos;/alargue → sumás{" "}
+            1️⃣ El <strong>marcador</strong> de los 90&apos;/alargue →{" "}
             <strong className="text-foreground">
               {SCORING.knockout.exact} pts
             </strong>{" "}
-            si lo clavás y <strong className="text-foreground">
+            si lo clavás, o <strong className="text-foreground">
               {SCORING.knockout.winner} pts
             </strong>{" "}
-            por acertar quién pasa.
+            si acertás solo el resultado (ganador o empate). Una cosa o la otra, no
+            se suman.
           </li>
           <li>
-            2️⃣ <strong>Quién gana si hay penales</strong> (elegilo siempre, por si ese
-            cruce termina empatado) → si se define por penales y acertás, sumás{" "}
+            2️⃣ <strong>Quién pasa si hay penales</strong> (elegilo siempre, por si ese
+            cruce termina empatado). Y si <strong>pusiste empate</strong> y el cruce se
+            define por penales, sumás{" "}
             <strong className="text-foreground">
               +{SCORING.knockout.penaltyWinner} pts
             </strong>{" "}

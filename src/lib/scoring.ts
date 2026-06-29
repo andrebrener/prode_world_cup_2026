@@ -45,27 +45,23 @@ export function predictedAdvancer(pred: KoPred, home: string, away: string): str
 }
 
 /**
- * Puntos de un cruce de knockout:
- *  +6 marcador exacto (de los 90'/alargue) · +4 acertar quién pasa ·
- *  +2 bonus si fue a penales y tu elección de penales acertó al ganador. (Se acumulan.)
+ * Puntos de un cruce de knockout (mismo criterio que grupos, pero 6/4 y excluyentes):
+ *  6 marcador exacto · 4 acertar el resultado (ganador o empate) — nunca los dos juntos ·
+ *  +2 bonus aparte si el cruce fue a penales y vos lo predijiste (es decir, pusiste empate).
  */
 export function knockoutPoints(
   pred: KoPred | undefined,
   real: KoReal | undefined,
-  home: string,
-  away: string,
 ): number {
   if (!pred || !real) return 0;
   let pts = 0;
   if (pred.homeGoals === real.homeGoals && pred.awayGoals === real.awayGoals) {
-    pts += SCORING.knockout.exact;
+    pts = SCORING.knockout.exact;
+  } else if (outcome(pred) === outcome(real)) {
+    pts = SCORING.knockout.winner;
   }
-  const realAdvancer = koWinner(real, home, away);
-  if (realAdvancer && predictedAdvancer(pred, home, away) === realAdvancer) {
-    pts += SCORING.knockout.winner;
-  }
-  // Bonus: el cruce real fue a penales y tu elección de penales coincide con quién pasó.
-  if (real.penalties && realAdvancer && pred.advance === realAdvancer) {
+  // Bonus: el cruce se definió por penales y vos lo predijiste (pusiste empate en los 90'/alargue).
+  if (real.penalties && outcome(pred) === "D") {
     pts += SCORING.knockout.penaltyWinner;
   }
   return pts;

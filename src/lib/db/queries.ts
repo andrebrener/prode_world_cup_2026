@@ -542,13 +542,13 @@ async function computePoolScores(pool: Pool) {
       if (!countsForPool(km.id)) continue;
       const caldeador = caldeadoBy[`${person.id}:${km.id}`];
       const flipped = flippedBy[`${person.id}:${km.id}`];
-      const purePts = knockoutPoints(koPreds[km.id], km.result as KoReal, km.home, km.away);
+      const purePts = knockoutPoints(koPreds[km.id], km.result as KoReal);
       pure += purePts;
       let pred = caldeador ? caldeadorKoPred(caldeador, km.id, km.home, km.away) : koPreds[km.id];
       if (pred && flipped) pred = { ...pred, homeGoals: pred.awayGoals, awayGoals: pred.homeGoals };
       m[km.id] =
         caldeador || flipped
-          ? knockoutPoints(pred, km.result as KoReal, km.home, km.away)
+          ? knockoutPoints(pred, km.result as KoReal)
           : purePts;
       flip(km.id, m[km.id] - purePts);
     }
@@ -1608,8 +1608,8 @@ export async function getParticipantDetail(
       cId && m.home && m.away ? caldeadorKoPred(cId, m.id, m.home, m.away) : p;
     if (eff && flip) eff = { ...eff, homeGoals: eff.awayGoals, awayGoals: eff.homeGoals };
     const pts =
-      eff && m.result && m.home && m.away
-        ? knockoutPoints(eff, m.result as KoReal, m.home, m.away)
+      eff && m.result
+        ? knockoutPoints(eff, m.result as KoReal)
         : 0;
     return {
       id: m.id,

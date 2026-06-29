@@ -91,11 +91,11 @@ export default async function ComoFunciona() {
               <Pts n={SCORING.knockout.exact} /> resultado <strong>exacto</strong>
             </li>
             <li>
-              <Pts n={SCORING.knockout.winner} /> acertás quién pasa de ronda
+              <Pts n={SCORING.knockout.winner} /> acertás quién gana o el empate
             </li>
             <li>
-              <Pts n={SCORING.knockout.penaltyWinner} /> bonus si gana en{" "}
-              <strong>penales</strong> y lo cantaste
+              <Pts n={SCORING.knockout.penaltyWinner} /> bonus si va a{" "}
+              <strong>penales</strong> y lo predijiste (pusiste empate)
             </li>
           </ul>
           <p className="mb-1.5 mt-3 text-xs font-semibold uppercase tracking-wider text-muted/80">
