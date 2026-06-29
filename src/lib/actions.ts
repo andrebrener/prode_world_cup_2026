@@ -53,6 +53,7 @@ import {
 } from "./db/queries";
 import {
   CARD_CATALOG,
+  cardSupportsDayScope,
   cardView,
   DEFAULT_DECK,
   MAX_APODO_CHARS,
@@ -1003,6 +1004,28 @@ export async function setCardTargetAction(
   }
 
   await db.update(cardDefs).set({ restrictedTargetId: targetId }).where(eq(cardDefs.id, defId));
+  revalidatePath(`/p/${gate.pool.slug}`, "layout");
+  return { ok: true };
+}
+
+/**
+ * Fija el alcance de día de una carta del mazo (solo cartas negativas de día que
+ * barren la jornada: caído/filtro/nemo/heladera/matambrito/duelo). "first_of_day" =
+ * el efecto pega solo al primer partido del día; null = default (todos los del día).
+ */
+export async function setCardDayScopeAction(
+  slug: string,
+  defId: string,
+  dayScope: "first_of_day" | null,
+): Promise<{ ok: boolean; error?: string }> {
+  const gate = await manageGate(slug);
+  if ("error" in gate) return { ok: false, error: gate.error };
+  const [row] = await db.select().from(cardDefs).where(eq(cardDefs.id, defId));
+  if (!row || row.poolId !== gate.pool.id) return { ok: false, error: "Carta no encontrada." };
+  if (dayScope && !cardSupportsDayScope(row.mechanic))
+    return { ok: false, error: "Esta carta no tiene alcance de día configurable." };
+
+  await db.update(cardDefs).set({ dayScope }).where(eq(cardDefs.id, defId));
   revalidatePath(`/p/${gate.pool.slug}`, "layout");
   return { ok: true };
 }

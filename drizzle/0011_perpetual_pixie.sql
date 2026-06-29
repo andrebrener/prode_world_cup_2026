@@ -1,0 +1,1 @@
+ALTER TABLE `card_defs` ADD `day_scope` text;

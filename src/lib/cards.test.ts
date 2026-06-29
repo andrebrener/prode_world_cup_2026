@@ -680,6 +680,64 @@ describe("applyCardEffects", () => {
     expect(r.points.beto.M1).toBe(5); // beto conserva los suyos
   });
 
+  // dayScope = "first_of_day" (config del admin): la carta negativa de día pega solo
+  // al primer partido de la jornada en vez de a todos. Default (ausente) = todo el día.
+  describe("dayScope (alcance configurable del admin)", () => {
+    it("filtro acotado al primer partido: solo M1 se anula, M2 queda intacto", () => {
+      const r = applyCardEffects({
+        ...opts,
+        cards: [
+          played("filtro", "ana", { targetId: "beto", effectDate: DAY_1, dayScope: "first_of_day" }),
+        ],
+      });
+      expect(r.points.beto.M1).toBe(0); // primer partido del día: anulado
+      expect(r.points.beto.M2).toBe(0); // base 0, igual no sumaba
+      expect(r.streakOverrides.beto?.M1).toBe("skip");
+      expect(r.streakOverrides.beto?.M2).toBeUndefined(); // M2 fuera del alcance
+    });
+
+    it("nemo acotado al primer partido: M2 conserva sus puntos", () => {
+      const r = applyCardEffects({
+        ...opts,
+        cards: [played("nemo", "beto", { effectDate: "2026-06-22" })], // un solo partido ese día
+      });
+      expect(r.points.beto.M4).toBe(0);
+      // Y con dayScope sobre un día de varios partidos, solo el primero cae:
+      const r2 = applyCardEffects({
+        ...opts,
+        cards: [played("nemo", "beto", { effectDate: DAY_1, dayScope: "first_of_day" })],
+      });
+      expect(r2.points.beto.M1).toBe(0); // primer partido del día
+      expect(r2.points.beto.M2).toBe(0); // base 0
+      // beto base M1=5, M2=0 → solo se anuló M1 (que valía 5).
+      expect(r2.delta.beto).toBe(-5);
+    });
+
+    it("duelo acotado al primer partido: solo roba los puntos de M1", () => {
+      const r = applyCardEffects({
+        ...opts,
+        cards: [
+          played("duelo", "ana", { targetId: "beto", effectDate: DAY_1, dayScope: "first_of_day" }),
+        ],
+      });
+      // beto: M1=5, M2=0. Con first_of_day solo se roba M1 (5).
+      expect(r.points.beto.M1).toBe(0); // robado
+      expect(r.points.beto.M2).toBe(0); // base 0, intacto fuera del robo
+      expect(r.flat.ana).toBe(5);
+      expect(r.delta.beto).toBe(-5);
+      expect(r.delta.ana).toBe(5);
+    });
+
+    it("sin dayScope (default) el filtro sigue barriendo todo el día", () => {
+      const r = applyCardEffects({
+        ...opts,
+        cards: [played("filtro", "ana", { targetId: "beto", effectDate: DAY_1 })],
+      });
+      expect(r.streakOverrides.beto?.M1).toBe("skip");
+      expect(r.streakOverrides.beto?.M2).toBe("skip"); // todo el día
+    });
+  });
+
   it("planos: papas +5, speed +2, ramirez -5", () => {
     const r = applyCardEffects({
       ...opts,

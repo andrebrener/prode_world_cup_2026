@@ -12,12 +12,18 @@ import {
   addCardDefAction,
   deleteCardDefAction,
   setCardTargetAction,
+  setCardDayScopeAction,
   updateFunConfigAction,
   setMemberRolesAction,
   updatePoolStartDateAction,
   type CardDefPatch,
 } from "@/lib/actions";
-import { RARITY_LABEL, type CardRarity, type MechanicOption } from "@/lib/cardCatalog";
+import {
+  cardSupportsDayScope,
+  RARITY_LABEL,
+  type CardRarity,
+  type MechanicOption,
+} from "@/lib/cardCatalog";
 import type { PoolAdminData, PoolRole } from "@/lib/db/queries";
 
 type DeckCard = PoolAdminData["deck"][number];
@@ -673,6 +679,35 @@ function CardRow({
                 {m.name}
               </option>
             ))}
+          </select>
+        </div>
+      )}
+
+      {/* Alcance de día: solo para cartas negativas de día que barren la jornada
+          (caído/filtro/nemo/heladera/matambrito/duelo). Por default pegan a todos los
+          partidos del día; el admin puede acotarlas al primer partido. */}
+      {cardSupportsDayScope(card.mechanic) && (
+        <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-dashed border-border/70 bg-background/40 px-2 py-1.5">
+          <span className="text-xs font-semibold text-muted">📅 Alcance</span>
+          <select
+            value={card.dayScope ?? ""}
+            disabled={busy}
+            onChange={(e) =>
+              run(
+                () =>
+                  setCardDayScopeAction(
+                    slug,
+                    card.id,
+                    e.target.value === "first_of_day" ? "first_of_day" : null,
+                  ),
+                e.target.value === "first_of_day" ? "Solo el primer partido." : "Todo el día.",
+              )
+            }
+            className="min-w-[8rem] flex-1 rounded-lg border border-border bg-surface px-2 py-1.5 text-sm disabled:opacity-50"
+            aria-label="Alcance de día"
+          >
+            <option value="">Todo el día</option>
+            <option value="first_of_day">Solo el primer partido del día</option>
           </select>
         </div>
       )}

@@ -799,6 +799,18 @@ export const MECHANIC_OPTIONS: MechanicOption[] = ALL_CARDS.map((card) => ({
   target: card.target,
 }));
 
+/**
+ * Alcance de día configurable por el admin: válido solo para cartas negativas de
+ * ventana "day" cuyo efecto BARRE la jornada (anula o roba todos sus partidos). Para
+ * esas, el admin puede elegir que peguen solo al primer partido del día. El resto
+ * (buffs, sociales, instantáneas, cartas de "primer partido" como mufa) no lo soporta.
+ */
+export function cardSupportsDayScope(mechanic: string): boolean {
+  const def = CARD_CATALOG[mechanic as CardType];
+  if (!def || def.window !== "day") return false;
+  return def.spec.outcome === "zero_day" || def.spec.outcome === "steal_day_points";
+}
+
 /** Campos cosméticos editables por prode (re-skin). */
 export type CardCosmetic = {
   name: string;

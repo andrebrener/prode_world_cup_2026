@@ -116,6 +116,12 @@ export const cardDefs = sqliteTable("card_defs", {
   restrictedTargetId: text("restricted_target_id").references(() => participants.id, {
     onDelete: "set null",
   }),
+  // Alcance de día (config del admin) para las cartas negativas de ventana "day":
+  // null = default del catálogo (pega a TODOS los partidos del día) · "first_of_day"
+  // = solo al primer partido de la jornada. Lo lee el motor al resolver (no se snapshotea
+  // en la carta jugada: sale de la def). Hoy lo respetan los outcomes zero_day
+  // (caído/filtro/nemo/heladera/matambrito) y steal_day_points (duelo).
+  dayScope: text("day_scope"),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
 });
 

@@ -157,6 +157,8 @@ export type PoolAdminData = {
     target: "self" | "other";
     /** Blanco fijo: la carta solo se le puede tirar a esta persona (null = a cualquiera). */
     restrictedTargetId: string | null;
+    /** Alcance de día (cartas negativas de día): "first_of_day" = solo el primer partido; null = todos. */
+    dayScope: string | null;
   }[];
   config: {
     weightComun: number;
@@ -196,6 +198,7 @@ export async function getPoolAdmin(poolId: string): Promise<PoolAdminData> {
         : "—",
       target: CARD_CATALOG[d.mechanic as CardType]?.target ?? "self",
       restrictedTargetId: d.restrictedTargetId,
+      dayScope: d.dayScope,
     })),
     config: {
       weightComun: cfg?.weightComun ?? DEFAULT_FUN_CONFIG.weights.comun,
@@ -559,9 +562,10 @@ async function computePoolScores(pool: Pool) {
     flipAtkByMember[person.id] = flipAtk;
   }
 
+  const defsById = pool.mode === "fun" ? await loadDefsById(poolId) : (new Map() as DefsById);
   const fun =
     pool.mode === "fun"
-      ? resolveFun(funCardRows, ptsByMember, bracket, people, await loadDefsById(poolId))
+      ? resolveFun(funCardRows, ptsByMember, bracket, people, defsById)
       : null;
 
   return {
@@ -576,21 +580,24 @@ async function computePoolScores(pool: Pool) {
     tourney,
     groupResultIds,
     funCardRows,
+    defsById,
     fun,
   };
 }
 
 /** Todos los partidos (grupos + llaves) de una fecha, jugados o no. */
 function matchIdsOnDay(effectDate: string, bracket: BracketState): string[] {
-  const ids: string[] = [];
+  const withKickoff: { id: string; k: string }[] = [];
   for (const [mid, k] of Object.entries(KICKOFF_BY_ID)) {
-    if (matchDay(k) === effectDate) ids.push(mid);
+    if (matchDay(k) === effectDate) withKickoff.push({ id: mid, k });
   }
   for (const km of bracket.matches) {
     const k = koKickoff(km.id);
-    if (k && matchDay(k) === effectDate) ids.push(km.id);
+    if (k && matchDay(k) === effectDate) withKickoff.push({ id: km.id, k });
   }
-  return ids;
+  // Ordenados por kickoff para que "el primer partido del día" sea estable.
+  withKickoff.sort((a, b) => new Date(a.k).getTime() - new Date(b.k).getTime() || a.id.localeCompare(b.id));
+  return withKickoff.map((m) => m.id);
 }
 
 /**
@@ -602,15 +609,20 @@ function matchIdsOnDay(effectDate: string, bracket: BracketState): string[] {
 function computeAnnulledMatches(
   funCardRows: FunCardRow[],
   bracket: BracketState,
+  defsById: DefsById,
 ): Record<string, true> {
   const annulled: Record<string, true> = {};
   for (const c of funCardRows) {
     if (c.status !== "played" || !c.playedAt || !c.effectDate) continue;
     const spec = CARD_CATALOG[c.cardType as CardType]?.spec;
     if (spec?.outcome !== "zero_day" && spec?.outcome !== "steal_day_points") continue;
-    const affected = affectedIdOf(toEffect(c));
+    const effect = toEffect(c, defsById);
+    const affected = affectedIdOf(effect);
     if (!affected) continue;
-    for (const mid of matchIdsOnDay(c.effectDate, bracket)) annulled[`${affected}:${mid}`] = true;
+    // Si el admin acotó la carta al primer partido, solo ese suma a la anulación.
+    const dayMatches = matchIdsOnDay(c.effectDate, bracket);
+    const ids = effect.dayScope === "first_of_day" ? dayMatches.slice(0, 1) : dayMatches;
+    for (const mid of ids) annulled[`${affected}:${mid}`] = true;
   }
   return annulled;
 }
@@ -636,7 +648,7 @@ export async function getResolvedMatchPoints(pool: Pool): Promise<{
   const resolved: Record<string, MatchPointsMap> = {};
   for (const p of s.people)
     resolved[p.id] = s.fun?.effects.points[p.id] ?? s.ptsByMember[p.id] ?? {};
-  const annulled = computeAnnulledMatches(s.funCardRows, bracket);
+  const annulled = computeAnnulledMatches(s.funCardRows, bracket, s.defsById);
   return {
     base: s.ptsByMember,
     resolved,
@@ -896,8 +908,11 @@ function kickoffOf(matchId: string): string | null {
 
 type FunCardRow = typeof funCards.$inferSelect;
 
-/** defId → cosmético del mazo del prode (re-skin) + blanco fijo del admin. */
-export type DefsById = Map<string, CardCosmetic & { restrictedTargetId: string | null }>;
+/** defId → cosmético del mazo del prode (re-skin) + blanco fijo + alcance de día del admin. */
+export type DefsById = Map<
+  string,
+  CardCosmetic & { restrictedTargetId: string | null; dayScope: string | null }
+>;
 
 /** Carga las defs del mazo de un prode indexadas por id (para resolver el display). */
 async function loadDefsById(poolId: string): Promise<DefsById> {
@@ -909,13 +924,19 @@ async function loadDefsById(poolId: string): Promise<DefsById> {
       description: cardDefs.description,
       rarity: cardDefs.rarity,
       restrictedTargetId: cardDefs.restrictedTargetId,
+      dayScope: cardDefs.dayScope,
     })
     .from(cardDefs)
     .where(eq(cardDefs.poolId, poolId));
   return new Map(
     rows.map((r) => [
       r.id,
-      { ...r, rarity: r.rarity as CardCosmetic["rarity"], restrictedTargetId: r.restrictedTargetId },
+      {
+        ...r,
+        rarity: r.rarity as CardCosmetic["rarity"],
+        restrictedTargetId: r.restrictedTargetId,
+        dayScope: r.dayScope,
+      },
     ]),
   );
 }
@@ -975,7 +996,7 @@ function parsePayload(raw: string | null): Record<string, string> | null {
 // día de ese partido (el motor ya resuelve el primero de la jornada).
 const DAY_FIRST_MATCH_CARDS = new Set<CardType>(["doblete", "diego", "mufa", "yapa"]);
 
-function toEffect(c: FunCardRow): PlayedCardEffect {
+function toEffect(c: FunCardRow, defsById: DefsById): PlayedCardEffect {
   let effectMatchId = c.effectMatchId;
   let effectDate = c.effectDate;
   if (!effectDate && effectMatchId && DAY_FIRST_MATCH_CARDS.has(c.cardType as CardType)) {
@@ -1001,6 +1022,9 @@ function toEffect(c: FunCardRow): PlayedCardEffect {
         : swap != null
           ? Number(swap)
           : null;
+  // Alcance de día del admin (cardDefs.dayScope): solo "first_of_day" cambia algo
+  // (acota el barrido del día al primer partido); el resto es el default de todos.
+  const dayScope = c.cardDefId ? defsById.get(c.cardDefId)?.dayScope : null;
   return {
     id: c.id,
     cardType: c.cardType as CardType,
@@ -1010,6 +1034,7 @@ function toEffect(c: FunCardRow): PlayedCardEffect {
     effectDate,
     reflected: c.reflected,
     playedAt: c.playedAt!,
+    ...(dayScope === "first_of_day" ? { dayScope } : {}),
     ...(flatPenalty != null ? { flatPenalty } : {}),
   };
 }
@@ -1043,7 +1068,7 @@ function resolveFun(
   );
   const kickoffById = Object.fromEntries(resolvedIds.map((id) => [id, kickoffOf(id)!]));
 
-  const playedEffects = played.map(toEffect);
+  const playedEffects = played.map((c) => toEffect(c, defsById));
 
   const effects = applyCardEffects({
     cards: playedEffects,

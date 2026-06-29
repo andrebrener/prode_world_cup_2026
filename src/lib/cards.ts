@@ -643,6 +643,14 @@ export type PlayedCardEffect = {
   reflected: boolean;
   playedAt: Date;
   /**
+   * Alcance de día configurado por el admin en la carta del mazo (cardDefs.dayScope),
+   * para las cartas negativas de ventana "day". "first_of_day" = el efecto pega solo
+   * al primer partido de la jornada en vez de a todos. Ausente / "all_of_day" = default
+   * (todos los partidos del día). Lo respetan los outcomes que barren el día (zero_day,
+   * steal_day_points) vía `scopedDayIds`.
+   */
+  dayScope?: "first_of_day" | "all_of_day";
+  /**
    * Monto congelado que vive en el payload de la carta, no en el spec. Lo usan los
    * outcomes que calculan su monto al jugarse: `frozen_penalty` (Caparazón Azul, lo
    * resta), `frozen_delta` (Baño de realidad, lo suma con signo) y `frozen_swap`
@@ -750,6 +758,17 @@ export function applyCardEffects(opts: {
   // importar el momento en que se jugó la carta.
   const firstOfDay = (card: PlayedCardEffect): string | null => dayIds(card)[0] ?? null;
 
+  // Partidos del día acotados por el alcance que el admin le puso a la carta del mazo:
+  // si es "first_of_day", el efecto pega solo al primer partido de la jornada; si no,
+  // a todos (default). Lo usan los outcomes negativos que barren el día.
+  const scopedDayIds = (card: PlayedCardEffect): string[] => {
+    if (card.dayScope === "first_of_day") {
+      const id = firstOfDay(card);
+      return id ? [id] : [];
+    }
+    return dayIds(card);
+  };
+
   // Orden estable por playedAt para que la resolución sea determinística.
   const cards = [...opts.cards].sort((a, b) => a.playedAt.getTime() - b.playedAt.getTime());
 
@@ -819,7 +838,7 @@ export function applyCardEffects(opts: {
         //  - skip: el día no cuenta ni a favor ni en contra (filtro).
         //  - none: solo el cero, la racha se corta sola (maldiciones nemo/heladera/matambrito).
         const m = map(affected);
-        for (const id of dayIds(card)) {
+        for (const id of scopedDayIds(card)) {
           if (spec.streak === "protect_on_hit") {
             if ((m[id] ?? 0) > 0) override(affected, id, "protect");
           } else if (spec.streak === "skip") {
@@ -878,7 +897,7 @@ export function applyCardEffects(opts: {
   for (const card of cards) {
     const spec = CARD_CATALOG[card.cardType]?.spec;
     if (spec?.outcome !== "steal_day_points" || !card.targetId) continue;
-    const ids = dayIds(card);
+    const ids = scopedDayIds(card);
     if (ids.length === 0) continue;
     // Si rebotó en un espejito, el robo se invierte: la víctima le afana al dueño.
     const stealer = card.reflected ? card.targetId : card.ownerId;
