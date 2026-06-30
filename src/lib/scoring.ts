@@ -45,6 +45,24 @@ export function predictedAdvancer(pred: KoPred, home: string, away: string): str
 }
 
 /**
+ * Puntos por el RESULTADO de un cruce, sin el bonus de penales:
+ *  6 marcador exacto · 4 acertar el resultado (ganador o empate) — excluyentes.
+ * Es lo que cuenta para la racha: acertar quién pasa en los penales no es acertar
+ * el partido, así que el +2 de penales no mantiene viva la racha.
+ */
+export function knockoutResultPoints(
+  pred: KoPred | undefined,
+  real: KoReal | undefined,
+): number {
+  if (!pred || !real) return 0;
+  if (pred.homeGoals === real.homeGoals && pred.awayGoals === real.awayGoals) {
+    return SCORING.knockout.exact;
+  }
+  if (outcome(pred) === outcome(real)) return SCORING.knockout.winner;
+  return 0;
+}
+
+/**
  * Puntos de un cruce de knockout (mismo criterio que grupos, pero 6/4 y excluyentes):
  *  6 marcador exacto · 4 acertar el resultado (ganador o empate) — nunca los dos juntos ·
  *  +2 bonus aparte si el cruce fue a penales y acertaste quién gana los penales (tu pick
@@ -55,12 +73,7 @@ export function knockoutPoints(
   real: KoReal | undefined,
 ): number {
   if (!pred || !real) return 0;
-  let pts = 0;
-  if (pred.homeGoals === real.homeGoals && pred.awayGoals === real.awayGoals) {
-    pts = SCORING.knockout.exact;
-  } else if (outcome(pred) === outcome(real)) {
-    pts = SCORING.knockout.winner;
-  }
+  let pts = knockoutResultPoints(pred, real);
   // Bonus: el cruce se definió por penales y acertaste al ganador de los penales.
   if (real.penalties && real.penWinner && pred.advance === real.penWinner) {
     pts += SCORING.knockout.penaltyWinner;

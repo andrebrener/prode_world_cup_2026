@@ -4,6 +4,7 @@ import {
   koWinner,
   predictedAdvancer,
   knockoutPoints,
+  knockoutResultPoints,
   extraPoints,
   saiBambaBonus,
   type KoPred,
@@ -162,6 +163,28 @@ describe("knockoutPoints (cruces de eliminatoria)", () => {
     const real: KoReal = { homeGoals: 1, awayGoals: 0, penalties: false, penWinner: null };
     expect(knockoutPoints(undefined, real)).toBe(0);
     expect(knockoutPoints(pred, undefined)).toBe(0);
+  });
+});
+
+describe("knockoutResultPoints (solo resultado, sin bonus de penales)", () => {
+  it("erró el resultado pero acertó al ganador de penales → 0 (el +2 no cuenta para racha)", () => {
+    // Puso 2-1 (ARG gana en los 90'); fue 1-1 a penales y ARG ganó los penales.
+    const pred: KoPred = { homeGoals: 2, awayGoals: 1, advance: "ARG" };
+    const real: KoReal = { homeGoals: 1, awayGoals: 1, penalties: true, penWinner: "ARG" };
+    expect(knockoutResultPoints(pred, real)).toBe(0);
+    expect(knockoutPoints(pred, real)).toBe(SCORING.knockout.penaltyWinner);
+  });
+
+  it("acertó el resultado (empate) en cruce a penales → 4, sin el +2", () => {
+    const pred: KoPred = { homeGoals: 0, awayGoals: 0, advance: "BRA" };
+    const real: KoReal = { homeGoals: 1, awayGoals: 1, penalties: true, penWinner: "BRA" };
+    expect(knockoutResultPoints(pred, real)).toBe(SCORING.knockout.winner);
+  });
+
+  it("marcador exacto → 6", () => {
+    const pred: KoPred = { homeGoals: 2, awayGoals: 1, advance: "ARG" };
+    const real: KoReal = { homeGoals: 2, awayGoals: 1, penalties: false, penWinner: null };
+    expect(knockoutResultPoints(pred, real)).toBe(SCORING.knockout.exact);
   });
 });
 

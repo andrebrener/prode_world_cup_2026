@@ -21,6 +21,7 @@ import {
   matchPoints,
   extraPoints,
   knockoutPoints,
+  knockoutResultPoints,
   saiBambaBonus,
   type ExtraPick,
   type KoReal,
@@ -50,6 +51,7 @@ import {
   matchDay,
   type MatchPointsMap,
   type PlayedCardEffect,
+  type StreakOverride,
 } from "../cards";
 import { computeStreak } from "../streaks";
 
@@ -510,6 +512,10 @@ async function computePoolScores(pool: Pool) {
   // maldición tuya) vs "ataque" (Caldeador que te tiró otro). Alimenta el 🃏/💥 de la tabla.
   const flipSelfByMember: Record<string, number> = {};
   const flipAtkByMember: Record<string, number> = {};
+  // Llaves donde el jugador solo sumó por el +2 de penales (erró el resultado pero
+  // acertó quién pasa): para la racha NO es acertar el partido, así que cortan la
+  // racha aunque tengan puntos. memberId → matchId → "break".
+  const streakBreaksByMember: Record<string, Record<string, StreakOverride>> = {};
   for (const person of people) {
     const preds = predsByPerson[person.id] ?? {};
     const koPreds = koPredsByPerson[person.id] ?? {};
@@ -554,6 +560,10 @@ async function computePoolScores(pool: Pool) {
           ? knockoutPoints(pred, km.result as KoReal)
           : purePts;
       flip(km.id, m[km.id] - purePts);
+      // Sumó algo pero el resultado lo erró → fue solo el +2 de penales: corta la racha.
+      if (m[km.id] > 0 && knockoutResultPoints(pred, km.result as KoReal) === 0) {
+        (streakBreaksByMember[person.id] ??= {})[km.id] = "break";
+      }
     }
     ptsByMember[person.id] = m;
     exactByMember[person.id] = exact;
@@ -565,7 +575,7 @@ async function computePoolScores(pool: Pool) {
   const defsById = pool.mode === "fun" ? await loadDefsById(poolId) : (new Map() as DefsById);
   const fun =
     pool.mode === "fun"
-      ? resolveFun(funCardRows, ptsByMember, bracket, people, defsById)
+      ? resolveFun(funCardRows, ptsByMember, bracket, people, defsById, streakBreaksByMember)
       : null;
 
   return {
@@ -1050,6 +1060,9 @@ function resolveFun(
   bracket: BracketState,
   people: { id: string; name: string }[],
   defsById: DefsById,
+  // Cortes de racha estructurales (no de cartas): llaves que solo sumaron por el
+  // +2 de penales. Se mergean con los overrides de cartas (las cartas ganan).
+  streakBreaks: Record<string, Record<string, StreakOverride>> = {},
 ): FunResolution {
   const played = cards.filter((c) => c.status === "played" && c.playedAt);
   // Carta jugada por id, para resolver su nombre/emoji del mazo del prode.
@@ -1120,7 +1133,12 @@ function resolveFun(
       points: effects.points[person.id] ?? {},
       matchOrder: resolvedIds,
       kickoffById,
-      overrides: effects.streakOverrides[person.id],
+      // Corte por +2-de-penales primero; un override de carta (Fernet protege,
+      // filtro saltea) pisa al estructural si la jugaron sobre ese partido.
+      overrides: {
+        ...streakBreaks[person.id],
+        ...effects.streakOverrides[person.id],
+      },
     });
     if (Object.keys(streak.bonusByMatch).length > 0)
       streakBonusByMatch[person.id] = streak.bonusByMatch;
