@@ -938,13 +938,15 @@ describe("applyCardEffects", () => {
       expect(r.atkDelta.beto).toBe(-5);
     });
 
-    it("Game is game: el que sube lo suma como carta propia, el que baja lo sufre como ataque", () => {
+    it("Game is game: el swap cuenta como ataque (💥) para ambos lados, no carta propia", () => {
       const r = applyCardEffects({
         ...opts,
         cards: [played("game_is_game", "ana", { targetId: "beto", flatPenalty: 12 })],
       });
-      expect(r.selfDelta.ana).toBe(12); // subió por SU carta
-      expect(r.atkDelta.beto).toBe(-12); // bajó por el ataque que le mandaron
+      expect(r.atkDelta.ana).toBe(12); // el +12 del dueño es ataque, no carta propia
+      expect(r.atkDelta.beto).toBe(-12); // el -12 de la víctima también es ataque
+      expect(r.selfDelta.ana ?? 0).toBe(0);
+      expect(r.selfDelta.beto ?? 0).toBe(0);
     });
 
     it("matambre: la víctima pierde sus puntos (ataque), el ladrón se los lleva (propio)", () => {
