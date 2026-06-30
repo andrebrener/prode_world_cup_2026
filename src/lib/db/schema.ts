@@ -164,6 +164,10 @@ export const poolFunConfig = sqliteTable("pool_fun_config", {
   posRemontadaBottom: integer("pos_remontada_bottom").notNull().default(4),
   // Golpe al Podio: pega del 2º hasta el Nº puesto (sin tocar al líder).
   posGolpePodio: integer("pos_golpe_podio").notNull().default(3),
+  // Puntos (selfAmount) de las posicionales planas, editables por el admin: pisan el
+  // valor del catálogo al resolver. Remontada suma (default +20), Golpe resta (default −15).
+  posRemontadaPoints: integer("pos_remontada_points").notNull().default(20),
+  posGolpePoints: integer("pos_golpe_points").notNull().default(-15),
   // Probabilidad de cada posicional: 1 en X días para un puesto elegible.
   posCaparazonOdds: integer("pos_caparazon_odds").notNull().default(4),
   posGolpeOdds: integer("pos_golpe_odds").notNull().default(6),

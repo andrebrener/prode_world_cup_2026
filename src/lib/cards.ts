@@ -718,6 +718,12 @@ export function applyCardEffects(opts: {
   /** Partidos CON resultado, ordenados por kickoff. */
   matchOrder: string[];
   kickoffById: Record<string, string>;
+  /**
+   * Puntos (selfAmount) configurables por prode para las posicionales planas
+   * (Remontada/Golpe): si la carta está acá, pisa el selfAmount del catálogo. Ausente
+   * = se usa el valor oficial del spec.
+   */
+  flatAmounts?: Partial<Record<CardType, number>>;
 }): FunEffects {
   const points: Record<string, MatchPointsMap> = {};
   for (const [member, map] of Object.entries(opts.base)) points[member] = { ...map };
@@ -933,6 +939,9 @@ export function applyCardEffects(opts: {
   for (const card of cards) {
     const spec = CARD_CATALOG[card.cardType]?.spec;
     if (spec?.outcome !== "flat_points") continue;
+    // El admin puede pisar el selfAmount de las posicionales planas (Remontada/Golpe);
+    // el resto (papas/speed/ramirez/pedo) usa el del catálogo.
+    const selfAmount = opts.flatAmounts?.[card.cardType] ?? spec.selfAmount;
     if (spec.victimAmount != null && card.targetId) {
       const to = card.reflected ? card.targetId : card.ownerId;
       const from = card.reflected ? card.ownerId : card.targetId;
@@ -941,14 +950,14 @@ export function applyCardEffects(opts: {
         add(flat, to, spec.victimAmount);
         attribute(card, to, spec.victimAmount);
       } else {
-        add(flat, to, spec.selfAmount);
-        attribute(card, to, spec.selfAmount);
+        add(flat, to, selfAmount);
+        attribute(card, to, selfAmount);
         add(flat, from, spec.victimAmount);
         attribute(card, from, spec.victimAmount);
       }
     } else {
-      add(flat, card.ownerId, spec.selfAmount);
-      attribute(card, card.ownerId, spec.selfAmount);
+      add(flat, card.ownerId, selfAmount);
+      attribute(card, card.ownerId, selfAmount);
     }
   }
 

@@ -606,7 +606,7 @@ export const CARD_CATALOG: Record<CardType, CardDef> = {
     blockable: false,
     positional: { ranks: [1, 2], oddsDenom: 6, minPlayers: 3 },
     effectLabel: "-15 puntos al 2º y al 3º del podio",
-    description: "Por andar cerca de la cima te llevás un golpe: -15 puntos. Le cae al 2º y al 3º de la tabla, más o menos una vez cada seis días. No se puede esquivar.",
+    description: "Por andar cerca de la cima te llevás un golpe: te resta puntos. Le cae al 2º y al 3º de la tabla, más o menos una vez cada seis días. No se puede esquivar.",
   }),
   remontada: c({
     type: "remontada",
@@ -620,7 +620,7 @@ export const CARD_CATALOG: Record<CardType, CardDef> = {
     blockable: false,
     positional: { ranks: [0, 1, 2, 3], oddsDenom: 5, minPlayers: 5, fromBottom: true },
     effectLabel: "+20 puntos a los últimos 4 de la tabla",
-    description: "Un envión para los de atrás: +20 puntos al toque. Le cae SOLO a los últimos cuatro de la tabla, más o menos una vez cada cinco días. Hay que reclamar la carta del día para llevársela.",
+    description: "Un envión para los de atrás: suma puntos al toque. Le cae SOLO a los últimos de la tabla, más o menos una vez cada cinco días. Hay que reclamar la carta del día para llevársela.",
   }),
 };
 
@@ -883,6 +883,10 @@ export type PositionalConfig = {
   remontadaBottomN: number;
   // Golpe al Podio: pega del 2º hasta el Nº puesto, sin tocar al líder (default 3 → 2º y 3º).
   golpePodioN: number;
+  // Puntos que da cada posicional plana (selfAmount): Remontada suma (default +20),
+  // Golpe resta (default −15). Pisan el valor del catálogo al puntuar.
+  remontadaPoints: number;
+  golpePoints: number;
   // Probabilidad de cada posicional: 1 en X días que le toca a un puesto elegible.
   caparazonOdds: number;
   golpeOdds: number;
@@ -900,6 +904,11 @@ export type FunConfig = {
 
 // Defaults de los posicionales, derivados del catálogo para no desincronizarse.
 const POS = (t: CardType) => CARD_CATALOG[t].positional!;
+// selfAmount del catálogo para las posicionales planas (Remontada/Golpe).
+const FLAT_SELF = (t: CardType) => {
+  const spec = CARD_CATALOG[t].spec;
+  return spec.outcome === "flat_points" ? spec.selfAmount : 0;
+};
 
 /** Config de sorteo default (los valores oficiales). */
 export const DEFAULT_FUN_CONFIG: FunConfig = {
@@ -908,6 +917,8 @@ export const DEFAULT_FUN_CONFIG: FunConfig = {
   positional: {
     remontadaBottomN: POS("remontada").ranks.length, // últimos 4
     golpePodioN: Math.max(...POS("golpe").ranks) + 1, // hasta el 3º (ranks [1,2])
+    remontadaPoints: FLAT_SELF("remontada"), // +20
+    golpePoints: FLAT_SELF("golpe"), // −15
     caparazonOdds: POS("caparazon").oddsDenom, // 1 en 4
     golpeOdds: POS("golpe").oddsDenom, // 1 en 6
     remontadaOdds: POS("remontada").oddsDenom, // 1 en 5

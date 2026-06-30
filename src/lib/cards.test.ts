@@ -269,6 +269,8 @@ describe("pickPositionalCard (Caparazón Azul / Golpe al Podio)", () => {
       positional: {
         remontadaBottomN: 2,
         golpePodioN: 4,
+        remontadaPoints: 20,
+        golpePoints: -15,
         caparazonOdds: 1,
         golpeOdds: 6,
         remontadaOdds: 5,
@@ -749,6 +751,25 @@ describe("applyCardEffects", () => {
   it("Golpe al Podio: -15 planos al dueño (maldición self)", () => {
     const r = applyCardEffects({ ...opts, cards: [played("golpe", "ana")] });
     expect(r.flat.ana).toBe(-15);
+  });
+
+  it("flatAmounts del admin pisa el selfAmount de Remontada y Golpe", () => {
+    const r = applyCardEffects({
+      ...opts,
+      cards: [played("remontada", "ana"), played("golpe", "beto")],
+      flatAmounts: { remontada: 30, golpe: -8 },
+    });
+    expect(r.flat.ana).toBe(30);
+    expect(r.flat.beto).toBe(-8);
+  });
+
+  it("flatAmounts no toca las otras planas (papas sigue +5)", () => {
+    const r = applyCardEffects({
+      ...opts,
+      cards: [played("papas", "ana")],
+      flatAmounts: { remontada: 30, golpe: -8 },
+    });
+    expect(r.flat.ana).toBe(5);
   });
 
   it("Caparazón Azul: resta el monto CONGELADO de la carta (flatPenalty)", () => {

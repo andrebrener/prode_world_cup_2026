@@ -201,6 +201,10 @@ function SorteoConfig({
   const [pos, setPos] = useState({
     remontadaBottom: config.posRemontadaBottom,
     golpePodio: config.posGolpePodio,
+    // Puntos: Remontada suma (guardamos el valor); Golpe resta (guardamos la magnitud,
+    // el signo negativo lo pone el save). Así el admin tipea siempre un número positivo.
+    remontadaPoints: config.posRemontadaPoints,
+    golpePoints: Math.abs(config.posGolpePoints),
     caparazonOdds: config.posCaparazonOdds,
     golpeOdds: config.posGolpeOdds,
     remontadaOdds: config.posRemontadaOdds,
@@ -291,7 +295,18 @@ function SorteoConfig({
                   onChange={(e) => setPos({ ...pos, remontadaBottom: num(e.target.value, 1) })}
                   className="mt-1 w-full rounded-lg border border-border bg-surface px-2 py-1 text-sm"
                 />
-                <span className="mt-0.5 block text-xs text-muted">+20 a los últimos {pos.remontadaBottom} de la tabla</span>
+                <span className="mt-0.5 block text-xs text-muted">+{pos.remontadaPoints} a los últimos {pos.remontadaBottom} de la tabla</span>
+              </label>
+              <label className="block">
+                <span className="text-xs font-semibold text-foreground">Puntos — suma</span>
+                <input
+                  type="number"
+                  min={1}
+                  value={pos.remontadaPoints}
+                  onChange={(e) => setPos({ ...pos, remontadaPoints: num(e.target.value, 1) })}
+                  className="mt-1 w-full rounded-lg border border-border bg-surface px-2 py-1 text-sm"
+                />
+                <span className="mt-0.5 block text-xs text-muted">+{pos.remontadaPoints} puntos al toque</span>
               </label>
               <label className="block">
                 <span className="text-xs font-semibold text-foreground">Probabilidad — 1 en</span>
@@ -318,7 +333,18 @@ function SorteoConfig({
                   onChange={(e) => setPos({ ...pos, golpePodio: num(e.target.value, 2) })}
                   className="mt-1 w-full rounded-lg border border-border bg-surface px-2 py-1 text-sm"
                 />
-                <span className="mt-0.5 block text-xs text-muted">-15 del 2º al {pos.golpePodio}º (el líder no)</span>
+                <span className="mt-0.5 block text-xs text-muted">-{pos.golpePoints} del 2º al {pos.golpePodio}º (el líder no)</span>
+              </label>
+              <label className="block">
+                <span className="text-xs font-semibold text-foreground">Puntos — resta</span>
+                <input
+                  type="number"
+                  min={1}
+                  value={pos.golpePoints}
+                  onChange={(e) => setPos({ ...pos, golpePoints: num(e.target.value, 1) })}
+                  className="mt-1 w-full rounded-lg border border-border bg-surface px-2 py-1 text-sm"
+                />
+                <span className="mt-0.5 block text-xs text-muted">-{pos.golpePoints} puntos por estar cerca de la cima</span>
               </label>
               <label className="block">
                 <span className="text-xs font-semibold text-foreground">Probabilidad — 1 en</span>
@@ -371,6 +397,9 @@ function SorteoConfig({
                 karmaTabla: karma,
                 posRemontadaBottom: pos.remontadaBottom,
                 posGolpePodio: pos.golpePodio,
+                posRemontadaPoints: pos.remontadaPoints,
+                // El Golpe resta: la magnitud que tipea el admin viaja con signo negativo.
+                posGolpePoints: -pos.golpePoints,
                 posCaparazonOdds: pos.caparazonOdds,
                 posGolpeOdds: pos.golpeOdds,
                 posRemontadaOdds: pos.remontadaOdds,

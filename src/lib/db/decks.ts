@@ -24,6 +24,8 @@ const DEFAULT_CONFIG_ROW = {
   weightMaldicion: DEFAULT_FUN_CONFIG.weights.maldicion,
   posRemontadaBottom: DEFAULT_FUN_CONFIG.positional.remontadaBottomN,
   posGolpePodio: DEFAULT_FUN_CONFIG.positional.golpePodioN,
+  posRemontadaPoints: DEFAULT_FUN_CONFIG.positional.remontadaPoints,
+  posGolpePoints: DEFAULT_FUN_CONFIG.positional.golpePoints,
   posCaparazonOdds: DEFAULT_FUN_CONFIG.positional.caparazonOdds,
   posGolpeOdds: DEFAULT_FUN_CONFIG.positional.golpeOdds,
   posRemontadaOdds: DEFAULT_FUN_CONFIG.positional.remontadaOdds,
@@ -96,6 +98,8 @@ export async function getPoolFunConfig(poolId: string, db: Db = defaultDb): Prom
     positional: {
       remontadaBottomN: row.posRemontadaBottom,
       golpePodioN: row.posGolpePodio,
+      remontadaPoints: row.posRemontadaPoints,
+      golpePoints: row.posGolpePoints,
       caparazonOdds: row.posCaparazonOdds,
       golpeOdds: row.posGolpeOdds,
       remontadaOdds: row.posRemontadaOdds,

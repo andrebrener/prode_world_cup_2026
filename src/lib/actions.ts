@@ -1039,6 +1039,9 @@ export type FunConfigPatch = {
   // Cartas posicionales: puestos a los que le caen + probabilidad (1 en X).
   posRemontadaBottom: number;
   posGolpePodio: number;
+  // Puntos (selfAmount): Remontada suma (>0), Golpe resta (<0).
+  posRemontadaPoints: number;
+  posGolpePoints: number;
   posCaparazonOdds: number;
   posGolpeOdds: number;
   posRemontadaOdds: number;
@@ -1063,6 +1066,10 @@ export async function updateFunConfigAction(
     // Remontada: al menos el último (1), tope sano. Golpe: arranca en el 2º (min 2).
     posRemontadaBottom: clamp(cfg.posRemontadaBottom, 1, 50),
     posGolpePodio: clamp(cfg.posGolpePodio, 2, 50),
+    // Puntos: Remontada suma (1..1000), Golpe resta (−1000..−1). El signo lo fija la
+    // naturaleza de la carta (buff / maldición); la UI manda el valor ya con signo.
+    posRemontadaPoints: clamp(cfg.posRemontadaPoints, 1, 1000),
+    posGolpePoints: clamp(cfg.posGolpePoints, -1000, -1),
     // Probabilidad 1 en X: X≥1 (1 = todos los días) para no dividir por cero.
     posCaparazonOdds: clamp(cfg.posCaparazonOdds, 1, 365),
     posGolpeOdds: clamp(cfg.posGolpeOdds, 1, 365),

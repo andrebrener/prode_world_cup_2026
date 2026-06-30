@@ -170,6 +170,8 @@ export type PoolAdminData = {
     karmaTabla: boolean;
     posRemontadaBottom: number;
     posGolpePodio: number;
+    posRemontadaPoints: number;
+    posGolpePoints: number;
     posCaparazonOdds: number;
     posGolpeOdds: number;
     posRemontadaOdds: number;
@@ -210,6 +212,8 @@ export async function getPoolAdmin(poolId: string): Promise<PoolAdminData> {
       karmaTabla: cfg?.karmaTabla ?? DEFAULT_FUN_CONFIG.karmaTabla,
       posRemontadaBottom: cfg?.posRemontadaBottom ?? DEFAULT_FUN_CONFIG.positional.remontadaBottomN,
       posGolpePodio: cfg?.posGolpePodio ?? DEFAULT_FUN_CONFIG.positional.golpePodioN,
+      posRemontadaPoints: cfg?.posRemontadaPoints ?? DEFAULT_FUN_CONFIG.positional.remontadaPoints,
+      posGolpePoints: cfg?.posGolpePoints ?? DEFAULT_FUN_CONFIG.positional.golpePoints,
       posCaparazonOdds: cfg?.posCaparazonOdds ?? DEFAULT_FUN_CONFIG.positional.caparazonOdds,
       posGolpeOdds: cfg?.posGolpeOdds ?? DEFAULT_FUN_CONFIG.positional.golpeOdds,
       posRemontadaOdds: cfg?.posRemontadaOdds ?? DEFAULT_FUN_CONFIG.positional.remontadaOdds,
@@ -573,9 +577,10 @@ async function computePoolScores(pool: Pool) {
   }
 
   const defsById = pool.mode === "fun" ? await loadDefsById(poolId) : (new Map() as DefsById);
+  const flatAmounts = pool.mode === "fun" ? await loadFlatAmounts(poolId) : {};
   const fun =
     pool.mode === "fun"
-      ? resolveFun(funCardRows, ptsByMember, bracket, people, defsById, streakBreaksByMember)
+      ? resolveFun(funCardRows, ptsByMember, bracket, people, defsById, flatAmounts, streakBreaksByMember)
       : null;
 
   return {
@@ -952,6 +957,21 @@ async function loadDefsById(poolId: string): Promise<DefsById> {
 }
 
 /**
+ * Puntos (selfAmount) configurables del prode para las posicionales planas: pisan el
+ * valor del catálogo al puntuar (Remontada suma, Golpe resta). Sin fila → defaults.
+ */
+async function loadFlatAmounts(poolId: string): Promise<Partial<Record<CardType, number>>> {
+  const [row] = await db
+    .select({ remontada: poolFunConfig.posRemontadaPoints, golpe: poolFunConfig.posGolpePoints })
+    .from(poolFunConfig)
+    .where(eq(poolFunConfig.poolId, poolId));
+  return {
+    remontada: row?.remontada ?? DEFAULT_FUN_CONFIG.positional.remontadaPoints,
+    golpe: row?.golpe ?? DEFAULT_FUN_CONFIG.positional.golpePoints,
+  };
+}
+
+/**
  * Resuelve el CardDef de DISPLAY de una carta jugada: mecánica del registro +
  * cosmético del mazo del prode (si la carta apunta a una def). Fallback al catálogo.
  */
@@ -1060,6 +1080,8 @@ function resolveFun(
   bracket: BracketState,
   people: { id: string; name: string }[],
   defsById: DefsById,
+  // Puntos configurables de las posicionales planas (Remontada/Golpe): pisan el spec.
+  flatAmounts: Partial<Record<CardType, number>>,
   // Cortes de racha estructurales (no de cartas): llaves que solo sumaron por el
   // +2 de penales. Se mergean con los overrides de cartas (las cartas ganan).
   streakBreaks: Record<string, Record<string, StreakOverride>> = {},
@@ -1088,6 +1110,7 @@ function resolveFun(
     base: ptsByMember,
     matchOrder: resolvedIds,
     kickoffById,
+    flatAmounts,
   });
 
   // Partidos ya jugados (con resultado): un efecto atado a otro partido sigue pendiente.

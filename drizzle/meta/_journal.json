@@ -85,6 +85,13 @@
       "when": 1782739713341,
       "tag": "0011_perpetual_pixie",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1782829527195,
+      "tag": "0012_cuddly_captain_stacy",
+      "breakpoints": true
     }
   ]
 }
