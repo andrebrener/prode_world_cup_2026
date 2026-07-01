@@ -177,7 +177,7 @@ export default async function PoolTabla({
       )}
 
       {/* Leaderboard (filas clickeables → drawer con todos los pronósticos) */}
-      <Leaderboard rows={leaderboard} poolId={isFun ? pool.id : undefined} />
+      <Leaderboard rows={leaderboard} meId={participant.id} poolId={isFun ? pool.id : undefined} />
       {leaderboard.length > 0 && (
         <p className="-mt-5 text-xs text-muted">Tocá un jugador para ver todos sus pronósticos.</p>
       )}

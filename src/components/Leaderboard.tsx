@@ -64,9 +64,11 @@ const fmtDelta = (n: number) =>
 
 export default function Leaderboard({
   rows,
+  meId,
   poolId,
 }: {
   rows: LeaderboardRow[];
+  meId?: string;
   poolId?: string;
 }) {
   const fun = rows.some((r) => r.fun);
@@ -142,16 +144,20 @@ export default function Leaderboard({
             </tr>
           </thead>
           <tbody>
-            {rows.map((row, i) => (
+            {rows.map((row, i) => {
+              const me = !!meId && row.id === meId;
+              return (
               <tr
                 key={row.id}
                 onClick={() => open(row)}
-                className="cursor-pointer border-b border-border/60 transition last:border-0 hover:bg-background"
+                className={`cursor-pointer border-b border-border/60 transition last:border-0 hover:bg-background ${
+                  me ? "bg-primary/[0.07]" : ""
+                }`}
               >
                 {/* Foto full-bleed con la posición superpuesta (sin columna #).
                     El alto fijo del bloque dicta la altura de la fila: absolute
                     inset-0 directo en el td no funciona en tablas. */}
-                <td className="w-14 p-0 align-middle sm:w-16">
+                <td className={`w-14 p-0 align-middle sm:w-16 ${me ? "border-l-[3px] border-primary" : ""}`}>
                   <div
                     className="relative h-14 w-14 sm:h-16 sm:w-16"
                     onClick={(e) => {
@@ -180,6 +186,11 @@ export default function Leaderboard({
                   <span className="block min-w-0">
                     <span className="block" style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}>
                       {row.name}
+                      {me && (
+                        <span className="ml-1.5 hidden rounded-md bg-primary px-1.5 py-px align-middle text-[10px] font-black uppercase tracking-wide text-primary-ink sm:inline-block">
+                          Vos
+                        </span>
+                      )}
                       {row.fun?.overlay?.nickname && (
                         <span
                           className="fun-text ml-1 font-black"
@@ -256,7 +267,8 @@ export default function Leaderboard({
                   {row.total}
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>
